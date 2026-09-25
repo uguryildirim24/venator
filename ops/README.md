@@ -1,43 +1,41 @@
-# Scheduled pipeline operations
+# Running the pipeline on a timer (macOS)
 
-The optional `dev.venator.loop` user agent can run the Venator pipeline every
-six hours from a checkout. No agent is installed or loaded by this repository.
-When explicitly activated, the loop uses the local `uv` executable, creates
-local data commits when needed, and never pushes them.
+If you want Venator to fetch on its own, you can install a launchd agent,
+`dev.venator.loop`, that runs the loop every six hours from your checkout. Nothing in
+this repository installs or loads it. Building or testing Venator never runs
+`launchctl`.
 
-The agent definition is **generated, not committed**: launchd has no shell, no
-`PATH`, and no working directory of its own, so the plist needs absolute paths —
-and those are one person's home directory. `venator.schedule.agent` resolves
-them from this checkout and the current account at install time.
+The agent runs `uv run python -m venator.schedule.loop`, which does Discover, the Hard
+Filters and a view rebuild. It never runs Jev and never commits or pushes anything.
 
-Activation is an explicit Owner operation — building or testing Venator does not
-run `launchctl`.
+The plist is generated, not committed. launchd gives a job no shell, no `PATH` and no
+working directory, so the plist needs absolute paths, and those are specific to your
+account. `venator.schedule.agent` fills them in from this checkout when you install
+it. It only works on macOS.
 
-## Inspect before activation
+## Look before you install
 
-Run from the repo root:
+From the repository root:
 
 ```sh
-uv run python -m venator.schedule.agent            # print the resolved plist
+uv run python -m venator.schedule.agent            # print the plist
 uv run python -m venator.schedule.agent --out /tmp/dev.venator.loop.plist && plutil -lint /tmp/dev.venator.loop.plist
 uv run python -m venator.schedule.loop --dry-run
 ```
 
-Add `--profile <name>` when more than one Profile exists, so the scheduled loop
-runs for the one you mean rather than refusing to guess. `--uv`, `--home`, and
-`--repository` override what the generator resolved.
+If you have more than one Profile, add `--profile <name>` so the timer runs the one
+you mean instead of refusing to guess. `--uv`, `--home` and `--repository` override
+the paths the generator found, and `--interval` changes the six hours (in seconds).
 
-## Install and activate
+## Install
 
 ```sh
 mkdir -p "$HOME/Library/Logs/venator" "$HOME/Library/LaunchAgents" && uv run python -m venator.schedule.agent --out "$HOME/Library/LaunchAgents/dev.venator.loop.plist" && launchctl bootstrap "gui/$UID" "$HOME/Library/LaunchAgents/dev.venator.loop.plist"
 ```
 
-The plist does not use `RunAtLoad`, so the first automatic invocation is due
-after the six-hour `StartInterval`.
-
-Moving the checkout invalidates the installed plist's `WorkingDirectory` —
-regenerate and re-bootstrap after a move.
+The plist doesn't set `RunAtLoad`, so the first run happens six hours after you load
+it. If you move the checkout, the plist's `WorkingDirectory` is wrong. Generate it
+again and bootstrap it again.
 
 ## Uninstall
 
@@ -47,23 +45,24 @@ launchctl bootout "gui/$UID" "$HOME/Library/LaunchAgents/dev.venator.loop.plist"
 
 ## Logs and health
 
-Tail both launchd streams:
+Follow both logs:
 
 ```sh
 tail -F "$HOME/Library/Logs/venator/loop.stdout.log" "$HOME/Library/Logs/venator/loop.stderr.log"
 ```
 
-Inspect the loaded agent and its next-run bookkeeping:
+See the loaded job and when it runs next:
 
 ```sh
 launchctl print "gui/$UID/dev.venator.loop"
 ```
 
-Verify heartbeats after a scheduled run, from the repo root:
+Check the heartbeats after a run. They are in the Install's data directory (or in
+`$VENATOR_HOME/data/` if you set it):
 
 ```sh
-tail -n 10 data/runs.jsonl && git log -1 --oneline -- data/
+tail -n 10 "$HOME/Library/Application Support/Venator/data/runs.jsonl"
 ```
 
-Every executed stage writes `at`, `status`, and `stage`. An `error` heartbeat
-names the failed stage, and later stages do not run.
+Each stage that runs writes a line with `at`, `status` and `stage`. If a stage fails,
+its line has `status` `error` and names it, and the stages after it don't run.

@@ -1,33 +1,36 @@
-# Running Venator
+# Running Venator from a terminal
 
-Run commands from the repository root. Nothing is scheduled or activated by
-installing the project. Personal stores live in the Install's application-data
-directory, never the checkout. Set `VENATOR_HOME` to a fresh directory to select
-a different Install for development or testing.
+Everything the dashboard does, you can also do from a terminal. Run these commands
+from the repository root. Installing Venator doesn't schedule or start anything.
 
-## Prerequisites
+Your Profiles and stores live in the Install's application data directory, not in
+the checkout (ADR-0002). Set `VENATOR_HOME` to another directory to use a separate
+Install, for testing or development.
+
+## Setup
 
 ```bash
 uv sync
-uv run playwright install chromium   # browser tools only
-cd ui && pnpm install --frozen-lockfile && cd ..
+uv run playwright install chromium   # only for the browser tools
+pnpm --dir ui install --frozen-lockfile
 ```
 
-Optional integrations:
+Two things are optional:
 
-- Jev execution: export `TYPESAFE_API_KEY` only for the authorized command.
-  Preparation, Hard Filters, status, view builds and probes do not read it.
-- Document preparation: sign in to the local `claude` CLI, or explicitly select
-  a configured `codex` or `api` runtime.
+- **Jev.** Export `TYPESAFE_API_KEY` only for the command that runs Jev. Preparing
+  applications, the Hard Filters, status, view builds and probes never read it.
+- **Document preparation.** Sign in to the `claude` CLI, or pick the `codex` or
+  `api` runtime on purpose (see Completion runtimes below).
 
-A Profile is three YAML files under `profiles/<name>/` in a checkout or under
-the Install's application-data directory. `--profile` takes a name, never a
-path. When more than one non-scaffold Profile exists, every stage requires the
-name rather than guessing.
+A Profile is three YAML files in `<Install>/profiles/<name>/`, or in `profiles/<name>/`
+in the checkout. `--profile` takes a name, never a path. A name is looked up in the
+Install first, so an Install Profile wins over a checkout Profile with the same name.
+If more than one real (non-scaffold) Profile exists, every stage needs `--profile`
+and refuses to guess.
 
-## The normal pipeline
+## The pipeline
 
-Use one calendar date for stages that take `--as-of`:
+Use the same date for every stage that takes `--as-of`:
 
 ```bash
 uv run python -m venator.discover.run --profile NAME
@@ -35,38 +38,40 @@ uv run python -m venator.match.run --profile NAME --as-of YYYY-MM-DD
 uv run python -m venator.view.build --profile NAME --as-of YYYY-MM-DD
 ```
 
-At this revision the dashboard Refresh action runs the same stages, in that order, with bounded
-interactive discovery:
+The dashboard's Refresh runs the same three stages through the loop, with Discover
+kept short so the screen gets an answer quickly:
 
 ```bash
 uv run python -m venator.schedule.loop \
-  --only discover,filters,view --profile NAME --as-of YYYY-MM-DD \
-  --interactive-discover
+  --only discover,filters,view --profile NAME --interactive-discover
 ```
 
-Refresh uses `fetch-and-filter`; **Jev it** is a separate Owner-authorized
-Jev run. Neither starts document preparation, browser handoff or submission.
+Jev it is a separate run (see step 3). Neither Refresh nor Jev it prepares
+documents, opens a browser or submits anything.
 
 ### 1. Discover
 
-`venator.discover.run` reads search terms and board registrations from the
-Profile. It refreshes Greenhouse, Lever, Ashby, SmartRecruiters and Workday
-boards. A terminal or scheduled run walks each Workday board to its reported
-total, then drains descriptions for every Posting that passes the Hard Filters.
-The drain keeps one paced session per Workday tenant, rotates across employers,
-and runs a few tenants at once. The dashboard uses bounded listing and detail
-windows so its interactive refresh returns promptly. New observations append to
-`data/postings/<date>.jsonl`; source failures remain visible and do not turn an
-old Posting into a closed one.
+`venator.discover.run` reads the search terms and registered boards from the
+Profile and fetches Postings from Greenhouse, Lever, Ashby, SmartRecruiters,
+Workday, iCIMS, Workable, Avature, PeopleClick and TalentBrew boards.
 
-Probe one board without writing the store:
+A terminal or scheduled run walks each Workday board to the total it reports, then
+fetches full descriptions for the Postings that pass the Hard Filters. It keeps one
+paced session per Workday tenant and works on a few tenants at a time. The dashboard
+uses shorter windows so Refresh comes back quickly.
+
+New observations go into `data/postings/<date>.jsonl`. When a source fails, the
+failure is recorded and shown. An old Posting is not marked closed just because its
+board didn't answer.
+
+Test one board without writing anything:
 
 ```bash
 uv run python -m venator.discover.run \
-  --profile NAME --probe greenhouse:ginkgobioworks
+  --profile NAME --probe greenhouse:cloudflare
 ```
 
-Find or register boards without editing the Profile automatically:
+Find boards and print what to add to a Profile. Neither command edits the Profile:
 
 ```bash
 uv run python -m venator.discover.harvest --profile NAME
@@ -74,56 +79,69 @@ uv run python -m venator.discover.register \
   https://jobs.lever.co/example --name "Example" --profile NAME
 ```
 
-A board registration needs both its board token and its employer display name
-under `sources`. The name participates in Dedup and therefore in
-`filters_version`; the board polling list itself does not.
+`harvest` suggests boards linked from Postings you already have. `register` takes a
+board URL or an employer's careers page, finds the board, checks that it answers, and
+prints the two lines to add.
+
+A board needs both its token under `sources.boards` and the employer's display name
+under `sources.names`. The name is used for Dedup, so it counts toward
+`filters_version`. The list of boards to poll does not.
 
 ### 2. Hard Filters
 
-`venator.match.run` applies configured deterministic Hard Filters and appends
-one Filter Decision per Posting it reaches. An unconfigured filter kills
-nothing. No Posting disappears without a decision.
+`venator.match.run` applies the Hard Filters the Profile enables
+(`work_authorization`, `education_fit`, `role_target`, `eligibility`) and appends one
+Filter Decision per Posting it sees. A filter with no wording kills nothing. Every
+Posting gets a decision, including the ones that pass.
 
-A real change to filter code or Profile decision inputs moves
-`filters_version`; the next run appends a replay rather than changing old rows.
-Effective state is the latest row per `(posting_key, stage)`.
+When filter code or the Profile's decision inputs change, `filters_version` changes
+and the next run appends a replay. Old rows stay as they are. The effective decision
+is the latest row per `(posting_key, stage)`.
 
-With `qualification_mode: jev`, `--as-of` is required so Jev freshness and Hard
-Filter evidence resolve against the same month. Hard Filters still decide;
-shadow Jev results do not change Hard Filter Decisions; current Jev results
-route passed Postings into the dashboard's For you, Explore and Excluded lists.
+With `qualification_mode: jev`, `--as-of` is required so that Jev freshness and the
+Hard Filter evidence use the same month. Jev never changes a Filter Decision. Current
+Jev results only decide which dashboard list a passing Posting lands in: For you,
+Explore or Excluded.
 
-### 3. Jev qualification
+### 3. Jev
 
-An Install Profile can use Jev in shadow mode. Previewing is local and makes
-no HTTPS request:
+A Profile can run Jev in shadow mode. A preview is local and sends nothing:
 
 ```bash
 uv run python -m venator.qualify.jev \
   --profile NAME --as-of YYYY-MM-DD --mode shadow
 ```
 
-The preview reports selected cases. To execute an authorized pass:
+The preview lists what would be sent. To send it:
 
 ```bash
-export TYPESAFE_API_KEY=...  # set without printing or writing it
+export TYPESAFE_API_KEY=...  # set it without printing or saving it
 uv run python -m venator.qualify.jev \
   --profile NAME --as-of YYYY-MM-DD --mode shadow --execute
 unset TYPESAFE_API_KEY
 ```
 
-`--max-usd` and `--max-requests` are optional per-command caps. If omitted,
-there is no cap. `--posting-key` limits selection to named Postings.
-`--offline --execute` records only reusable validated cache entries and makes no
-HTTPS request.
+Options:
 
-Rows append to `data/qualifications/<date>.jsonl`; validated response bodies are
-cached under `data/qualifications/jev/responses/`. A killed, closed, snippet-only
-or protected Posting is not sent. The wire input is limited by invariant I10 to
-the student projection, Posting title and description, and allowed spans.
+- `--max-usd` and `--max-requests` cap one command. Without them there is no cap.
+- `--posting-key` limits the run to the Postings you name.
+- `--offline --execute` records only validated results that are already cached and
+  sends nothing.
 
-Do not use `--mode promoted`. Promotion requires an active frozen release and
-the protected Gate Q process, whose tool is not built.
+The dashboard's Jev it runs `venator.schedule.loop --only jev --as-of DATE`, which
+calls Jev with `--pipeline`. In that mode the cap comes from `VENATOR_JEV_MAX_USD`,
+or $10 if it isn't set. Jev it always sets it to $10. If there is no key, no credit,
+a service or network failure, or the cap is reached, Jev stops cleanly, keeps earlier
+results and records how many Postings are still waiting. The next Jev it picks them
+up.
+
+Results are appended to `data/qualifications/<date>.jsonl`, and validated responses
+are cached under `data/qualifications/jev/responses/`. Killed, closed, snippet-only
+and protected Postings are never sent. Invariant I10 limits what goes over the wire
+to the student projection, the Posting title and description, and allowed spans.
+
+Don't use `--mode promoted`. Promotion needs an active frozen release and a
+protected final check, and that tool isn't in this repository.
 
 ### 4. Build the view
 
@@ -132,33 +150,27 @@ uv run python -m venator.view.build \
   --profile NAME --as-of YYYY-MM-DD
 ```
 
-This atomically rebuilds `build/venator.db` from the JSONL stores. The database
-is disposable and may be deleted and rebuilt. It contains current Postings,
-Filter Decisions, assessments, Jev triage, Track state, source health and run
-heartbeats.
+This rebuilds `build/venator.db` from the JSONL stores in one atomic step. The file
+is disposable: delete it and build it again whenever you like. It holds current
+Postings, Filter Decisions, assessments, Jev results, Track state, source health and
+run heartbeats. Building it makes no network request and never calls Jev or any
+other model.
 
-A view build makes no network request and never invokes Jev or another model.
-
-### 5. Review in the dashboard
+### 5. Open the dashboard
 
 ```bash
-cd ui
-pnpm dev       # browser development server
-pnpm desktop   # Tauri development host
+pnpm --dir ui dev       # in a browser, at http://127.0.0.1:5173
+pnpm --dir ui desktop   # the same app in a Tauri window
 ```
 
-The API binds to `127.0.0.1`. Mount order is intentional: runs, applications
-and onboarding are mounted before the read-only `/api` surface so desktop CORS
-preflights reach the correct write surface.
+The API listens only on `127.0.0.1`. The lists are **For you** (Jev says look first),
+**Explore** (Jev says review), **Awaiting Jev**, **Applications**, and **Excluded**
+(Hard Filter kills and Jev exclusions). Employer HTML is shown in a sandboxed iframe.
 
-The lists are **For you** (Jev prioritize), **Explore** (Jev review),
-**Awaiting Jev**, **Applications** and **Excluded** (Hard Filter kills and Jev
-exclusions). Employer HTML is rendered in a sandboxed iframe.
+## Applying
 
-## Application actions
-
-The dashboard calls `python -m venator.applications`; the same actions can be
-run directly:
+The dashboard runs `python -m venator.applications` for every application action.
+You can run them directly:
 
 ```bash
 uv run python -m venator.applications status POSTING_KEY --profile NAME
@@ -168,35 +180,45 @@ uv run python -m venator.applications restore POSTING_KEY --profile NAME
 uv run python -m venator.applications applied POSTING_KEY --profile NAME
 ```
 
-`applied` records the Owner's manual report. It does not send anything to an
-employer.
+`applied` records that you applied. It sends nothing to the employer.
 
-Preparation reverifies the exact employer listing, reruns the Hard Filters, and
-then uses the explicitly selected completion runtime:
+To prepare documents, pick the runtime explicitly:
 
 ```bash
 uv run python -m venator.applications prepare POSTING_KEY \
   --profile NAME --provider claude
-# add --cover-letter only when wanted
+# add --cover-letter if you want one
 ```
 
-Prepared files are versioned and hashed under `data/applications/`. A changed
-Posting, Profile or file is refused rather than silently reused.
+Preparing checks the employer's listing again and reruns the Hard Filters. Then one
+completion drafts résumé bullets (and a cover letter if asked) from confirmed Profile
+facts, and a second completion checks every drafted passage against those facts.
+A rewritten bullet that fails the check goes back to your original wording, and a
+cover-letter paragraph that fails it is removed. Files are versioned and hashed under
+`data/applications/`. If the Posting, the Profile or a file has changed, the old
+bundle is refused rather than reused.
 
-A visible handoff requires a current verified bundle:
+To get a prepared file back (`resume.pdf`, `resume.txt` or `letter.txt`):
+
+```bash
+uv run python -m venator.applications file POSTING_KEY \
+  --profile NAME --file resume.pdf
+```
+
+Handoff needs a current, verified bundle:
 
 ```bash
 uv run python -m venator.applications handoff POSTING_KEY --profile NAME
 ```
 
-Greenhouse handoff can fill confirmed fields and upload verified prepared
-files. Other sources may use a manual/download fallback. The browser stays
-visible for the person to review, answer anything still missing, handle a
-CAPTCHA if present, and submit.
+It opens a visible browser with its own saved profile, so logins stick. For
+Greenhouse it fills confirmed fields and uploads the prepared files. Other sources
+open for you to fill in by hand. Either way you review the form, answer what's
+missing, deal with any CAPTCHA, and press submit yourself.
 
 ## Dry Run browser tools
 
-The separate Dry Run path remains useful for form reconnaissance:
+The Dry Run tools are still useful for looking at a form:
 
 ```bash
 uv run python -m venator.browser.recon POSTING_KEY --profile NAME
@@ -206,14 +228,14 @@ uv run python -m venator.browser.fill POSTING_KEY --profile NAME \
   --plan build/fill/<posting>/plan.json
 ```
 
-A FillPlan must carry literal `never_submit: true`. The driver aborts
-`POST`/`PUT`/`PATCH`/`DELETE`, cancels and counts submit events, skips file
-fields, and reports every planned field as filled, skipped or failed. Recon
-records CAPTCHAs and never solves them.
+A FillPlan must contain the literal `never_submit: true`. The driver aborts every
+`POST`, `PUT`, `PATCH` and `DELETE`, cancels and counts submit events, skips file
+fields, and reports each planned field as filled, skipped or failed. Recon notes a
+CAPTCHA and never solves it.
 
-## Track CLI
+## Track
 
-Track events are append-only under `data/track/`:
+Track events are appended under `data/track/`:
 
 ```bash
 uv run python -m venator.track.status --profile NAME
@@ -222,49 +244,52 @@ uv run python -m venator.track.record outcome POSTING_KEY \
   --profile NAME --detail interview
 ```
 
-Events are `approve`, `reject`, `prepare`, `fill`, `submit`, `restore`,
-`outcome` and `withdraw`. `submit` is an Owner report, not an employer request.
-Historical pipeline-actor submit rows remain readable.
+The events are `approve`, `reject`, `prepare`, `fill`, `submit`, `restore`,
+`outcome` and `withdraw`. `submit` is your own report that you applied. It is not a
+request to the employer. Older `submit` rows written by the pipeline still load.
 
 ## Completion runtimes
 
-The default completion runtime is the local `claude` CLI. Another runtime is
-used only when explicitly selected:
+By default, completions go to the local `claude` CLI. Another runtime is used only
+when you pick it:
 
 ```bash
 uv run python -m venator.llm.probe --json
 VENATOR_LLM_RUNTIME=codex uv run python -m venator.llm.probe --json
 ```
 
-The key endpoint stays off unless all of `VENATOR_LLM_API_URL`,
-`VENATOR_LLM_API_MODEL` and `VENATOR_LLM_API_KEY_VAR` are set and the `api`
-lane is selected. CLI child environments are allowlisted. Failures never quote
-provider text into the append-only store.
+The key endpoint stays off unless `VENATOR_LLM_API_URL`, `VENATOR_LLM_API_MODEL` and
+`VENATOR_LLM_API_KEY_VAR` are all set and you select the `api` lane. There is no
+fallback from one runtime to another. Child processes get an allowlisted
+environment, and provider text is never copied into the stores.
 
-TypeSafe System One is separate from these completion runtimes. Only
-`venator.qualify.jev --execute` reads `TYPESAFE_API_KEY`.
+TypeSafe (Jev) is not one of these runtimes. Only `venator.qualify.jev --execute`
+reads `TYPESAFE_API_KEY`.
 
 ## Stores
 
-| Path | Writer | Lifetime |
+| Path | Written by | Kept |
 |---|---|---|
 | `data/postings/<date>.jsonl` | Discover | append-only |
 | `data/decisions/<date>.jsonl` | Hard Filters | append-only |
 | `data/qualifications/<date>.jsonl` | Jev | append-only |
-| `data/qualifications/jev/responses/` | Jev | immutable validated cache |
+| `data/qualifications/jev/responses/` | Jev | validated cache, never edited |
 | `data/track/<date>.jsonl` | Track | append-only |
-| `data/runs.jsonl` | pipeline loop | append-only |
+| `data/runs.jsonl` | the loop | append-only |
 | `data/applications/` | preparation | versioned bundles |
 | `build/venator.db` | view build | disposable |
 | `build/fill/` | Dry Run tools | disposable |
 
-One decisions store and one Track store belong to one Profile. Their `.profile`
-stamps enforce that boundary; `profile_id` on rows is evidence, not a second
-lock. Historical `llm_score` rows still decode, but nothing writes a new one.
+All of these paths are inside the Install directory, even when you run commands from
+a checkout.
 
-Stores and Profiles live in the platform application-data directory, including
-when commands run from a checkout. `VENATOR_HOME` selects another Install.
-See [ADR-0002](adr/0002-checkout-is-the-tenant-boundary.md).
+The decisions store and the Track store each belong to one Profile, enforced by a
+`.profile` stamp in the directory. A `profile_id` on a row is only evidence. Old
+`llm_score` rows still load, but nothing writes new ones.
+
+To merge another Install's history into this one, stop both writers and run
+`uv run python -m venator.import_stores --from ROOT`, where `ROOT` holds a `data/`
+directory. It only appends what is missing.
 
 ## Scheduling
 
@@ -272,25 +297,25 @@ See [ADR-0002](adr/0002-checkout-is-the-tenant-boundary.md).
 uv run python -m venator.schedule.loop --dry-run --profile NAME
 ```
 
-The stage order is `discover, filters, view, commit`. `--only` chooses a subset
-without reordering it. Personal stores are outside Git; the commit stage skips
-them. The loop never pushes.
+The loop knows five stages, in this order: `discover, filters, jev, view, commit`.
+With no `--only` it runs `discover,filters,view`. `--only` picks a subset but can't
+change the order. `jev` runs only when you name it. `commit` runs only when you name
+it and `data/` is inside a Git work tree, which an Install normally isn't. The loop
+never pushes.
 
-A macOS launchd file can be generated using [ops/README.md](../ops/README.md),
-but none is loaded by this repository.
+To run it every six hours on a Mac, see [ops/README.md](../ops/README.md). Nothing in
+this repository loads a launchd job for you.
 
-## Validation
+## Checks
 
 ```bash
 VENATOR_HANDOFF_HEADLESS=1 uv run pytest -q
-cd ui
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm smoke
+pnpm --dir ui lint
+pnpm --dir ui typecheck
+pnpm --dir ui test
+pnpm --dir ui build
+pnpm --dir ui smoke
 ```
 
-No Python linter or type checker is configured. The UI uses strict TypeScript
-and anti-slop lint rules. These gates make no live TypeSafe request and do not
-submit an application.
+There's no Python linter or type checker. The UI uses strict TypeScript and the
+anti-slop lint rules. None of these checks calls TypeSafe or submits an application.
