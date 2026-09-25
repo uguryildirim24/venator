@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Fixture application form</title>
+    <style>
+      body { font-family: sans-serif; max-width: 720px; margin: 20px auto; }
+      label, fieldset { display: block; margin: 14px 0; }
+      input, textarea, select { display: block; margin-top: 4px; }
+      fieldset label { display: inline-block; margin-right: 18px; }
+      fieldset input { display: inline; }
+    </style>
+  </head>
+  <body>
+    <h1>Local fixture</h1>
+    <form id="application-form">
+      <label for="full_name">Full Name *</label>
+      <input id="full_name" name="full_name" type="text" required>
+
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes"></textarea>
+
+      <label for="discipline">Discipline *</label>
+      <select id="discipline" name="discipline" required>
+        <option value="">Choose one</option>
+        <option value="lab">Lab</option>
+        <option value="data">Data</option>
+      </select>
+
+      <fieldset>
+        <legend>Contact Preference *</legend>
+        <label><input name="contact" type="radio" value="email" required> Email</label>
+        <label><input name="contact" type="radio" value="phone" required> Phone</label>
+      </fieldset>
+
+      <label><input id="updates" name="updates" type="checkbox"> Product Updates</label>
+
+      <label for="resume">Resume *</label>
+      <input id="resume" name="resume" type="file" required>
+
+      <button id="submit-control" type="submit">Submit application</button>
+    </form>
+    <script>
+      window.fixtureSubmitEvents = 0;
+      document.querySelector("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        window.fixtureSubmitEvents += 1;
+      });
+    </script>
+  </body>
+</html>

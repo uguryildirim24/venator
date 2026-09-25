@@ -1,0 +1,32 @@
+{
+  "posting": {
+    "key": "fixture:uncued",
+    "title": "Fixture Posting",
+    "description_html": "<h2>Qualifications</h2><p>Laboratory experience</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Qualifications:\nLaboratory experience",
+    "spans": [
+      {
+        "id": "req-01",
+        "text": "Laboratory experience",
+        "start": 16,
+        "end": 37,
+        "hint": "unknown",
+        "atom_kinds": [],
+        "atom_hints": [],
+        "tree": null
+      }
+    ]
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "Laboratory experience",
+      "modality": "unknown",
+      "atom_binding": null
+    }
+  ]
+}

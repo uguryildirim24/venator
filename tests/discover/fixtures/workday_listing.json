@@ -1,0 +1,30 @@
+{
+  "total": 3,
+  "jobPostings": [
+    {
+      "title": "Summer 2027 Intern - Process Development",
+      "externalPath": "/job/US---Cambridge-MA/Summer-2027-Intern---Process-Development_R-192837",
+      "locationsText": "US - Cambridge, MA",
+      "postedOn": "Posted Today",
+      "startDate": "2026-08-17",
+      "bulletFields": ["R-192837"]
+    },
+    {
+      "title": "Associate Scientist, Analytical Sciences",
+      "externalPath": "/job/US---Thousand-Oaks-CA/Associate-Scientist--Analytical-Sciences_R-104556",
+      "locationsText": "US - Thousand Oaks, CA",
+      "additionalLocations": ["US - Cambridge, MA", "US - Thousand Oaks, CA"],
+      "postedOn": "Posted 5 Days Ago",
+      "startDate": "2026-08-12",
+      "bulletFields": ["R-104556"]
+    },
+    {
+      "title": "Senior Manager, Regulatory Affairs",
+      "externalPath": "/job/US---Remote/Senior-Manager--Regulatory-Affairs_R-100001",
+      "locationsText": "US - Remote",
+      "postedOn": "Posted 30+ Days Ago",
+      "startDate": "2026-07-04",
+      "bulletFields": ["R-100001"]
+    }
+  ]
+}

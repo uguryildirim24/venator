@@ -1,0 +1,38 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "qualified",
+  "findings": [
+    {
+      "obligation_id": "ob-001",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a1",
+      "quote": "BS required",
+      "modality": "required",
+      "status": "met",
+      "fact_ids": [
+        "edu-01"
+      ],
+      "basis": ""
+    },
+    {
+      "obligation_id": "ob-002",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a2",
+      "quote": "MS preferred",
+      "modality": "preferred",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    }
+  ],
+  "undecidable": [
+    {
+      "obligation_id": "ob-002",
+      "why": "no_profile_fact"
+    }
+  ],
+  "decisive": [],
+  "support": [
+    "ob-001"
+  ]
+}

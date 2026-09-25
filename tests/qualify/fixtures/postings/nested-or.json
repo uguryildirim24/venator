@@ -1,0 +1,68 @@
+{
+  "posting": {
+    "key": "fixture:nested-or",
+    "title": "Fixture Posting",
+    "description_html": "<h2>Requirements</h2><p>(BS and 4 years) or (MS and 2 years) or 8 years</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Requirements:\n(BS and 4 years) or (MS and 2 years) or 8 years",
+    "spans": [
+      {
+        "id": "req-01",
+        "text": "(BS and 4 years) or (MS and 2 years) or 8 years",
+        "start": 14,
+        "end": 61,
+        "hint": "unknown",
+        "atom_kinds": [
+          "degree",
+          "years",
+          "degree",
+          "years",
+          "years"
+        ],
+        "atom_hints": [
+          "unknown",
+          "unknown",
+          "unknown",
+          "unknown",
+          "unknown"
+        ],
+        "tree": "Expr(op='OR', children=(Expr(op='AND', children=('req-01.a1', 'req-01.a2')), Expr(op='AND', children=('req-01.a3', 'req-01.a4')), 'req-01.a5'))"
+      }
+    ]
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "BS",
+      "modality": "required",
+      "atom_binding": "req-01.a1"
+    },
+    {
+      "obligation_id": "ob-002",
+      "quote": "4 years",
+      "modality": "required",
+      "atom_binding": "req-01.a2"
+    },
+    {
+      "obligation_id": "ob-003",
+      "quote": "MS",
+      "modality": "required",
+      "atom_binding": "req-01.a3"
+    },
+    {
+      "obligation_id": "ob-004",
+      "quote": "2 years",
+      "modality": "required",
+      "atom_binding": "req-01.a4"
+    },
+    {
+      "obligation_id": "ob-005",
+      "quote": "8 years",
+      "modality": "required",
+      "atom_binding": "req-01.a5"
+    }
+  ]
+}

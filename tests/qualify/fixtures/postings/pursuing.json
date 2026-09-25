@@ -1,0 +1,36 @@
+{
+  "posting": {
+    "key": "fixture:pursuing",
+    "title": "Fixture Posting",
+    "description_html": "<h2>Requirements</h2><p>Currently pursuing a BS</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Requirements:\nCurrently pursuing a BS",
+    "spans": [
+      {
+        "id": "req-01",
+        "text": "Currently pursuing a BS",
+        "start": 14,
+        "end": 37,
+        "hint": "unknown",
+        "atom_kinds": [
+          "degree"
+        ],
+        "atom_hints": [
+          "unknown"
+        ],
+        "tree": null
+      }
+    ]
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "Currently pursuing a BS",
+      "modality": "required",
+      "atom_binding": "req-01.a1"
+    }
+  ]
+}

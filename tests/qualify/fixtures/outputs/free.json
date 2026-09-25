@@ -1,0 +1,23 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "qualified",
+  "findings": [
+    {
+      "obligation_id": "ob-001",
+      "requirement_id": "free",
+      "atom_id": "free.7c4e5463.a1",
+      "quote": "Applicants should have a BS.",
+      "modality": "required",
+      "status": "met",
+      "fact_ids": [
+        "edu-01"
+      ],
+      "basis": ""
+    }
+  ],
+  "undecidable": [],
+  "decisive": [],
+  "support": [
+    "ob-001"
+  ]
+}

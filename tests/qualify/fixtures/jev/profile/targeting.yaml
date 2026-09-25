@@ -1,0 +1,30 @@
+profile:
+  name: jev-fixture
+  synthetic: true
+search:
+  timing:
+    expected_graduation: "2029-05"
+    expected_graduation_confirmed: true
+    enrollment: current
+filters:
+  enabled: [education_fit]
+  qualification_mode: jev
+  shift_preference: no_weekends
+  education_fit:
+    in_progress: bachelor
+  jev:
+    policy_version: fictional-student-1
+    restricted_roles: exclude
+    temporary_student_authorization_exclusion: review
+    no_sponsorship_student: retain
+    no_sponsorship_nonstudent: review
+    unmet_completed_degree: exclude
+    domains:
+      - biochemistry
+      - laboratory_research
+      - pharmacy
+      - quality_control
+      - biomanufacturing
+      - clinical_research
+      - computational_life_sciences
+      - regulatory_science

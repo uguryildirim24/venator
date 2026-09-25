@@ -1,0 +1,29 @@
+{
+  "decision": "exclude",
+  "fit_probability": 0.85,
+  "fit_score": 0.8875,
+  "primary_rule": "restricted_role",
+  "review_flags": [],
+  "diagnostic_flags": [],
+  "degree_timing_review": false,
+  "experience_timing_review": false,
+  "exclusions": [
+    {
+      "rule": "restricted_role",
+      "basis": "model_assisted_policy",
+      "question_ids": [
+        "citizenship_or_clearance"
+      ],
+      "probabilities": [
+        [
+          "citizenship_or_clearance",
+          0.95
+        ]
+      ],
+      "guard_code": "fired",
+      "policy_value": "exclude",
+      "policy_exclusion": true
+    }
+  ],
+  "raw_variant": "restricted_role"
+}

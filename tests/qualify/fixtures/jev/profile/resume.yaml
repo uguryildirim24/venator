@@ -1,0 +1,15 @@
+education:
+  - org: Example Polytechnic
+    degree: BS in Biochemistry
+    date: May 2029 (Expected)
+    gpa: "3.40"
+    coursework: Organic Chemistry; Cell Biology
+experience:
+  - org: Example Robotics Lab
+    role: Laboratory Assistant
+    dates: January 2025 - August 2025
+    bullets:
+      - Prepared buffers and ran PCR assays
+technical_proficiencies:
+  - label: Laboratory
+    items: PCR, chromatography

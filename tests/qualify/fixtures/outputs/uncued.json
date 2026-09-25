@@ -1,0 +1,26 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "cannot_tell",
+  "findings": [
+    {
+      "obligation_id": "ob-001",
+      "requirement_id": "req-01",
+      "atom_id": null,
+      "quote": "Laboratory experience",
+      "modality": "unknown",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    }
+  ],
+  "undecidable": [
+    {
+      "obligation_id": "ob-001",
+      "why": "unresolved_modality"
+    }
+  ],
+  "decisive": [
+    "ob-001"
+  ],
+  "support": []
+}

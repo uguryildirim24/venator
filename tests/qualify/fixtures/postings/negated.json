@@ -1,0 +1,32 @@
+{
+  "posting": {
+    "key": "fixture:negated",
+    "title": "Fixture Posting",
+    "description_html": "<h2>Qualifications</h2><p>No degree required</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Qualifications:\nNo degree required",
+    "spans": [
+      {
+        "id": "req-01",
+        "text": "No degree required",
+        "start": 16,
+        "end": 34,
+        "hint": "preferred",
+        "atom_kinds": [],
+        "atom_hints": [],
+        "tree": null
+      }
+    ]
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "No degree required",
+      "modality": "preferred",
+      "atom_binding": null
+    }
+  ]
+}

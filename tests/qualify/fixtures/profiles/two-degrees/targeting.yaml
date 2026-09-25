@@ -1,0 +1,12 @@
+profile:
+  name: two-degrees
+  synthetic: true
+search:
+  timing:
+    expected_graduation: "2027-05"
+    expected_graduation_confirmed: true
+filters:
+  enabled: [education_fit]
+  education_fit:
+    holds: bachelor
+    in_progress: master

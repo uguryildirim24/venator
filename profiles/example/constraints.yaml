@@ -1,0 +1,52 @@
+# Profile: work authorization, and the answers an application form may use.
+# Policy: no blind filtering — every Posting is stored, every Filter Decision
+# is logged with its reason and replayable when these rules change.
+#
+# The Hard Filter wording itself lives in targeting.yaml. This file holds the
+# facts about you that an employer's form asks for directly.
+
+work_authorization:
+  # Free text, quoted back verbatim when a form asks for your status.
+  # Leave null if you would rather no form field is answered from it.
+  status: null
+  # Set true ONLY if you will truthfully require employer sponsorship. Left
+  # null or false, a sponsorship question is left unmapped rather than
+  # answered — the planner never guesses "No" on your behalf.
+  requires_sponsorship: null
+  # "Are you legally authorized to work in <country>?" — your own answer, and
+  # nothing infers it from the status above. true answers such a question Yes,
+  # false answers it No. Left null (or absent), it is NOT a No: the question
+  # goes to `unmapped` and stays yours to answer by hand.
+  # This is a different question from requires_sponsorship, and the two stay
+  # separate: saying you are authorized never answers a sponsorship question.
+  authorized_to_work: null
+
+volume:
+  daily_queue_cap: none # everything passing filters enters the Review Queue
+
+# Your application answers. Leave a value null until you can answer it
+# truthfully; quote answers exactly as the ATS displays them. EEO fields are
+# always optional and are never defaulted to a decline response.
+screening:
+  salary_expectations: null
+  resides_near_posting: null
+  prior_employment_at_company: null
+  relatives_at_company: null
+  how_heard: null
+  country: null
+  eeo:
+    gender: null
+    hispanic_latino: null
+    veteran_status: null
+    disability_status: null
+
+# Explicit, reviewable spellings for when your Profile value and the ATS's
+# option list say the same thing differently. Deliberately small: adding an
+# entry means you know both the Profile value and the ATS's canonical label.
+# Anything not listed here must match an option exactly or the field goes to
+# `unmapped` — the planner never fuzzy-guesses.
+option_aliases: {}
+#   school:
+#     Your University: [Your University (Main Campus)]
+#   degree:
+#     Bachelor of Science in Computer Science: [Bachelor's Degree]

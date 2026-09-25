@@ -1,0 +1,320 @@
+/*
+ * The venator token layer. Every colour, measurement, radius and type step the dashboard
+ * draws with is named here, and nothing outside this file may invent one (ui/DESIGN.md,
+ * "Still true").
+ *
+ * The values are measured from Apple's macOS 27 UI Kit, as ui/DESIGN.md records them. Two
+ * bands:
+ *   1. Scale     — spacing, measures, radii, type, motion. Scheme-independent.
+ *   2. Colour    — the kit's grounds and labels, ember, and green. Declared for light on
+ *                  :root and swapped wholesale for dark, in all three scheme blocks.
+ *
+ * Scheme resolution: light is the base, `prefers-color-scheme: dark` swaps it, and
+ * `data-theme="light" | "dark"` on <html> overrides the system in either direction. Nothing in
+ * the app sets that attribute: light and dark follow the system, on the web and on the desktop.
+ *
+ * One accent, ember, and it paints exactly six things: list selection while the list has
+ * focus, the prominent toolbar button, the prominent press of a setup step or first-run state,
+ * sidebar symbols, the new-Posting dot, and the "required and not on your résumé" mark. Green
+ * is the "on your résumé" mark and its check, and the filled ready check in setup, and nothing
+ * else. Every other thing is grey. There is no red.
+ */
+
+:root {
+	/* ------------------------------------------------------------------ 1. scale */
+
+	/* Spacing: a 2-point step at the small end, 4-point above it. */
+	--space-0-5: 2px;
+	--space-1: 4px;
+	--space-1-5: 6px;
+	--space-2: 8px;
+	--space-2-5: 10px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+	--space-7: 28px;
+	--space-8: 32px;
+	--space-9: 36px;
+	--space-10: 40px;
+	--space-12: 48px;
+	--space-16: 64px;
+
+	/* Lines. */
+	--hairline-width: 1px;
+	--bar-width: 2px;
+	--mark-thickness: 2px;
+	--mark-offset: 4px;
+
+	/* The window, measured at the 1440×900 reference. */
+	--sidebar-width: 240px;
+	/* What the macOS traffic lights cover of a toolbar they sit over, with the sidebar hidden. */
+	--traffic-lights-width: 84px;
+	--toolbar-height: 52px;
+	--list-width: 400px;
+	--search-width: 176px;
+	--row-height: 32px;
+	--table-row-height: 24px;
+	--control-height: 24px;
+	--toolbar-control-height: 36px;
+	--icon-size: 16px;
+	--icon-stroke: 1.5;
+	--glyph-size: 12px;
+	--dot-size: 8px;
+	--cell-gutter: 16px;
+
+	/* The Posting page and its margin. */
+	--page-width: 480px;
+	--page-gap: 36px;
+	--page-fold: 720px;
+	--thumb-width: 40px;
+	--thumb-height: 52px;
+	--thumb-line: 3px;
+
+	/* Setting up a Profile, and every other System Settings column. */
+	--settings-width: 560px;
+	/* Where the setup column starts under the title bar, and where its footer rests. */
+	--setup-inset-top: 44px;
+	--setup-inset-bottom: 40px;
+	--setup-gap: 28px;
+	--setup-gap-tight: 22px;
+	/* A setup form row's label column, the résumé drop zone, and one line under a vendor button. */
+	--form-label-width: 110px;
+	--drop-height: 232px;
+	--dash-width: 1.5px;
+	--dash-pattern: 6px;
+	--vendor-button-height: 40px;
+	--vendor-line-width: 240px;
+	/* Controls one size up from the toolbar's: setup and the first-run states. */
+	--control-height-large: 28px;
+	--field-height: 28px;
+	--popup-width: 230px;
+	/* The first-run states: a glyph, a title, one sentence, a press. */
+	--empty-glyph: 40px;
+	--empty-width: 340px;
+	--spinner-size: 28px;
+	--progress-height: 4px;
+	--sweep-width: 40%;
+	--sheet-width: 560px;
+	--sheet-wide: 860px;
+	--sheet-height: 70vh;
+
+	/* Radii. */
+	--radius-control: 6px;
+	--radius-cell: 10px;
+	--radius-group: 10px;
+	--radius-sheet: 12px;
+	--radius-card: 12px;
+	--radius-chip: 5px;
+	--radius-window: 16px;
+	--radius-capsule: 999px;
+
+	/* Type. The system face for the app, Charter for the Posting page. */
+	--font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+	--font-page: Charter, "Bitstream Charter", "Charis SIL", Georgia, serif;
+	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+	--size-large-title: 26px;
+	--leading-large-title: 32px;
+	--size-title1: 22px;
+	--leading-title1: 26px;
+	--size-title2: 20px;
+	--leading-title2: 25px;
+	--size-title3: 15px;
+	--leading-title3: 20px;
+	--size-headline: 13px;
+	--leading-headline: 16px;
+	--size-body: 13px;
+	--leading-body: 16px;
+	--size-callout: 12px;
+	--leading-callout: 15px;
+	--size-subheadline: 11px;
+	--leading-subheadline: 14px;
+	--size-footnote: 10px;
+	--leading-footnote: 13px;
+	--size-list-title: 14px;
+	--leading-list-title: 18px;
+	--size-page-title: 28px;
+	--leading-page-title: 34px;
+	--size-page-heading: 18px;
+	--leading-page-heading: 24px;
+	--size-page-text: 16px;
+	--leading-page-text: 26px;
+
+	--weight-regular: 400;
+	--weight-medium: 500;
+	--weight-semibold: 600;
+	--weight-bold: 700;
+
+	/* Motion. Selection is instant; popovers and sheets use this one ease. */
+	--motion-base: 180ms;
+	--spin-duration: 900ms;
+	--ease: cubic-bezier(0.2, 0, 0, 1);
+
+	/* ------------------------------------------------------------- 2. colour: light */
+
+	color-scheme: light;
+
+	--window: #ffffff;
+	--sidebar: #e6e6e6;
+	--canvas: #d9d9d9;
+	--label-primary: rgba(0, 0, 0, 0.85);
+	--label-secondary: rgba(0, 0, 0, 0.5);
+	--label-tertiary: rgba(0, 0, 0, 0.25);
+	--label-quinary: rgba(0, 0, 0, 0.05);
+	--label-faint: rgba(0, 0, 0, 0.35);
+	--label-faint-bar: rgba(0, 0, 0, 0.28);
+	--column-separator: rgba(0, 0, 0, 0.1);
+	--row-selected-inactive: rgba(0, 0, 0, 0.14);
+	--row-hover: rgba(0, 0, 0, 0.04);
+	--sidebar-selected: #d9d9d9;
+	--control: #ebebeb;
+	--control-pressed: #dedede;
+	--search-field: #f6f6f6;
+	/* The kit's fills: a setup card or group (5%), the drop zone (3%), a chip (10%). */
+	--group: rgba(0, 0, 0, 0.05);
+	--drop: rgba(0, 0, 0, 0.03);
+	--chip: rgba(0, 0, 0, 0.1);
+	--field: #ffffff;
+	--field-edge: rgba(0, 0, 0, 0.12);
+	--ember: #b4521c;
+	--ember-selection: #b4521c;
+	--ember-vibrant: #c9601f;
+	--on-ember: #ffffff;
+	--on-green: #ffffff;
+	--green: #34c759;
+	--green-mark: #28a745;
+	--page-thumb: #ffffff;
+	--page-thumb-edge: rgba(0, 0, 0, 0.12);
+	--page-thumb-line: rgba(0, 0, 0, 0.18);
+	--page-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+	--focus-ring: rgba(0, 0, 0, 0.45);
+	--scrim: rgba(0, 0, 0, 0.2);
+	--window-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 24px 64px rgba(0, 0, 0, 0.28);
+	--sheet-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 16px 48px rgba(0, 0, 0, 0.24);
+
+	/*
+	 * Vendor grounds — the two runtime buttons on the setup step, and nowhere else.
+	 *
+	 * These are not an accent: they are the two colours the Owner named for the two runtimes a
+	 * person can connect, on one control each. No vendor logo is drawn anywhere; each button
+	 * names its runtime in plain text. The inks hold 4.5:1 on their own ground.
+	 */
+	--vendor-claude-bg: #d97757;
+	--vendor-claude-bg-hover: #e28a6b;
+	--vendor-claude-fg: #20120c;
+	--vendor-claude-edge: rgba(32, 18, 12, 0.24);
+	--vendor-chatgpt-bg: #ffffff;
+	--vendor-chatgpt-bg-hover: #f5f5f5;
+	--vendor-chatgpt-fg: #0d0d0d;
+	--vendor-chatgpt-edge: rgba(0, 0, 0, 0.45);
+}
+
+/* ---------------------------------------------------------------- colour: dark */
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		color-scheme: dark;
+
+		--window: #1e1e1e;
+		--sidebar: #161616;
+		--canvas: #0b0b0b;
+		--label-primary: rgba(255, 255, 255, 0.85);
+		--label-secondary: rgba(255, 255, 255, 0.55);
+		--label-tertiary: rgba(255, 255, 255, 0.25);
+		--label-quinary: rgba(255, 255, 255, 0.05);
+		--label-faint: rgba(255, 255, 255, 0.35);
+		--label-faint-bar: rgba(255, 255, 255, 0.28);
+		--column-separator: rgba(255, 255, 255, 0.1);
+		--row-selected-inactive: rgba(255, 255, 255, 0.18);
+		--row-hover: rgba(255, 255, 255, 0.05);
+		--sidebar-selected: #232323;
+		--control: #2e2e2e;
+		--control-pressed: #3a3a3a;
+		--search-field: #313131;
+		--group: rgba(255, 255, 255, 0.05);
+		--drop: rgba(255, 255, 255, 0.03);
+		--chip: rgba(255, 255, 255, 0.1);
+		--field: rgba(255, 255, 255, 0.06);
+		--field-edge: rgba(255, 255, 255, 0.12);
+		--ember: #b4521c;
+		--ember-selection: #a94d1b;
+		--ember-vibrant: #f08a4b;
+		--on-ember: #ffffff;
+		--on-green: #ffffff;
+		--green: #30d158;
+		--green-mark: #30d158;
+		--page-thumb: #ffffff;
+		--page-thumb-edge: rgba(0, 0, 0, 0.12);
+		--page-thumb-line: rgba(0, 0, 0, 0.18);
+		--page-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+		--focus-ring: rgba(255, 255, 255, 0.5);
+		--scrim: rgba(0, 0, 0, 0.45);
+		--window-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 24px 64px rgba(0, 0, 0, 0.6);
+		--sheet-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 48px rgba(0, 0, 0, 0.6);
+
+		--vendor-claude-bg: #d97757;
+		--vendor-claude-bg-hover: #e28a6b;
+		--vendor-claude-fg: #20120c;
+		--vendor-claude-edge: rgba(255, 255, 255, 0.22);
+		--vendor-chatgpt-bg: #ffffff;
+		--vendor-chatgpt-bg-hover: #f5f5f5;
+		--vendor-chatgpt-fg: #0d0d0d;
+		--vendor-chatgpt-edge: rgba(255, 255, 255, 0.45);
+	}
+}
+
+/*
+ * The explicit override. Duplicated from the media query above on purpose: a custom property
+ * set cannot be shared between a media rule and an attribute rule, and a runtime class would
+ * flash the wrong scheme before React mounts.
+ */
+:root[data-theme="dark"] {
+	color-scheme: dark;
+
+	--window: #1e1e1e;
+	--sidebar: #161616;
+	--canvas: #0b0b0b;
+	--label-primary: rgba(255, 255, 255, 0.85);
+	--label-secondary: rgba(255, 255, 255, 0.55);
+	--label-tertiary: rgba(255, 255, 255, 0.25);
+	--label-quinary: rgba(255, 255, 255, 0.05);
+	--label-faint: rgba(255, 255, 255, 0.35);
+	--label-faint-bar: rgba(255, 255, 255, 0.28);
+	--column-separator: rgba(255, 255, 255, 0.1);
+	--row-selected-inactive: rgba(255, 255, 255, 0.18);
+	--row-hover: rgba(255, 255, 255, 0.05);
+	--sidebar-selected: #232323;
+	--control: #2e2e2e;
+	--control-pressed: #3a3a3a;
+	--search-field: #313131;
+	--group: rgba(255, 255, 255, 0.05);
+	--drop: rgba(255, 255, 255, 0.03);
+	--chip: rgba(255, 255, 255, 0.1);
+	--field: rgba(255, 255, 255, 0.06);
+	--field-edge: rgba(255, 255, 255, 0.12);
+	--ember: #b4521c;
+	--ember-selection: #a94d1b;
+	--ember-vibrant: #f08a4b;
+	--on-ember: #ffffff;
+	--on-green: #ffffff;
+	--green: #30d158;
+	--green-mark: #30d158;
+	--page-thumb: #ffffff;
+	--page-thumb-edge: rgba(0, 0, 0, 0.12);
+	--page-thumb-line: rgba(0, 0, 0, 0.18);
+	--page-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+	--focus-ring: rgba(255, 255, 255, 0.5);
+	--scrim: rgba(0, 0, 0, 0.45);
+	--window-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 24px 64px rgba(0, 0, 0, 0.6);
+	--sheet-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 48px rgba(0, 0, 0, 0.6);
+
+	--vendor-claude-bg: #d97757;
+	--vendor-claude-bg-hover: #e28a6b;
+	--vendor-claude-fg: #20120c;
+	--vendor-claude-edge: rgba(255, 255, 255, 0.22);
+	--vendor-chatgpt-bg: #ffffff;
+	--vendor-chatgpt-bg-hover: #f5f5f5;
+	--vendor-chatgpt-fg: #0d0d0d;
+	--vendor-chatgpt-edge: rgba(255, 255, 255, 0.45);
+}

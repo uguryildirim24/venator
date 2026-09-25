@@ -1,0 +1,141 @@
+{
+  "state": {
+    "applicant": {
+      "authorization": {
+        "authorized_to_work": true,
+        "fact_status": "confirmed",
+        "id": "auth",
+        "requires_sponsorship": false
+      },
+      "availability": {
+        "available_from": null,
+        "available_until": null,
+        "enrollment": "current",
+        "expected_graduation": "2029-05",
+        "expected_graduation_confirmed": true,
+        "fact_status": "confirmed",
+        "id": "avail"
+      },
+      "coursework": [
+        {
+          "education_id": "edu-01",
+          "evidence_level": null,
+          "fact_status": "confirmed",
+          "id": "cw-001",
+          "name": "Organic Chemistry",
+          "supporting_ids": []
+        },
+        {
+          "education_id": "edu-01",
+          "evidence_level": null,
+          "fact_status": "confirmed",
+          "id": "cw-002",
+          "name": "Cell Biology",
+          "supporting_ids": []
+        }
+      ],
+      "credentials": [],
+      "education": [
+        {
+          "award_year": null,
+          "degree_level": "bachelor",
+          "expected_completion": "2029-05",
+          "fact_status": "confirmed",
+          "field_of_study": "Biochemistry",
+          "gpa": "3.40",
+          "id": "edu-01",
+          "institution_placeholder": "Institution A",
+          "status": "in_progress"
+        }
+      ],
+      "education_policy": {
+        "fact_status": "confirmed",
+        "holds": null,
+        "id": "edupol",
+        "in_progress": "bachelor",
+        "kill_completed_degree": false
+      },
+      "experience": [
+        {
+          "bullets": [
+            {
+              "fact_status": "confirmed",
+              "id": "exp-01-b1",
+              "text": "Prepared buffers and ran PCR assays"
+            }
+          ],
+          "current": false,
+          "fact_status": "confirmed",
+          "id": "exp-01",
+          "kind": "employment",
+          "months": 8,
+          "organization_placeholder": "Organisation A",
+          "role": "Laboratory Assistant"
+        }
+      ],
+      "schema": "qualify-profile-3",
+      "skills": [
+        {
+          "education_id": null,
+          "evidence_level": "bullet",
+          "fact_status": "confirmed",
+          "id": "skill-001",
+          "name": "PCR",
+          "supporting_ids": [
+            "exp-01-b1"
+          ]
+        },
+        {
+          "education_id": null,
+          "evidence_level": "listed",
+          "fact_status": "confirmed",
+          "id": "skill-002",
+          "name": "chromatography",
+          "supporting_ids": []
+        }
+      ],
+      "withheld_counts": {
+        "bullets": 0,
+        "names": 0,
+        "other": 0
+      }
+    },
+    "policy": {
+      "restricted_roles": "exclude",
+      "temporary_student_authorization_exclusion": "review",
+      "no_sponsorship_student": "retain",
+      "no_sponsorship_nonstudent": "review",
+      "unmet_completed_degree": "exclude",
+      "domains": {
+        "biochemistry": "Biochemical or molecular investigation of biological systems",
+        "biomanufacturing": "Scientific or technical production of biological or pharmaceutical products",
+        "clinical_research": "Clinical-study coordination, operations and research support, not unrelated licensed clinical practice",
+        "computational_life_sciences": "Computation directly analyzing biological, chemical or biomedical questions, not generic software infrastructure",
+        "laboratory_research": "Hands-on biological, chemical or biomedical laboratory research and technical support",
+        "pharmacy": "Pharmacy operations and pharmacy-technician work",
+        "quality_control": "Laboratory quality testing and quality assurance of life-sciences materials or products",
+        "regulatory_science": "Scientific documentation and regulatory support for biological or pharmaceutical products"
+      }
+    },
+    "posting": {
+      "title": "Laboratory Intern",
+      "description_text": "Summer internship for currently enrolled undergraduates. Bachelor's degree required. GPA 3.0. Start in June 2029. Biochemistry laboratory work."
+    }
+  },
+  "as_of_month": "2026-09",
+  "posting_key": "fixture:jev-lab-intern",
+  "occupancy_all": 8,
+  "education_refutable": true,
+  "experience_refutable": true,
+  "expected_graduation": "2029-05",
+  "start_clause_months": [
+    "2029-06"
+  ],
+  "graduation_clause_months": [],
+  "policy_hash": "48ca2f01824784598fd61bcd47d2df3a1407ea300f2f18213c989316d802f032",
+  "profile_hash": "867db7b486e1",
+  "accepted_profile_hash": "9872400125790a369a8b38ccbea983998ed0316961ef639eb6cf562b7a968fce",
+  "questions_sha256": "fcefa25ba53be99ac3ff3f5a35ecc950f5cdcee13eac9e2ee732a0ea17539816",
+  "state_sha256": "7463bcccc37da8c47df210529a4a29af73371b968fe8e9fbe762b6865f193b0a",
+  "gpa_projected": "3.40"
+}

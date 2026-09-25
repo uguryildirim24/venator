@@ -1,0 +1,33 @@
+{
+  "$id": "qualify-output-2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "decision", "findings", "undecidable", "decisive", "support"],
+  "properties": {
+    "contract": {"const": "qualify-output-2"},
+    "decision": {"enum": ["qualified", "not_qualified", "cannot_tell"]},
+    "findings": {"type": "array", "minItems": 0, "maxItems": 120, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["obligation_id", "requirement_id", "atom_id", "quote", "modality", "status", "fact_ids", "basis"],
+      "properties": {
+        "obligation_id": {"type": "string", "pattern": "^ob-[0-9]{3}$"},
+        "requirement_id": {"type": "string", "pattern": "^req-[0-9]{2}$|^free$"},
+        "atom_id": {"type": ["string", "null"], "pattern": "^req-[0-9]{2}\\.a[0-9]+$|^free\\.[0-9a-f]{8}\\.a[0-9]+$"},
+        "quote": {"type": "string", "minLength": 3, "maxLength": 400},
+        "modality": {"enum": ["required", "preferred", "unknown"]},
+        "status": {"enum": ["met", "not_met", "undecidable"]},
+        "fact_ids": {"type": "array", "maxItems": 12, "items": {"type": "string", "pattern": "^(edu|exp|skill|cw|cred)-[0-9]{2,3}(-b[0-9]+)?$|^auth$|^avail$|^edupol$"}},
+        "basis": {"type": "string", "maxLength": 320}
+      }
+    }},
+    "undecidable": {"type": "array", "maxItems": 120, "items": {"type": "object", "additionalProperties": false,
+      "required": ["obligation_id", "why"], "properties": {
+        "obligation_id": {"type": "string", "pattern": "^ob-[0-9]{3}$"},
+        "why": {"enum": ["no_profile_fact", "ambiguous_requirement", "needs_owner_input", "outside_scope", "unresolved_modality", "threshold_margin", "split_required"]}
+      }
+    }},
+    "decisive": {"type": "array", "maxItems": 40, "items": {"type": "string", "pattern": "^ob-[0-9]{3}$"}},
+    "support": {"type": "array", "maxItems": 120, "items": {"type": "string", "pattern": "^ob-[0-9]{3}$"}}
+  }
+}

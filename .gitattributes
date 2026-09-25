@@ -1,0 +1,51 @@
+# Line endings are part of this repository's data, not a local preference.
+#
+# `filters_version()` (src/venator/match/store.py) hashes the *working-tree
+# bytes* of a Profile's constraints.yaml. Under Git for Windows' installer
+# default (`core.autocrlf=true`) that file is checked out with CRLF, the hash
+# moves, and every Filter Decision written on that machine carries a version no
+# macOS or Linux machine will ever reproduce. `match.run` then replays
+# stored Filter Decisions; `data/` is append-only (ADR-0001).
+# (targeting.yaml is accidentally immune — it has NON_DECIDING_BLOCKS
+# exclusions and is therefore re-serialized canonically before hashing. Do not
+# rely on that: constraints.yaml is hashed as raw bytes.)
+#
+# So: every text file in this repository is LF in the working tree, on every
+# platform. tests/ci/test_gitattributes.py asserts that this file covers every
+# path filters_version() hashes, plus data/**/*.jsonl.
+* text=auto eol=lf
+
+# The append-only stores are the transport (ADR-0001). A line written with CRLF
+# can never be rewritten, so pin them explicitly rather than leaning on the
+# `text=auto` heuristic above.
+data/**/*.jsonl text eol=lf
+data/decisions/.profile text eol=lf
+data/track/.profile text eol=lf
+
+# The Profile files filters_version() hashes, named outright.
+profiles/**/constraints.yaml text eol=lf
+profiles/**/targeting.yaml text eol=lf
+
+# `pnpm snapshot` writes these and they are compared as text; keep them LF so a
+# snapshot taken on Windows is comparable with one taken anywhere else.
+# (ui/.gitignore ignores the directory today; the rule is here so it holds if
+# that ever changes.)
+ui/snapshots/*.html text eol=lf
+
+# Genuinely binary. Git's own heuristic — a NUL byte in the first 8000 — happens
+# to protect all 21 committed binaries today, but it is a heuristic and one
+# asset without an early NUL would be corrupted by newline translation. Name
+# them instead.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.icns  binary
+*.db    binary
+*.sqlite binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary

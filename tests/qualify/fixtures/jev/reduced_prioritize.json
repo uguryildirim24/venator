@@ -1,0 +1,11 @@
+{
+  "decision": "prioritize",
+  "fit_probability": 0.85,
+  "fit_score": 0.8875,
+  "primary_rule": null,
+  "review_flags": [],
+  "diagnostic_flags": [],
+  "degree_timing_review": false,
+  "experience_timing_review": false,
+  "exclusions": []
+}

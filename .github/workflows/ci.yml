@@ -1,0 +1,911 @@
+# CI — the two verification suites the runbook tells a human to run before
+# trusting a change, on Linux and now on Windows, plus two checks on the change
+# itself, run on every push and pull request against main.
+#
+# What it guards, and why each part exists separately:
+#
+#   python  — `uv run pytest` over tests/, the enforcement layer for the safety
+#             gates in docs/RUNNING.md ("nothing submits", `never_submit` is a
+#             literal, state-changing requests are aborted, illegal Track
+#             transitions are errors). Four of those tests drive a real Chromium
+#             through Playwright against a local file:// fixture, so the browser
+#             is installed here rather than the suite being trimmed to what runs
+#             without one — a dry-run guard that is never exercised is not a
+#             guard. A step after the suite reads its own JUnit report and
+#             refuses a run in which those browser tests were skipped, missing
+#             or deselected, because a green suite that never executed them
+#             looks exactly like a green suite that did. It installs Node as
+#             well as Python: the cases that say the dashboard's YAML emitter
+#             writes what the Profile loader reads now *run* that emitter rather
+#             than a Python copy of it, so the shipping TypeScript and PyYAML are
+#             measured against each other.
+#   ui      — lint, typecheck, build, the seam tests, and the headless route
+#             smoke of the review dashboard in ui/.
+#   windows — the same two suites, plus the two things neither Linux nor any
+#             other job in this file can do: compiling ui/src-tauri/ and running
+#             its unit tests, and bundling the Windows installer, saying what
+#             landed in it, and then installing it and opening it. Separate jobs on windows-latest, so a first red run
+#             reports every answer instead of stopping at the first. None of
+#             them is a required check and none gates anything; see the block
+#             that introduces them. The installer job is the one job here that
+#             does not run on pull requests — it is the expensive one, and the
+#             block above it says why.
+#   commit-
+#   messages — refuses a pull request whose own commits name a model in their
+#             message. Pull requests only; main's existing history is not
+#             policed. See the job for what it matches and why.
+#   filters-
+#   version — refuses a pull request that changes the ruleset without moving
+#             `filters_version`. That stamp is what makes `match.run` re-decide
+#             the corpus, so a
+#             filter change that leaves it standing still is a change no stored
+#             Posting ever hears about. It has already nearly landed twice.
+#             Pull requests only. See the job, and the script it runs.
+#
+# They are separate jobs so a red check names which one broke without anyone
+# opening the log.
+#
+# Nothing here needs a secret. Discovery's Adzuna keys are optional and the
+# pipeline skips that source cleanly when they are absent, and no job in this
+# file reaches a job board, an LLM, or any network service beyond the package
+# registries, the pinned Playwright browser download, and — in the installer
+# job alone — the official Node and embeddable CPython artifacts, each checked
+# against a sha256 pinned in this repository, and the NSIS toolchain the Tauri
+# bundler fetches for itself.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or PR makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: python — pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node, because part of the Python suite now runs TypeScript that ships.
+      # `tests/profile/test_dashboard_verify_adapter.py` is the only thing that
+      # says `ui/server/onboarding/yaml.ts`'s escape set is complete, and it used
+      # to say it about a Python re-implementation of that file: narrowing the
+      # TypeScript range reintroduced the original defect for sixteen codepoints
+      # and the sweep stayed green. It now spawns the real emitter, over the same
+      # seam the dashboard uses, so PyYAML and the shipping emitter are measured
+      # against each other rather than against two copies of one person's list.
+      # The runner image happens to carry a Node; naming it here is what stops
+      # that from being the reason the check quietly stops running.
+      - name: Install Node for the emitter these tests drive
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # uv owns both the interpreter and the venv, exactly as the runbook does:
+      # pyproject.toml pins requires-python = ">=3.13".
+      - name: Install uv and Python 3.13
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      # --locked fails rather than silently re-resolving, so CI is provably
+      # running the dependency set recorded in uv.lock.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Read the version uv actually installed (i.e. the one uv.lock pins) so the
+      # browser cache is keyed to it and a Playwright bump can never be served a
+      # stale browser build.
+      - name: Resolve the pinned Playwright version
+        id: playwright
+        run: |
+          version="$(uv run python -c 'import importlib.metadata as m; print(m.version("playwright"))')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "playwright ${version}"
+
+      # The `shell` in the key is load-bearing. A cache written by the old
+      # full-Chromium step holds both the browser and the headless shell, so
+      # restoring it under an unchanged key would satisfy the shell-only step
+      # below by accident: the tests would pass off the stale entry and never
+      # demonstrate that --only-shell fetches what they need. Rotating the key
+      # forces one cold download on the change and keeps the stored cache from
+      # carrying the full browser forever.
+      - name: Restore the Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # --only-shell, because both launch sites are chromium.launch(headless=True)
+      # (browser/recon.py, browser/fill.py) and Playwright resolves that to
+      # chromium-headless-shell, never to full Chromium. Installing the whole
+      # Chrome for Testing build downloaded a binary nothing here ever launches.
+      #
+      # This is safe to get wrong only loudly: tests/browser/ has no conftest, no
+      # skipif and no importorskip, so a missing binary fails those tests rather
+      # than skipping them. If the shell were not installed, CI would go red, not
+      # green — the never-submit guards cannot quietly stop being exercised.
+      #
+      # Runs on a cache hit too: the cache saves the browser download, but the
+      # system libraries the shell links against live on the runner image, not in
+      # that directory, so --with-deps has to run every time. --only-shell does
+      # not change that; it resolves the same system dependency set and only
+      # narrows what is downloaded. On a hit the download step is a no-op.
+      - name: Install the Chromium headless shell for the browser tests
+        run: uv run playwright install --with-deps --only-shell chromium
+
+      # -v so the log names every test that ran, and --junitxml so a machine
+      # can read the same thing. The point is the eight in tests/browser/: they
+      # are the only place the never-submit guards meet a real browser, and "the
+      # suite was green" cannot tell you they executed. A named PASSED line can
+      # tell a person who is already looking; the report below tells CI.
+      #
+      # The report goes to the runner's temp directory, not the checkout: it is
+      # a build artefact of one run and has no business anywhere near a tree
+      # where data/ is committed.
+      - name: Run the test suite
+        run: uv run pytest -v --junitxml="${RUNNER_TEMP}/pytest-report.xml"
+
+      # The eight browser tests are the only mechanical evidence that a dry run
+      # still cannot submit, and until now nothing read the evidence. A skip
+      # marker, a conftest that turns a missing browser into a skip, an --ignore
+      # in addopts, or a renamed directory would each leave this job green with
+      # the never-submit guards completely unexercised.
+      #
+      # It reads the report the step above just wrote, so what it proves is that
+      # the tests ran in the invocation that gates the merge — not that they pass
+      # when run on their own. The eight test ids are hardcoded in the script,
+      # by name rather than counted, so that turning the coverage off is a
+      # deliberate, visible edit; the script says why at length.
+      #
+      # A step in this job rather than a fifth job, because required checks are
+      # branch protection settings the Owner owns and a new check name would be
+      # theirs to add before it gated anything. `pnpm test` was added inside the
+      # existing ui job for the same reason.
+      #
+      # !cancelled() rather than success(): if some unrelated test fails, the
+      # suite is red anyway, and the never-submit question is still worth an
+      # answer in the same log. A cancelled run has nothing to say.
+      - name: Assert the never-submit browser tests actually ran
+        if: ${{ !cancelled() }}
+        run: python3 .github/scripts/never_submit_coverage_guard.py "${RUNNER_TEMP}/pytest-report.xml"
+
+  ui:
+    name: ui — lint, typecheck, build, smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      # The pnpm version is pinned in ui/package.json's packageManager field and
+      # read from there, so this file cannot drift out of step with it.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: ui/package.json
+
+      # Node 24: the server and the verification tools are run as TypeScript
+      # directly (`node server/main.ts`) and the view is opened with node:sqlite.
+      # Both are stable there and neither is polyfilled by a bundler.
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      # `node --test tests/*.test.ts`: the seams the rendered smoke cannot
+      # reach — the probe's normalisation, the Profile writer, the resume
+      # extractor, the platform mapping and the runtime step's own copy. These
+      # ran on nobody's machine but the author's until now, which meant a test
+      # written to stop a defect only stopped it for whoever remembered to run
+      # it. Two mutations that survived a full local suite are what put this
+      # step here.
+      #
+      # It is not a browser job and it downloads nothing: the subprocess seams
+      # are stubbed with small shell scripts, which is also why it is a Linux
+      # job and says nothing about Windows.
+      - name: Test the seams
+        run: pnpm test
+
+      # The stand-in for clicking through the dashboard: it builds the pinned
+      # fixture database, starts the read-only API on 127.0.0.1:5171, renders
+      # every route through happy-dom, and fails if a view throws, comes up
+      # empty, or leaks machine vocabulary onto the screen. No browser download
+      # and no network beyond loopback, so it belongs in CI as much as the build.
+      - name: Smoke the rendered routes
+        run: pnpm smoke
+
+  # ---------------------------------------------------------------------------
+  # The Windows leg.
+  #
+  # Everything above this line runs on Linux, and until now everything this
+  # repository believed about Windows was reasoned rather than measured. Three
+  # separate jobs, not one job with more steps: on a first run a red result is
+  # the finding, and one job would stop at the first failure and hide the other
+  # two answers. Three runner spin-ups cost a few minutes; three independent
+  # signals are worth more.
+  #
+  # They are deliberately NOT required checks and gate nothing. They report.
+  # ---------------------------------------------------------------------------
+
+  # The main prize. `ui/src-tauri/` has only ever been compiled on the Owner's
+  # Mac. `cargo check` needs GTK and webkit on Linux and fails there, so no job
+  # in this file has ever built it — which is stated in the commit that last
+  # changed it. That commit (#48) fixed a Windows-only defect in
+  # `ui/src-tauri/src/lib.rs`: the host joined a bare `node` beside the
+  # executable, a Windows existence check appends no extension of its own, so
+  # `sidecar_runtime()` found nothing and took the API start down silently. The
+  # fix was type-checked against `x86_64-pc-windows-msvc` by extracting the two
+  # functions standalone. This job is the first time the real file is compiled
+  # and linked by a real MSVC toolchain.
+  #
+  # `cargo build` rather than `cargo check`, because linking is half of what has
+  # never happened here.
+  windows-tauri:
+    name: windows — tauri host compiles
+    runs-on: windows-latest
+    # A cold Rust build of a Tauri app on a 2-CPU runner is slow, and the
+    # frontend and the sidecar have to be assembled before it starts.
+    timeout-minutes: 45
+    defaults:
+      run:
+        # Explicit rather than inherited: the Windows default is pwsh, and a
+        # reader should not have to know that to know what runs these lines.
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: ui/package.json
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      # The runner image ships a Rust toolchain and the MSVC linker (Visual
+      # Studio 2022 with VC.Tools.x86.x64), so there is nothing to install —
+      # only the registry and the target directory to keep between runs. This is
+      # the one third-party cache action here rather than actions/cache over
+      # ~\.cargo and the target directory, because runners can have limited disk space; this action prunes a Rust target directory instead of storing it
+      # whole.
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ui/src-tauri
+
+      - name: Install dependencies
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+
+      # `tauri-build` copies the declared externalBin beside the build output,
+      # so the sidecar has to exist under the host triple before cargo runs or
+      # the build script fails. `pnpm sidecar` also exercises `executableSuffix`
+      # — the other Windows rule this repository has only read the documentation
+      # for — by naming the staged runtime `node-<triple>.exe`.
+      - name: Stage the sidecar runtime and the API bundle
+        working-directory: ui
+        run: pnpm sidecar
+
+      # `tauri::generate_context!()` embeds the frontend from the config's
+      # frontendDist (`../dist`), so the web bundle has to be on disk before the
+      # crate will compile.
+      #
+      # This is `ui/package.json`'s `build:desktop` — the script the desktop
+      # config's beforeBuildCommand names — run as its two parts. That script
+      # sets its API base with a POSIX `VAR=value command` prefix, which no
+      # Windows shell parses, so the variable is set as a step `env:` and vite
+      # is called directly. Same bundle, no edit to `package.json`. The prefix
+      # itself is a real obstacle to *packaging* on Windows and is reported on
+      # the pull request rather than patched here.
+      - name: Build the frontend the host embeds
+        working-directory: ui
+        env:
+          VITE_API_BASE: http://127.0.0.1:5170/api
+        run: pnpm exec vite build
+
+      # --locked for the same reason `uv sync --locked` and
+      # `pnpm install --frozen-lockfile` carry it: CI builds the dependency set
+      # that is committed, or it says so.
+      - name: Compile and link the desktop host
+        working-directory: ui/src-tauri
+        run: cargo build --locked
+
+      # `install.rs` carries ten unit tests over the rules that decide where a
+      # Windows Install keeps its data, and until now no machine anywhere had
+      # run them on Windows: `cargo` cannot build this crate on Linux (GTK), and
+      # the Owner's Mac runs them as macOS. One of them, `windows_uses_appdata`,
+      # hardcoded a *forward* slash before `Venator` and would have failed
+      # outright the first time it ran on a Windows host — a claim this
+      # repository recorded as verified and never was. The tests are fixed to
+      # state the host's separator; this step is what stops the next one from
+      # going the same way. It reuses the build above, so it costs a link.
+      - name: Run the desktop host's unit tests
+        working-directory: ui/src-tauri
+        run: cargo test --locked
+
+  # The installer, and the first thing anybody can actually install.
+  #
+  # `windows-tauri` above compiles and links the host and runs its unit tests.
+  # It has never run the bundler, and neither has anything else here: the one
+  # `tauri build` this repository has ever seen was on the Owner's Mac, where it
+  # produced a real `.app` and then died inside `bundle_dmg.sh`. So nothing has
+  # ever checked what lands in the `.exe` a person double-clicks — and #60,
+  # which stages an embeddable CPython, fourteen runtime wheels and the pipeline
+  # into `bundle.resources` and makes the build path stage a digest-verified
+  # Node, is proven today only by unit tests and by its own refusals. Both are
+  # tests of the staging step. Neither is a package.
+  #
+  # This job runs the real bundler, asks what came out, and uploads it.
+  #
+  # **What the runner has to bring.** Nothing for NSIS: `tauri-bundler` fetches
+  # the toolchain itself on a Windows host — NSIS 3.11 from
+  # `tauri-apps/binary-releases` and `nsis_tauri_utils.dll` from
+  # `tauri-apps/nsis-tauri-utils`, into the user cache directory, checked
+  # against SHA1s in the bundler and re-fetched when they do not match
+  # (`crates/tauri-bundler/src/bundle/windows/nsis/mod.rs`, where the makensis
+  # download sits under `#[cfg(target_os = "windows")]`). The manual `apt
+  # install nsis` / `brew install nsis` in Tauri's own distribution guide is for
+  # cross-compiling from Linux or macOS, which this is not. WebView2 is not a
+  # build-time dependency at all: `webviewInstallMode` defaults to
+  # `downloadBootstrapper`, which is a thing the *installer* does on the
+  # machine it is installed onto.
+  #
+  # What the runner does have to bring is `uv` and a Python, because
+  # `beforeBuildCommand` is no longer a frontend build. It is `pnpm
+  # desktop:stage && pnpm build:desktop`, and the staging half downloads an
+  # embeddable CPython and a pinned Node, then runs `uv export` out of
+  # `uv.lock` and `uv pip install` to resolve the wheel set for the target.
+  #
+  # **What it does not do.** It is not a required check and gates nothing, like
+  # every other Windows job here. It does not run on pull requests either,
+  # which the others do: this one is a full release link plus about 250 MB of
+  # downloads on a runner that bills at roughly $0.010/min against Linux's
+  # $0.006, and the packaging question it answers is about what main produces
+  # rather than about a diff. Pushes to main and `workflow_dispatch` — so it can
+  # be run against a branch on demand, which is how the first green one was
+  # produced. If packaging starts breaking between merges, the answer is to add
+  # a `paths:`-filtered pull request trigger, not to make every pull request pay
+  # for a bundle.
+  windows-installer:
+    name: windows — the installer a person installs
+    runs-on: windows-latest
+    if: github.event_name != 'pull_request'
+    # A release build of the host, a cold Rust cache, ~250 MB of runtime
+    # downloads, a wheel resolve and an NSIS compile of a ~250 MB payload.
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: ui/package.json
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      # For `tools/python-staging.ts`, which runs `uv export --no-dev` against
+      # the checkout's `uv.lock` and then `uv pip install --require-hashes
+      # --only-binary :all: --python-platform <triple>` into the staged tree. It
+      # is the one tool that can resolve a wheel set for a platform it is not
+      # running on, and the staging step says so when it is absent. The
+      # interpreter is here because `uv pip` wants one to reckon a target
+      # environment against; the wheels themselves are resolved for the triple,
+      # not for it.
+      - name: Install uv and Python 3.13
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      # A separate cache from `windows-tauri`'s: Swatinem/rust-cache keys on the
+      # job, and that job builds debug while this one builds release, so sharing
+      # one would be two profiles fighting over a single entry.
+      #
+      # `cache-on-failure`, because most of what fails in this job fails *after*
+      # the link — a bundler refusal, or the verification step below — and a
+      # cold release build is eleven of its fourteen minutes. Without this, the
+      # run that tells you the packaging is wrong also throws away the build you
+      # would fix it with.
+      - name: Restore the Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ui/src-tauri
+          cache-on-failure: true
+
+      - name: Install dependencies
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+
+      # Restored after `pnpm install`, because it lives under `node_modules/`
+      # and an install is entitled to prune that tree.
+      #
+      # Safe to cache, and safe in the specific way that matters: every entry is
+      # an official artifact fetched to a name pinned in this repository, and
+      # `prepare-sidecar.ts` / `prepare-python.ts` hash a cached file on every
+      # hit exactly as they hash a fresh download — a cache that can vouch for
+      # itself is a cache that can ship a bad runtime, so neither of them lets
+      # it. The key hashes the two files that carry the pins *and* the digests,
+      # so a version bump or a digest correction rotates the key and the next
+      # build downloads rather than being served the bytes the old pin named.
+      - name: Restore the pinned runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ui/node_modules/.cache/venator-sidecar
+            ui/node_modules/.cache/venator-python
+          key: desktop-runtimes-${{ runner.os }}-${{ hashFiles('ui/tools/node-runtime.ts', 'ui/tools/python-runtime.ts') }}
+
+      # `pnpm desktop:build` is `tauri build`, and everything this job is about
+      # happens underneath it: `beforeBuildCommand` resolves the target triple,
+      # stages the verified Node, downloads and unpacks the pinned embeddable
+      # CPython, resolves and installs the wheel set, copies `src/venator` in,
+      # refuses outright if any of that is missing, builds the frontend, and
+      # only then does cargo link the host and NSIS pack it.
+      #
+      # `bundle.targets` is `["app", "dmg", "nsis"]`; the bundler keeps the
+      # entries its target platform has and drops the rest (`package_types()` in
+      # `tauri-bundler`'s settings), so on Windows that is `nsis` alone and no
+      # flag is needed to say so.
+      - name: Build the installer
+        working-directory: ui
+        run: pnpm desktop:build
+
+      # A green bundler is not evidence the package works — the failure #60 was
+      # written against is an installer that builds, installs, opens onto the
+      # sample corpus and stays there. The script asks the staged tree what the
+      # bundler consumed, asks the produced file whether it is a real PE of a
+      # size the payload accounts for, and then asks 7-Zip to read the NSIS
+      # archive and name what is inside it. Only the last of those can tell a
+      # correct staging directory apart from a bundler that ignored it.
+      - name: Verify what the installer carries
+        run: >
+          pwsh -File .github/scripts/verify_desktop_installer.ps1
+          -TauriRoot ui/src-tauri
+          -Triple x86_64-pc-windows-msvc
+          -BundleDir ui/src-tauri/target/release/bundle/nsis
+
+      # And then run it. Everything above this — and everything #60 and #64
+      # added — is structural: a digest compared, a PE header read, an entry
+      # count, a file list taken out of the installer. All of it answers "the
+      # right bytes are in the right places" and none of it answers "it runs",
+      # and an embeddable CPython staged beside 129 MB of wheels it cannot
+      # import passes every one of those questions while starting nothing.
+      #
+      # This is the one job on a real Windows machine, so it is the only place
+      # the question can be asked at all. It costs seconds: the interpreter is
+      # already on disk, and the probe launches runtimes that are not installed
+      # here and comes straight back — nothing is spent, because a lane that
+      # cannot be launched is never asked for a completion.
+      #
+      # What runs is the **staging** tree — one hop short of the installer, and
+      # named that way rather than after the package. The hop is what the step
+      # above covers: it checks the staged tree the bundler consumed and then
+      # asks 7-Zip to name `resources\python\<triple>\python.exe`, the wheel
+      # set and the pipeline inside the produced `-setup.exe`, and the bundler
+      # packs the one from the other. Extracting the package to run an
+      # interpreter out of it would cost minutes and establish nothing that
+      # pair does not.
+      - name: Run the interpreter the staging carries
+        run: >
+          pwsh -File .github/scripts/run_staged_interpreter.ps1
+          -TauriRoot ui/src-tauri
+          -Triple x86_64-pc-windows-msvc
+          -Pins ui/tools/python-runtime.ts
+          -States ui/shared/onboarding.ts
+          -Lane claude
+
+      # The point of the job. Somebody testing this has no checkout, no Rust
+      # toolchain and no reason to acquire either; an artifact is how they get a
+      # package. GitHub wraps every artifact in a zip of its own, so what
+      # downloads is a zip holding the `-setup.exe` — `compression-level: 0`
+      # because the payload is already LZMA and re-compressing it buys nothing
+      # but minutes.
+      #
+      # Unsigned: there is no code-signing certificate here, so SmartScreen will
+      # warn on first run. That is the truthful state and not something this job
+      # should paper over.
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: venator-windows-installer
+          path: ui/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      # And then install it and open it, which nobody has ever done. Everything above answers
+      # questions about a file; this one answers the only question a person asks, which is
+      # whether the thing they downloaded works. It is deliberately the last step in the job:
+      # a package that installs badly is still a package somebody should be able to download
+      # and look at, so the artifact is uploaded before this runs.
+      #
+      # The three claims it establishes are separate on purpose — the files landed, the
+      # process started, the API answered — and the script reports them apart so a red run
+      # names which one broke. What it cannot establish is what is on the screen: a runner
+      # sees a window's existence, never its contents, and this job must never be read as
+      # evidence about what a person looks at.
+      #
+      # Most of what could make it flaky is fixed rather than discovered: `installMode` is
+      # NSIS's `currentUser` default, so `/S` needs no elevation and no prompt is possible;
+      # WebView2 is preinstalled on windows-latest, so the host has a webview to create; and
+      # the API port is fixed in `lib.rs`. A server already on that port would be adopted by
+      # the host, so the script refuses rather than adopting one — that is the failure mode
+      # being guarded against, not worked around.
+      #
+      # One thing has actually been flaky, and it is named here rather than left for the next
+      # person to rediscover: the first real run of this step was red with the installer
+      # exiting 0 and nothing at the location its own uninstall entry named. The script now
+      # waits for the tree, searches for the executable when what was registered does not hold
+      # it, and prints the entry and any virus-scanner quarantine when neither finds it. If
+      # this step goes red again with no tree anywhere, that output is the diagnosis, and the
+      # answer is to read it rather than to relax the step.
+      - name: Install the package and open it
+        run: >
+          pwsh -File .github/scripts/install_and_launch.ps1
+          -BundleDir ui/src-tauri/target/release/bundle/nsis
+          -Triple x86_64-pc-windows-msvc
+          -ProductName Venator
+          -Executable venator-dashboard.exe
+          -Port 5170
+
+  # The Python suite on Windows. Nothing here is expected to be
+  # platform-specific, which is exactly why it has never been checked: the
+  # pipeline resolves an application data directory per platform
+  # (`src/venator/paths.py`), renders a PDF against fonts found per platform,
+  # and drives a browser. `tests/resume/test_render.py` skips itself when the
+  # reference fonts are absent, so a skip there is an answer and not a failure.
+  windows-python:
+    name: windows — pytest
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        # bash, so these steps are the Linux job's steps rather than a
+        # translation of them. Git Bash is on the Windows runner image.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node, because part of the Python suite now runs TypeScript that ships.
+      # `tests/profile/test_dashboard_verify_adapter.py` is the only thing that
+      # says `ui/server/onboarding/yaml.ts`'s escape set is complete, and it used
+      # to say it about a Python re-implementation of that file: narrowing the
+      # TypeScript range reintroduced the original defect for sixteen codepoints
+      # and the sweep stayed green. It now spawns the real emitter, over the same
+      # seam the dashboard uses, so PyYAML and the shipping emitter are measured
+      # against each other rather than against two copies of one person's list.
+      # The runner image happens to carry a Node; naming it here is what stops
+      # that from being the reason the check quietly stops running.
+      - name: Install Node for the emitter these tests drive
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install uv and Python 3.13
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Resolve the pinned Playwright version
+        id: playwright
+        run: |
+          version="$(uv run python -c 'import importlib.metadata as m; print(m.version("playwright"))')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "playwright ${version}"
+
+      # Playwright's browser directory is %USERPROFILE%\AppData\Local\ms-playwright
+      # on Windows, not ~/.cache/ms-playwright. The key carries runner.os, so
+      # this and the Linux cache never collide.
+      - name: Restore the Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # No --with-deps: it installs Linux system packages through apt and is a
+      # Linux-only flag. Windows links the browser against what the image
+      # already carries.
+      - name: Install Chromium for the browser tests
+        run: uv run playwright install chromium
+
+      - name: Run the test suite
+        run: uv run pytest
+
+  # The dashboard's own toolchain on Windows. `ui/` opens the view with
+  # node:sqlite rather than a compiled driver, so there is no native module to
+  # build here — but the smoke run starts the read-only API as a child process,
+  # which is where `needsShell` decides that a pnpm bin on Windows is `pnpm.cmd`
+  # and has to go through a shell. That rule was written from the documentation;
+  # this job is what runs it, and it holds.
+  #
+  # `pnpm test` is here and it passes. It did not on the first run of #53, which
+  # is what this comment used to predict: 97 pass and 17 fail of 114, because
+  # four places wrote an executable stub beginning with `#!/bin/sh` and marked
+  # it executable, and Windows honours no shebang, starts nothing without an
+  # extension, and means nothing by `chmod`. The fix belonged to `ui/tests/`
+  # rather than to this file, and landed there before #53 merged: `dfe9282` and
+  # `fd02b9e` replaced both stubs with this process's own `node`, which is
+  # already an executable Windows will start, told what to do through
+  # `--require`. The POSIX-looking `/tmp` strings still in the suite are inert —
+  # `LocationContext` data for a simulated `platform: "linux"`, never a path
+  # anything opens — and every real temporary directory comes from `mkdtemp`
+  # under `tmpdir()`.
+  #
+  # Measured, not reasoned: green on every run since the #53 merge (`ed9405e`),
+  # and at `9cfe227` — run 33140216278, 2026-08-28 — the step reported 147
+  # tests, 147 pass, 0 fail. The step is still what would make the next such gap
+  # visible, which is why it stays.
+  windows-ui:
+    name: windows — ui lint, typecheck, build, smoke
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: ui/package.json
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Smoke the rendered routes
+        run: pnpm smoke
+
+      # Last, unlike the Linux job, where it sits before the smoke. It was put
+      # here while it was the one step with a known failure, because a step that
+      # fails ends the job and running it first would have hidden an unknown
+      # answer behind a known one. It passes now; the order is left alone, since
+      # the smoke is the answer this job exists to get. Nothing about it is
+      # relaxed — it runs, and it reports.
+      - name: Test the seams
+        run: pnpm test
+
+  # Commit messages are written by agent sessions, and an agent's instructions
+  # have repeatedly told it to sign off with a model name in the co-author
+  # trailer. Nothing local stops that: the trailer comes from an instruction
+  # file, not a git hook, so a fresh session re-introduces it and a hook can be
+  # skipped by a checkout that never installed it. A required check cannot be,
+  # which is the whole reason this lives here.
+  #
+  # It reads the pull request's own commits only. main already carries older
+  # commits with the trailer; those are history and are deliberately left alone,
+  # so the scan starts at the merge base rather than at the root.
+  commit-messages:
+    name: commit messages — no model identifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # push and workflow_dispatch have no pull request to scan, and rescanning a
+    # merged branch would just re-report history this check does not police.
+    if: github.event_name == 'pull_request'
+    steps:
+      # The check reads commit messages, so it needs the commits. The default
+      # depth-1 checkout has neither the branch's history nor a base branch to
+      # take a merge base against.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan the pull request's commit messages
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          base="$(git merge-base "origin/${BASE_REF}" "${HEAD_SHA}")"
+          mapfile -t commits < <(git rev-list --no-merges "${base}..${HEAD_SHA}")
+          echo "Scanning ${#commits[@]} commit(s) in ${base}..${HEAD_SHA}."
+
+          # First alternative: the bare product names, which is what actually
+          # shows up — on their own, or inside a trailer like
+          # "Claude Opus 5 (1M context)". Second: an API-style identifier, the
+          # claude-<name>-<number> shape.
+          #
+          # Both are anchored so the strings this repository legitimately
+          # contains do not match: "Claude Code", "claude -p", code.claude.com,
+          # "Anthropic", and the "Claude-Session: https://claude.ai/code/..."
+          # trailer all pass, because none of them is one of those words on a
+          # word boundary and none has a digit one hyphenated segment after
+          # "claude-".
+          pattern='\b(opus|sonnet|haiku)\b|claude-[a-z0-9]+-[0-9]'
+
+          failed=0
+          for sha in ${commits[@]+"${commits[@]}"}; do
+            hits="$(git log -1 --format=%B "${sha}" | grep -inE "${pattern}" || true)"
+            [ -n "${hits}" ] || continue
+            failed=1
+            echo "::error::${sha} names a model in its commit message: $(git log -1 --format=%s "${sha}")"
+            printf '%s\n' "${hits}" | sed "s|^|  ${sha} line |"
+          done
+
+          if [ "${failed}" -ne 0 ]; then
+            cat <<'EOF'
+
+          Fix: reword the commit message(s) named above — `git commit --amend`
+          for the tip, `git rebase -i` with `reword` for anything older — then
+          `git push --force-with-lease`. The co-author trailer carries no model
+          name; it reads exactly:
+
+              Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+            exit 1
+          fi
+
+          echo "No commit message names a model."
+
+  # `filters_version` is the replay mechanism: it is stamped on every Filter
+  # Decision, and `match.run` re-decides a Posting whose stored version
+  # differs. When filter code changes behaviour and the version
+  # does not move, the corpus keeps standing on verdicts the code no longer
+  # produces — permanently, and with nothing on screen to say so, because the
+  # signal is a hex digest nobody reads.
+  #
+  # That has already happened. Two pull requests were each written against a
+  # base at revision 7 and each bumped FILTERS_REVISION to 8. The first merged;
+  # the second merged too, and git resolved the identical line with no conflict
+  # at all, so the second one's filter change would have re-decided not one of
+  # the stored Postings. A reviewer caught it. Nothing
+  # mechanical would have, and that is what this job is.
+  #
+  # It asks the question of `filters_version()` itself rather than of the
+  # FILTERS_REVISION constant, and it asks it of what main carries now against
+  # what main would carry merged — never against the merge base, which is
+  # exactly the comparison that would have called that near-miss fine. The
+  # script states both choices, and the rule/plumbing split, in full; read it
+  # rather than this comment.
+  #
+  # The script is run as the BASE BRANCH carries it, not as the pull request
+  # carries it. A branch therefore cannot loosen the check that judges it: a
+  # change to the guard takes effect for everyone else's pull requests once the
+  # Owner has merged it, and never for its own. Deleting the job outright is not
+  # a way out either — a required check that never reports blocks the merge
+  # instead of passing it. Which leaves one escape, and it is a person: the
+  # Owner merges every pull request by hand and can merge past a red check when
+  # this one is wrong about a change.
+  filters-version:
+    name: filters_version — a ruleset change must move it
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # push and workflow_dispatch have no merge to reason about: there is no
+    # "what main would carry" distinct from what it already carries.
+    if: github.event_name == 'pull_request'
+    steps:
+      # Full history: the check reads two revisions out of the object store and
+      # checks each of them out into a throwaway worktree, to run that
+      # revision's own hashing code and — for a plumbing change — that
+      # revision's own Hard Filters over the committed corpus. A depth-1
+      # checkout has neither.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # `filters_version` hashes YAML, so the probe needs PyYAML and a 3.13
+      # interpreter. It deliberately does NOT install the project: an editable
+      # install puts a meta-path finder ahead of PYTHONPATH and would import
+      # whichever copy of the source happened to be installed rather than the
+      # revision under test.
+      # ignore-nothing-to-cache, because this job reaches uv only sometimes. The
+      # guard answers its first question — did any watched file change behaviour
+      # — from the syntax tree alone, and on "no" it returns before invoking
+      # `uv run --with pyyaml` at all, so UV_CACHE_DIR is never created. That is
+      # invisible while the cache key hits, since the restore makes the directory
+      # anyway; the key hashes pyproject.toml and uv.lock, so the first pull
+      # request to edit either one misses, creates nothing, and fails in the
+      # post-job cache save with "Cache path ... does not exist on disk" — while
+      # the guard itself printed a pass. Caching still earns its keep on the
+      # plumbing-replay path, which does run uv, so the fix is to let an absent
+      # directory be a non-event rather than to switch the cache off.
+      - name: Install uv and Python 3.13
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          ignore-nothing-to-cache: true
+
+      - name: Compare filters_version across the merge
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.sha }}
+          GUARD: .github/scripts/filters_version_guard.py
+        run: |
+          set -euo pipefail
+
+          # On a pull request event GITHUB_SHA is GitHub's merge of the branch
+          # into the base tip. Its first parent is the base tip that merge was
+          # computed against, which is the pair this check needs and the pair
+          # that stays consistent with itself if main moves mid-run.
+          if git rev-parse --verify --quiet "${MERGE_SHA}^2" >/dev/null; then
+            before="$(git rev-parse "${MERGE_SHA}^1")"
+            after="${MERGE_SHA}"
+          else
+            # No merge commit — an unmergeable branch, or a checkout of the head
+            # itself. Fall back to the base branch tip against the branch tip.
+            # It is the same question asked of a merge that does not exist yet,
+            # so the answer can change once the conflict is resolved.
+            before="$(git rev-parse "origin/${BASE_REF}")"
+            after="${HEAD_SHA}"
+            echo "No merge commit for this pull request; comparing origin/${BASE_REF} against the branch tip."
+          fi
+
+          # Run the guard as the base branch carries it. A pull request that
+          # edits the guard is still judged by the version already on main, so
+          # the check cannot be relaxed by the change it is checking.
+          guard="${RUNNER_TEMP}/filters_version_guard.py"
+          if git cat-file -e "${before}:${GUARD}" 2>/dev/null; then
+            git show "${before}:${GUARD}" > "${guard}"
+            echo "Running the guard as ${before} carries it."
+          else
+            cp "${GUARD}" "${guard}"
+            echo "The base branch carries no guard yet; running this branch's copy."
+          fi
+
+          python3 "${guard}" "${before}" "${after}"

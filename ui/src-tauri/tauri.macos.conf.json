@@ -1,0 +1,20 @@
+{
+	"$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"title": "Venator",
+				"width": 1320,
+				"height": 880,
+				"minWidth": 960,
+				"minHeight": 620,
+				"resizable": true,
+				"fullscreen": false,
+				"visible": false,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true
+			}
+		]
+	}
+}

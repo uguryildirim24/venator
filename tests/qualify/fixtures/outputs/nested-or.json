@@ -1,0 +1,80 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "cannot_tell",
+  "findings": [
+    {
+      "obligation_id": "ob-001",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a1",
+      "quote": "(BS",
+      "modality": "required",
+      "status": "met",
+      "fact_ids": [
+        "edu-01"
+      ],
+      "basis": ""
+    },
+    {
+      "obligation_id": "ob-002",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a2",
+      "quote": "4 years",
+      "modality": "required",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    },
+    {
+      "obligation_id": "ob-003",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a3",
+      "quote": "(MS",
+      "modality": "required",
+      "status": "met",
+      "fact_ids": [
+        "edu-02"
+      ],
+      "basis": ""
+    },
+    {
+      "obligation_id": "ob-004",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a4",
+      "quote": "2 years",
+      "modality": "required",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    },
+    {
+      "obligation_id": "ob-005",
+      "requirement_id": "req-01",
+      "atom_id": "req-01.a5",
+      "quote": "8 years",
+      "modality": "required",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    }
+  ],
+  "undecidable": [
+    {
+      "obligation_id": "ob-002",
+      "why": "threshold_margin"
+    },
+    {
+      "obligation_id": "ob-004",
+      "why": "threshold_margin"
+    },
+    {
+      "obligation_id": "ob-005",
+      "why": "threshold_margin"
+    }
+  ],
+  "decisive": [
+    "ob-002",
+    "ob-004",
+    "ob-005"
+  ],
+  "support": []
+}

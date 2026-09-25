@@ -1,0 +1,14 @@
+{
+  "decision": "review",
+  "fit_probability": 0.4,
+  "fit_score": 0.7750000000000001,
+  "primary_rule": null,
+  "review_flags": [
+    "mandatory_technique_gap_review"
+  ],
+  "diagnostic_flags": [],
+  "degree_timing_review": false,
+  "experience_timing_review": false,
+  "exclusions": [],
+  "raw_variant": "mandatory_gap"
+}

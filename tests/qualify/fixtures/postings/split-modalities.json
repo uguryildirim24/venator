@@ -1,0 +1,44 @@
+{
+  "posting": {
+    "key": "fixture:split-modalities",
+    "title": "Fixture Posting",
+    "description_html": "<h2>Requirements</h2><p>BS required; MS preferred</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Requirements:\nBS required; MS preferred",
+    "spans": [
+      {
+        "id": "req-01",
+        "text": "BS required; MS preferred",
+        "start": 14,
+        "end": 39,
+        "hint": "required",
+        "atom_kinds": [
+          "degree",
+          "degree"
+        ],
+        "atom_hints": [
+          "required",
+          "preferred"
+        ],
+        "tree": null
+      }
+    ]
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "BS required",
+      "modality": "required",
+      "atom_binding": "req-01.a1"
+    },
+    {
+      "obligation_id": "ob-002",
+      "quote": "MS preferred",
+      "modality": "preferred",
+      "atom_binding": "req-01.a2"
+    }
+  ]
+}

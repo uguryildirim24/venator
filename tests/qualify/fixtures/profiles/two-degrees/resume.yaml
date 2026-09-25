@@ -1,0 +1,19 @@
+education:
+  - org: North College
+    degree: BS in Chemistry
+    date: June 2022
+    gpa: "3.91"
+    coursework: Analytical Chemistry; Calculus
+  - org: West University
+    degree: MS in Materials Science
+    date: May 2027 (Expected)
+    coursework: Materials Characterization
+experience:
+  - org: Acme Labs
+    role: Research Associate
+    dates: January 2023 - March 2024
+    bullets:
+      - Built assays at Acme Labs using PCR
+technical_proficiencies:
+  - label: Laboratory
+    items: PCR, chromatography
