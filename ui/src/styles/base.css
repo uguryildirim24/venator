@@ -1,0 +1,108 @@
+/*
+ * Element defaults. Everything here is either a reset or a decision that must hold for every
+ * element in the app — never a component style.
+ */
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	/* `flow-root`, so #root's own margin does not collapse through the body into page scroll. */
+	display: flow-root;
+	background: var(--canvas);
+	color: var(--label-primary);
+	font-family: var(--font-system);
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+/*
+ * The window, drawn once for every route.
+ *
+ * In a browser the app is a rounded, shadowed sheet on a neutral canvas. The inset is this
+ * element's margin rather than the body's padding, because radix's scroll lock rewrites the
+ * body's padding while a sheet is open. No traffic lights are drawn: the browser's own window
+ * controls are already above this sheet.
+ */
+#root {
+	height: calc(100% - var(--space-8));
+	margin: var(--space-4);
+	overflow: hidden;
+	border-radius: var(--radius-window);
+	background: var(--window);
+	box-shadow: var(--window-shadow);
+}
+
+/*
+ * On the desktop the frame is the system's: Tauri draws the window, its radius and the traffic
+ * lights, and a sheet inset inside it would be a second window edge.
+ */
+body:has(.app-native) #root {
+	height: 100%;
+	margin: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+	cursor: default;
+	background: none;
+	border: none;
+	padding: 0;
+}
+
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+dl,
+dd,
+figure {
+	margin: 0;
+}
+
+ul,
+ol {
+	padding: 0;
+}
+
+:focus-visible {
+	outline: var(--bar-width) solid var(--focus-ring);
+	outline-offset: var(--bar-width);
+}
+
+/* Figures are read in columns; they line up or they are not figures. */
+.tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}

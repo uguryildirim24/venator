@@ -1,0 +1,663 @@
+/*
+ * Setting up Venator (ui/DESIGN.md, "Setup and first run"): the v6 boards. A window of its
+ * own with a title and no sidebar, one 560-wide column, the step's heading, its groups, and a
+ * footer that always holds Skip for Now on the left and the step's primary on the right.
+ * Every value is a token from tokens.css.
+ */
+
+/* ---------------------------------------------------------------- the window */
+
+.setup {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	color: var(--label-primary);
+}
+
+.setup-titlebar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	height: var(--toolbar-height);
+	font-size: var(--size-body);
+	font-weight: var(--weight-semibold);
+	color: var(--label-secondary);
+	user-select: none;
+}
+
+.setup-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.setup-column {
+	display: flex;
+	flex-direction: column;
+	gap: var(--setup-gap);
+	width: 100%;
+	max-width: calc(var(--settings-width) + 2 * var(--space-4));
+	margin-inline: auto;
+	padding: var(--setup-inset-top) var(--space-4) var(--space-6);
+}
+
+.setup-column[data-density="tight"] {
+	gap: var(--setup-gap-tight);
+}
+
+.setup-heading {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1-5);
+}
+
+.setup-step {
+	font-size: var(--size-body);
+	font-weight: var(--weight-medium);
+	color: var(--label-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.setup-title {
+	font-size: var(--size-large-title);
+	line-height: var(--leading-large-title);
+	font-weight: var(--weight-bold);
+	color: var(--label-primary);
+}
+
+.setup-lede {
+	font-size: var(--size-title3);
+	line-height: var(--leading-title3);
+	color: var(--label-secondary);
+}
+
+/* The footer: Skip for Now, a note, Back, and the one primary. */
+.setup-footer {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	flex-shrink: 0;
+	width: 100%;
+	max-width: calc(var(--settings-width) + 2 * var(--space-4));
+	margin-inline: auto;
+	padding: var(--space-3) var(--space-4) var(--setup-inset-bottom);
+}
+
+.setup-footer > :first-child {
+	margin-right: auto;
+}
+
+.setup-note {
+	min-width: 0;
+	font-size: var(--size-callout);
+	line-height: var(--leading-callout);
+	color: var(--label-secondary);
+	text-align: right;
+	text-wrap: pretty;
+}
+
+.setup-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+/* A group's heading: its name, an aside, and on the résumé step its Looks right check. */
+.group-header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1-5);
+	padding-inline: var(--space-1);
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+	font-weight: var(--weight-semibold);
+	color: var(--label-primary);
+}
+
+.group-aside {
+	font-weight: var(--weight-regular);
+	color: var(--label-secondary);
+}
+
+.group-header > .form-check,
+.group-header > .group-count {
+	margin-left: auto;
+	font-weight: var(--weight-regular);
+}
+
+.group-count {
+	color: var(--label-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.setup-caption {
+	padding-inline: var(--space-1);
+	font-size: var(--size-callout);
+	line-height: var(--leading-callout);
+	color: var(--label-secondary);
+	text-wrap: pretty;
+}
+
+.setup-alert {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	padding: var(--space-2-5) var(--space-3);
+	border-radius: var(--radius-group);
+	background: var(--group);
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+}
+
+.setup-alert p + p {
+	color: var(--label-secondary);
+}
+
+/* ---------------------------------------------------------------- groups and rows */
+
+.setup-group {
+	display: flex;
+	flex-direction: column;
+	border-radius: var(--radius-group);
+	background: var(--group);
+}
+
+.setup-row {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: var(--space-10);
+	padding: var(--space-1-5) var(--space-3);
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+	text-align: left;
+	color: var(--label-primary);
+}
+
+/* Separators are inset from the leading edge, as the kit's grouped rows are. */
+.setup-row + .setup-row::before,
+.about-group li + li::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: var(--space-3);
+	right: 0;
+	height: var(--hairline-width);
+	background: var(--label-quinary);
+}
+
+.setup-row-label {
+	flex-shrink: 0;
+	width: var(--form-label-width);
+}
+
+.setup-row-field {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+}
+
+.setup-row-lines {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.setup-row-title {
+	font-weight: var(--weight-semibold);
+	overflow-wrap: anywhere;
+}
+
+.setup-row-subtitle {
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
+	color: var(--label-secondary);
+	overflow-wrap: anywhere;
+}
+
+.setup-row-trail {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex-shrink: 0;
+}
+
+.setup-row .chevron {
+	width: var(--icon-size);
+	height: var(--icon-size);
+	color: var(--label-tertiary);
+}
+
+button.setup-row:hover {
+	background: var(--row-hover);
+}
+
+button.setup-row:first-child {
+	border-top-left-radius: var(--radius-group);
+	border-top-right-radius: var(--radius-group);
+}
+
+button.setup-row:last-child {
+	border-bottom-left-radius: var(--radius-group);
+	border-bottom-right-radius: var(--radius-group);
+}
+
+/* ---------------------------------------------------------------- fields */
+
+.text-field {
+	flex: 1;
+	min-width: 0;
+	height: var(--field-height);
+	padding: 0 var(--space-2);
+	border: var(--hairline-width) solid var(--field-edge);
+	border-radius: var(--radius-control);
+	background: var(--field);
+	font-size: var(--size-body);
+	color: var(--label-primary);
+}
+
+.text-field::placeholder {
+	color: var(--label-secondary);
+}
+
+textarea.text-field {
+	min-height: calc(6 * var(--leading-body));
+	padding: var(--space-2);
+	line-height: var(--leading-body);
+	resize: vertical;
+}
+
+.token-field {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1);
+	flex: 1;
+	min-width: 0;
+	min-height: var(--field-height);
+	padding: var(--space-0-5) var(--space-1);
+	border: var(--hairline-width) solid var(--field-edge);
+	border-radius: var(--radius-control);
+	background: var(--field);
+}
+
+.token-field:focus-within {
+	outline: var(--bar-width) solid var(--focus-ring);
+	outline-offset: 0;
+}
+
+.token-field input {
+	flex: 1;
+	min-width: var(--space-16);
+	height: var(--control-height);
+	padding: 0 var(--space-1);
+	border: 0;
+	outline: 0;
+	background: transparent;
+	font-size: var(--size-body);
+	color: var(--label-primary);
+}
+
+.token-field input::placeholder {
+	color: var(--label-secondary);
+}
+
+.token,
+.chip-token {
+	display: inline-flex;
+	align-items: center;
+	padding: var(--space-0-5) var(--space-2);
+	border-radius: var(--radius-chip);
+	background: var(--chip);
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+	color: var(--label-primary);
+	white-space: nowrap;
+}
+
+.chip-list {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	gap: var(--space-1-5);
+	padding: var(--space-2) var(--space-2-5);
+	text-align: left;
+}
+
+button.chip-list {
+	width: 100%;
+	border-radius: var(--radius-group);
+}
+
+button.chip-list:hover {
+	background: var(--row-hover);
+}
+
+/* A popup button: the kit's capsule, a native menu underneath, a chevron pair beside it. */
+.popup {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	width: var(--popup-width);
+	max-width: 100%;
+}
+
+.popup select {
+	width: 100%;
+	height: var(--control-height-large);
+	padding: 0 var(--space-8) 0 var(--space-3);
+	border: 0;
+	border-radius: var(--radius-capsule);
+	background: var(--control);
+	font-size: var(--size-body);
+	font-weight: var(--weight-medium);
+	color: var(--label-primary);
+	appearance: none;
+}
+
+.popup .icon {
+	position: absolute;
+	right: var(--space-2-5);
+	pointer-events: none;
+	color: var(--label-primary);
+}
+
+.setup-inline {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding-inline: var(--space-1);
+	font-size: var(--size-body);
+}
+
+/* ---------------------------------------------------------------- step 1: connect */
+
+.vendor-cards {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-4);
+}
+
+.vendor-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-4);
+	border-radius: var(--radius-card);
+	background: var(--group);
+}
+
+.vendor-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: var(--vendor-button-height);
+	border: var(--hairline-width) solid;
+	border-radius: var(--radius-capsule);
+	font-size: var(--size-title3);
+	font-weight: var(--weight-semibold);
+}
+
+.vendor-button[data-vendor="claude"] {
+	border-color: var(--vendor-claude-edge);
+	background: var(--vendor-claude-bg);
+	color: var(--vendor-claude-fg);
+}
+
+.vendor-button[data-vendor="claude"]:hover:not(:disabled) {
+	background: var(--vendor-claude-bg-hover);
+}
+
+.vendor-button[data-vendor="chatgpt"] {
+	border-color: var(--vendor-chatgpt-edge);
+	background: var(--vendor-chatgpt-bg);
+	color: var(--vendor-chatgpt-fg);
+}
+
+.vendor-button[data-vendor="chatgpt"]:hover:not(:disabled) {
+	background: var(--vendor-chatgpt-bg-hover);
+}
+
+.vendor-line {
+	max-width: var(--vendor-line-width);
+	font-size: var(--size-body);
+	line-height: var(--leading-list-title);
+	color: var(--label-secondary);
+}
+
+.vendor-status {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1-5);
+	font-size: var(--size-body);
+	font-weight: var(--weight-semibold);
+	color: var(--label-primary);
+}
+
+.vendor-status .icon[data-tone="green"] {
+	color: var(--green);
+}
+
+/* A ready check is a green disc with the tick knocked out, here and under Employers. */
+.vendor-status .icon[data-tone="green"] circle,
+.ready .icon circle {
+	fill: var(--green);
+}
+
+.vendor-status .icon[data-tone="green"] path,
+.ready .icon path {
+	stroke: var(--on-green);
+}
+
+.vendor-status .icon[data-tone="plain"] {
+	color: var(--label-secondary);
+}
+
+.vendor-fix {
+	font-size: var(--size-callout);
+	line-height: var(--leading-list-title);
+	color: var(--label-secondary);
+	text-wrap: pretty;
+}
+
+/* The probe's remedy is rendered as it arrives; only its first letter is set as a sentence. */
+.vendor-fix[data-remedy]::first-letter {
+	text-transform: uppercase;
+}
+
+.key-box {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: var(--space-2);
+	border-radius: var(--radius-group);
+	background: var(--group);
+}
+
+.text-link {
+	display: inline;
+	color: var(--label-primary);
+	text-decoration: underline;
+	text-underline-offset: var(--space-0-5);
+}
+
+.disclosure-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1-5);
+	align-self: flex-start;
+	font-size: var(--size-body);
+	color: var(--label-secondary);
+}
+
+.disclosure-button .icon {
+	width: var(--space-6);
+	height: var(--space-6);
+	padding: var(--space-1);
+	border-radius: var(--radius-control);
+	background: var(--control);
+	color: var(--label-primary);
+	transition: transform var(--motion-base) var(--ease);
+}
+
+/* Closed points down, open points up: the kit's disclosure button, not a list triangle. */
+.disclosure-button[aria-expanded="true"] .icon {
+	transform: rotate(180deg);
+}
+
+.about-group {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.about-group li {
+	position: relative;
+	padding: var(--space-2-5) var(--space-3);
+	font-size: var(--size-body);
+	line-height: var(--leading-list-title);
+	color: var(--label-primary);
+}
+
+/* ---------------------------------------------------------------- step 2: résumé */
+
+.drop-zone {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-4);
+	height: var(--drop-height);
+	border: var(--dash-width) dashed var(--label-tertiary);
+	border-radius: var(--radius-card);
+	background: var(--drop);
+}
+
+.drop-zone[data-over="true"] {
+	background: var(--group);
+	border-color: var(--label-secondary);
+}
+
+.drop-zone .glyph-large {
+	width: var(--space-9);
+	height: var(--space-9);
+	stroke-width: var(--icon-stroke);
+	color: var(--label-secondary);
+}
+
+.drop-title {
+	font-size: var(--size-title3);
+	line-height: var(--leading-title3);
+	font-weight: var(--weight-semibold);
+	color: var(--label-primary);
+}
+
+.drop-actions {
+	display: flex;
+	gap: var(--space-2);
+}
+
+.file-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2-5);
+	padding: var(--space-2-5) var(--space-2-5) var(--space-2-5) var(--space-3);
+	border-radius: var(--radius-group);
+	background: var(--group);
+}
+
+.file-row > .icon {
+	width: var(--space-5);
+	height: var(--space-5);
+	color: var(--label-secondary);
+}
+
+.sheet-fields {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.sheet-fields label {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	font-size: var(--size-callout);
+	color: var(--label-secondary);
+}
+
+/* ---------------------------------------------------------------- step 3: employers */
+
+.search-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: var(--space-2);
+}
+
+.search-field {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1-5);
+	flex: 1;
+	min-width: 0;
+	height: var(--field-height);
+	padding: 0 var(--space-2);
+	border: var(--hairline-width) solid var(--field-edge);
+	border-radius: var(--radius-capsule);
+	background: var(--field);
+	color: var(--label-secondary);
+}
+
+.search-field:focus-within {
+	outline: var(--bar-width) solid var(--focus-ring);
+	outline-offset: 0;
+}
+
+.search-field input {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	outline: 0;
+	background: transparent;
+	font-size: var(--size-body);
+	color: var(--label-primary);
+}
+
+.search-field input::placeholder {
+	color: var(--label-secondary);
+}
+
+.ready {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	font-size: var(--size-callout);
+	color: var(--label-secondary);
+}
+
+.ready .icon {
+	color: var(--green);
+}
+
+.name-field {
+	flex: none;
+	height: var(--control-height);
+	margin-bottom: var(--space-1);
+	font-weight: var(--weight-semibold);
+}
+
+@container (max-width: 560px) {
+	.vendor-cards {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.setup-row-label {
+		width: auto;
+	}
+}

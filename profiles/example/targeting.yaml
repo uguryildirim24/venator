@@ -1,0 +1,239 @@
+# Profile: what to look for, where to look, and how Postings get judged.
+#
+# Fictional engineer Profile for trying a fresh Install. Copy to your own Profile and edit.
+# Everything here is optional. A group left empty simply never fires: an
+# unconfigured Hard Filter kills nothing, so a half-filled Profile still runs
+# the whole pipeline and still records a Filter Decision for every Posting.
+#
+# Editing this file changes filters_version, so the next `venator.match.run`
+# replays the whole corpus under the new rules (docs/RUNNING.md).
+#
+# Two kinds of wording live below, and the difference matters:
+#   * `terms` and fields ending in `_terms` are plain words. They are escaped and matched
+#     literally between word boundaries.
+#   * every field ending in `_patterns` is a regular expression, compiled
+#     verbatim. That is power and it is also a footgun: a pattern like
+#     '(a+)+$' backtracks catastrophically and hangs the Hard Filter pass on
+#     the first Posting that trips it. `venator.match.run` gives each Posting a
+#     wall-clock budget and names this file when it expires, but the budget is
+#     a backstop — keep patterns simple and anchored, and use `terms` whenever
+#     the wording is literal.
+
+profile:
+  name: example
+  # An opaque identifier for this Profile, stamped on every Filter Decision it
+  # produces so a row says which Profile decided it. Mint one *once*, in your
+  # own copy, and never change it again:
+  #
+  #   uv run python -c "from venator.profile import new_profile_identifier as n; print(n())"
+  #
+  # Deliberately absent here rather than filled in: a scaffold ships to
+  # everyone, and an identifier every copy shared would identify nothing.
+  # Leaving it out is also safe — a Profile without one identifies as its
+  # `name`, which is what the decisions store already records.
+  #
+  # It is opaque rather than a name for a reason. The directory name is a
+  # human label you may rename freely, and the data directory this Profile
+  # writes into can be copied, synced and restored well away from any checkout
+  # (docs/adr/0002), so a stamp that only means something next to a directory
+  # listing stops meaning anything once the two are apart. Keep it
+  # non-personal — not your name, not your email: `data/` gets committed here
+  # and backed up in a shipped Install.
+  #
+  # id: 6f1c9d2b4a8e47f0b3c5d7e9a1b2c3d4
+  #
+  # scaffold: true marks this a template. A scaffold is never picked as the
+  # implied Profile, so `--profile` is only needed once you have two real ones.
+  # Delete this line (or set false) in your own copy.
+  scaffold: true
+
+# Aggregator search terms. `queries` become the aggregator's "what" and
+# `locations` its "where"; every combination is fetched.
+search:
+  queries:
+    - backend engineer
+    - platform engineer
+  locations:
+    - Chicago, IL
+    - Remote
+  keywords: [] # extra role wording, for your own reference
+  seniority:
+    - mid
+    - senior
+  industries: []
+  remote: preferred # required | preferred | acceptable | no
+  salary_floor: null # a whole number, e.g. 140000
+
+# The Sources to poll: public ATS board tokens, by adapter.
+# `venator.discover.harvest` suggests boards linked from discovered Postings;
+# merging a suggestion into this list is your call, never automatic.
+sources:
+  # board token -> employer display name. **Keep this in sync with the
+  # board lists below** — the two are edited together, never one without the
+  # other. Every board registered below needs an entry here, and not only for
+  # the dashboard: Dedup resolves an ATS Posting's employer through this map,
+  # so a board with no entry has no employer and its Postings join no
+  # duplicate group at all. That is not the harmless direction. Because a
+  # Posting joins a group only by agreeing with every member already in it,
+  # one falling out changes which of the *rest* merge — so an unnamed board
+  # can leave a real Posting killed as a duplicate in place of the one that
+  # really was one, in a queue that is still the right length.
+  #
+  # Leaving this empty while `boards:` fills up is a legitimate state — absent
+  # means "not configured" — but the loader prints a warning saying how many
+  # boards went unnamed, because it is a state you land in by accident.
+  # Naming *some* boards and not others is refused outright.
+  #
+  # A Workday key is the whole token, `~site` included:
+  #   names:
+  #     examplebio: Example Bio
+  #     amgen.wd1~Careers: Amgen
+  # Public boards checked against their ATS listing APIs. Availability changes.
+  names:
+    cloudflare: Cloudflare
+    duolingo: Duolingo
+    linear: Linear
+  boards:
+    greenhouse:
+      - cloudflare
+      - duolingo
+    lever: []
+    ashby:
+      - linear
+    # Workday needs two identifiers, so a workday board token joins them with
+    # `~`: `<tenant>.wd<N>~<site>` — the myworkdayjobs host prefix, then the
+    # site string. Not a colon (a Posting key is `source:board:external_id`)
+    # and not a slash (the key is a path parameter in the dashboard's API).
+    # https://amgen.wd1.myworkdayjobs.com/en-US/Careers -> amgen.wd1~Careers
+    # The site string is not guessable: read it off {tenant-host}/robots.txt,
+    # which enumerates the tenant's public sites.
+    workday: []
+
+# Hard Filter policy. Everything here is data the filters read; the filters
+# themselves stay generic.
+filters:
+  # Shadow Jev checks Hard Filter passes when a key is available. The packaged
+  # release only knows these life-sciences domains; for this engineering example
+  # domain mismatches go to review, not automatic exclusion. Change the domain
+  # policy only within the release's closed vocabulary. Promotion requires this
+  # Profile's own final check; copying this scaffold does not inherit one.
+  qualification_mode: jev
+  jev:
+    policy_version: example-shadow-1
+    restricted_roles: review
+    temporary_student_authorization_exclusion: review
+    no_sponsorship_student: review
+    no_sponsorship_nonstudent: review
+    unmet_completed_degree: review
+    domains:
+      - biochemistry
+      - laboratory_research
+      - pharmacy
+      - quality_control
+      - biomanufacturing
+      - clinical_research
+      - computational_life_sciences
+      - regulatory_science
+
+  # Which Hard Filters run, in order. Remove one and it stops running — it
+  # does not silently pass; it is simply not part of the policy.
+  enabled:
+    - education_fit
+    - role_target
+
+
+  # Posting wording that makes you ineligible outright. Regular expressions,
+  # because the wording varies far more than the meaning. Left empty (as here)
+  # this filter passes everything — which is right for anyone with unrestricted
+  # authorization, and it is not in `enabled` above either.
+  work_authorization:
+    pass_reason: no explicit work-authorization restriction
+    restriction_patterns: []
+
+  # The band of the seniority ladder worth judging, and functions outside your
+  # field at any level. This is a preference on a scale, not a test for one kind
+  # of person: write your own rungs, lowest first, and name the ones you accept.
+  # This Profile is a mid-level backend engineer, so the band sits in the middle
+  # of the ladder and *both* edges cut — an internship is as wrong for them as a
+  # VP role. The Owner Profile next door accepts the bottom of the same ladder.
+  #
+  # Only the title is read, because an aggregator truncates the description and
+  # the title is the field that survives. A title naming no rung is left
+  # unplaced and passes rather than being guessed at — and so is a
+  # title that *offers* a rung this list cannot read, because a gap in the words
+  # below has to resolve to "not sure", never to "no".
+  #
+  # A Posting offering two titles ("Engineer II / Senior Software Engineer") is
+  # placed at the easiest of them; words within one title compose, so "Associate
+  # Director" is a Director. An acronym is its own word, so write it out: "chief"
+  # and "officer" cannot see "CISO", any more than "vice president" sees "VP".
+  role_target:
+    label: seniority band
+    levels: # lowest rung first
+      - name: intern
+        title_terms:
+          - intern
+          - internship
+          - co-op
+          - coop
+      - name: entry
+        title_terms:
+          - entry level
+          - new grad
+          - junior
+          - jr
+      - name: mid
+        title_terms: []
+      - name: senior
+        title_terms:
+          - senior
+          - sr
+          - staff
+          - principal
+      - name: executive
+        title_terms:
+          - director
+          - vp
+          - vice president
+          - chief
+          - head
+    accept:
+      - mid
+      - senior
+    # Functions outside this search at any level. Leave empty for no exclusions.
+    exclude:
+      label: a function outside this search
+      terms:
+        - sales
+        - recruiter
+        - account executive
+
+  # How much completed education or industry experience disqualifies you.
+  education_fit:
+    # The highest qualification you hold: high_school, associate, bachelor,
+    # master or doctorate. A Posting requiring that or less is met and passes; one
+    # requiring more is killed; one whose level the Posting never states — "a
+    # degree in a related field" — resolves to "not sure" and passes,
+    # and so does a requirement at a qualification you have in progress. A
+    # requirement open at more than one rung is read at its easiest.
+    #
+    # Leave the whole block out and no Posting is ever killed for its degree
+    # requirement. Absent means "not configured", never "holds nothing".
+    holds: bachelor
+    # A qualification you are working toward and do not hold yet. Uncomment it to
+    # pass requirements at that level instead of killing them.
+    # in_progress: master
+    #
+    # The original setting, still supported and unchanged in meaning: true says
+    # you have completed no degree at all, so every completed-degree requirement
+    # is out of reach whatever it names. It says something `holds` cannot say, so
+    # it cannot be set beside `holds` or `in_progress`.
+    # kill_completed_degree: true
+    # A stated minimum of this many years kills. Leave null to never kill on
+    # experience. A Posting survives while any one requirement it states is
+    # within reach; inside one requirement every condition counts at once, so
+    # "8 years, with 2 in a regulated environment" asks for eight.
+    experience_years_kill: 8
+    # Above this it reads as company history ("25 years in business"), not a
+    # requirement, and is ignored.
+    experience_years_implausible: 15

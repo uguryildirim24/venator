@@ -1,0 +1,24 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "qualified",
+  "findings": [
+    {
+      "obligation_id": "ob-001",
+      "requirement_id": "req-01",
+      "atom_id": null,
+      "quote": "No degree required",
+      "modality": "preferred",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    }
+  ],
+  "undecidable": [
+    {
+      "obligation_id": "ob-001",
+      "why": "outside_scope"
+    }
+  ],
+  "decisive": [],
+  "support": []
+}

@@ -1,0 +1,23 @@
+# Keep the default detectors; only known, context-bound false positives are exempt.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Retired tokenizer import is not a token"
+  condition = "AND"
+  paths = ['''^experiments/qualification/trajectory(?:_balanced|_full)?/worker\.py$''']
+  regexTarget = "match"
+  regexes = ['''^AutoTokenizer,\s*Qwen3_5ForConditionalGeneration$''']
+
+[[rules]]
+id = "jwt"
+
+  [[rules.allowlists]]
+  description = "Synthetic sentinel JWT in the secret-containment fixture"
+  condition = "AND"
+  paths = ['''^tests/llm/test_secret_containment\.py$''']
+  regexTarget = "match"
+  regexes = ['''^eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ2ZW5hdG9yIn0\.venatorsentinelsignature"$''']

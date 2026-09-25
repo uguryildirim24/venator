@@ -1,0 +1,12 @@
+{
+  "theta": 0.6,
+  "temporary_exclusion_enabled": false,
+  "question_package": "jev-qualification-3",
+  "questions_sha256": "fcefa25ba53be99ac3ff3f5a35ecc950f5cdcee13eac9e2ee732a0ea17539816",
+  "domains_sha256": "196c510a80091f1a3874d203e89f2b338cf9e95c31b17a946017d52eac1be9e3",
+  "release_hash": "81415678884ad7f879cc0b36509e31306ce000aae6d69b1e797970990aa6085c",
+  "qualifier_version": "jev:18bbef97dfa960458b44f91ec14c55dce7436c0ba2155edde40f9c630a244eab",
+  "protected_group_hashes": [],
+  "model_requested": "jev-1.13.0",
+  "validator_version": "4"
+}

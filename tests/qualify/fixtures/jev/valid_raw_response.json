@@ -1,0 +1,92 @@
+{
+  "model": "jev-1.13.0",
+  "answers": {
+    "is_internship_or_coop": {
+      "type": "noul",
+      "noul": 0.91
+    },
+    "refuses_sponsorship": {
+      "type": "noul",
+      "noul": 0.12
+    },
+    "citizenship_or_clearance": {
+      "type": "noul",
+      "noul": 0.04
+    },
+    "temporary_authorization_excluded": {
+      "type": "noul",
+      "noul": 0.03
+    },
+    "degree_completed_required": {
+      "type": "noul",
+      "noul": 0.22
+    },
+    "domain_match": {
+      "type": "noul",
+      "noul": 0.92
+    },
+    "confirmed_requirement_gap": {
+      "type": "noul",
+      "noul": 0.1
+    },
+    "plausible_candidate": {
+      "type": "noul",
+      "noul": 0.88
+    },
+    "would_apply": {
+      "type": "noul",
+      "noul": 0.85
+    },
+    "level": {
+      "type": "score",
+      "score": 0.4,
+      "confidence": 0.72,
+      "legend": {
+        "0": "A student, intern or co-op entry path is explicitly open to an undergraduate still enrolled.",
+        "1": "An entry-level employee path does not require a completed bachelor's degree or prior professional experience.",
+        "2": "An entry-level employee path requires a completed bachelor's degree but no substantial prior professional experience.",
+        "3": "The least demanding path requires established professional experience, but not an advanced degree or senior leadership.",
+        "4": "Every entry path requires an advanced degree or postgraduate enrollment, advanced specialist seniority, or senior leadership."
+      },
+      "probabilities": {
+        "0": 0.7,
+        "1": 0.2,
+        "2": 0.1,
+        "3": 0.0,
+        "4": 0.0
+      }
+    },
+    "mandatory_requirement_kind": {
+      "type": "choice",
+      "choice": "technique",
+      "confidence": 0.8,
+      "probabilities": {
+        "license": 0.01,
+        "certification": 0.02,
+        "language": 0.01,
+        "technique": 0.9,
+        "none": 0.04,
+        "unknown": 0.02
+      }
+    },
+    "years_floor": {
+      "type": "choice",
+      "choice": "none",
+      "confidence": 0.8,
+      "probabilities": {
+        "none": 0.95,
+        "under_1": 0.01,
+        "one_to_under_2": 0.01,
+        "two_to_under_3": 0.01,
+        "three_to_under_5": 0.01,
+        "five_to_under_8": 0.005,
+        "eight_plus": 0.005,
+        "unknown": 0.0
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 1200,
+    "output_tokens": 40
+  }
+}

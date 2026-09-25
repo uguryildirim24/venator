@@ -1,0 +1,14 @@
+/*
+ * The stylesheet index. Order matters and is the layer order of the system:
+ *
+ *   tokens      — the vocabulary. Nothing below may invent a value.
+ *   base        — element defaults, the window sheet, and the one focus treatment.
+ *   window      — the window: sidebar, toolbar, list, the Posting page and its margin,
+ *                 tables and sheets (ui/DESIGN.md).
+ *   onboarding  — setting up Venator: the setup window, its column, groups and footer.
+ */
+
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/window.css";
+@import "./styles/onboarding.css";

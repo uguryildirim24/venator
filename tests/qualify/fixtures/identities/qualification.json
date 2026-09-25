@@ -1,0 +1,51 @@
+{
+  "inputs": {
+    "posting_key": "fixture:free",
+    "posting_revision": "dda38f05a2b4116b3a176bae3b754ced33e2fbd0e2fc1f8eb854bcdca116bf7f",
+    "as_of_month": "2026-09",
+    "qualifier": {
+      "checkpoint_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tokenizer_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "chat_template_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "runner_id": "hf-reference",
+      "runner_version": "1"
+    },
+    "events": [
+      {
+        "profile_id": "fixture",
+        "event": "activated",
+        "qualifier_version": "q1"
+      },
+      {
+        "profile_id": "fixture",
+        "event": "proposed",
+        "qualifier_version": "q2"
+      },
+      {
+        "profile_id": "fixture",
+        "event": "revoked",
+        "qualifier_version": "q1"
+      }
+    ]
+  },
+  "identities": {
+    "compiler_version": "4",
+    "engine_version": "6",
+    "text_version": "1",
+    "prompt_version": "b5e87e25938d",
+    "schema_version": "a40de3a61217",
+    "deny_version": "baf13a6541e1",
+    "contract_version": "b646490af1f0",
+    "profile_hash": "95b3f8987c42",
+    "posting_revision": "dda38f05a2b4116b3a176bae3b754ced33e2fbd0e2fc1f8eb854bcdca116bf7f",
+    "input_version": "02aeef3b82f0",
+    "qualifier_version": "ecdf3b13a4c9",
+    "event_ids": [
+      "442ba8902a91",
+      "40c5b1b93098",
+      "ab977e7566ec"
+    ],
+    "promotion_state_revision": "4aa08831ef9c"
+  }
+}

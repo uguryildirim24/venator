@@ -1,0 +1,44 @@
+{
+  "posting": {
+    "key": "fixture:simple-or",
+    "title": "Fixture Posting",
+    "description_html": "<h2>Requirements</h2><p>BS or MS</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Requirements:\nBS or MS",
+    "spans": [
+      {
+        "id": "req-01",
+        "text": "BS or MS",
+        "start": 14,
+        "end": 22,
+        "hint": "unknown",
+        "atom_kinds": [
+          "degree",
+          "degree"
+        ],
+        "atom_hints": [
+          "unknown",
+          "unknown"
+        ],
+        "tree": "Expr(op='OR', children=('req-01.a1', 'req-01.a2'))"
+      }
+    ]
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "BS",
+      "modality": "required",
+      "atom_binding": "req-01.a1"
+    },
+    {
+      "obligation_id": "ob-002",
+      "quote": "MS",
+      "modality": "required",
+      "atom_binding": "req-01.a2"
+    }
+  ]
+}

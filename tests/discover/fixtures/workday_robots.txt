@@ -1,0 +1,10 @@
+# examplepharma.wd1.myworkdayjobs.com
+User-agent: *
+Disallow: /wday/
+Disallow: /*/login*
+Allow: /en-US/ExampleCareers
+Allow: /en-US/EarlyCareers
+Disallow: /en-US/ExampleCareers/job/*/apply
+
+Sitemap: https://examplepharma.wd1.myworkdayjobs.com/en-US/ExampleCareers/sitemap.xml
+Sitemap: https://someoneelse.wd5.myworkdayjobs.com/en-US/NotOurs/sitemap.xml

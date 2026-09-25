@@ -1,0 +1,18 @@
+education:
+  - org: East School
+    degree: BA in History at East School
+    date: May 2024
+experience:
+  - org: Cedar Works
+    role: Operations Coordinator
+    dates: June 2024 - Present
+    bullets:
+      - Built a scheduling workflow at Cedar Works
+      - Disclosed a medical condition while preparing the rota
+      - Led church worship and recruitment events
+  - org: Civic Group
+    role: She led outreach
+    dates: September 2023 - May 2024
+    bullets:
+      - Prepared public event notes
+skills: Scheduling, Excel

@@ -1,0 +1,26 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "cannot_tell",
+  "findings": [
+    {
+      "obligation_id": "ob-001",
+      "requirement_id": "free",
+      "atom_id": null,
+      "quote": "Applicants should have a BS and 4 years experience.",
+      "modality": "required",
+      "status": "undecidable",
+      "fact_ids": [],
+      "basis": ""
+    }
+  ],
+  "undecidable": [
+    {
+      "obligation_id": "ob-001",
+      "why": "split_required"
+    }
+  ],
+  "decisive": [
+    "ob-001"
+  ],
+  "support": []
+}

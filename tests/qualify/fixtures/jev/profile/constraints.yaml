@@ -1,0 +1,5 @@
+work_authorization:
+  requires_sponsorship: false
+  authorized_to_work: true
+education_fit:
+  is: undergraduate

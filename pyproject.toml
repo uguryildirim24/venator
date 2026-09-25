@@ -1,0 +1,35 @@
+[project]
+name = "venator"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "pdfplumber>=0.11.10",
+    "playwright>=1.62.0",
+    "pycountry>=26.2.16",
+    "pypdf>=6.16.2",
+    "pyyaml>=6.0.3",
+    "reportlab>=5.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/venator"]
+
+[tool.pytest.ini_options]
+# Collect only this repository's own suite. `ui/tools/prepare-python.ts` stages a Windows
+# wheel set into `ui/src-tauri/resources/python/<target>/Lib/site-packages/`, and greenlet
+# ships its own test modules inside its wheel — so a bare `uv run pytest` on a checkout that
+# has staged a desktop bundle tries to collect somebody else's tests, for another platform,
+# and stops on fifteen collection errors before reaching ours. The directory is gitignored
+# and disposable; naming the suite is what keeps it out of the run.
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

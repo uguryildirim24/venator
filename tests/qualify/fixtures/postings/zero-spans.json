@@ -1,0 +1,14 @@
+{
+  "posting": {
+    "key": "fixture:zero-spans",
+    "title": "Fixture Posting",
+    "description_html": "<p>Join our team.</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Join our team.",
+    "spans": []
+  },
+  "obligation_golden": []
+}

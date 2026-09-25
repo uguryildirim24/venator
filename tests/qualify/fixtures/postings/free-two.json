@@ -1,0 +1,21 @@
+{
+  "posting": {
+    "key": "fixture:free-two",
+    "title": "Fixture Posting",
+    "description_html": "<p>Applicants should have a BS and 4 years experience.</p>",
+    "description_kind": "full",
+    "listing_status": "open"
+  },
+  "engine_golden": {
+    "description_text": "Applicants should have a BS and 4 years experience.",
+    "spans": []
+  },
+  "obligation_golden": [
+    {
+      "obligation_id": "ob-001",
+      "quote": "Applicants should have a BS and 4 years experience.",
+      "modality": "required",
+      "atom_binding": "split_required"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "greenhouse_school_options": [
+    "Lafayette College",
+    "Lake Forest College",
+    "La Roche University",
+    "La Salle University",
+    "Example College",
+    "Lawrence University",
+    "Lebanon Valley College",
+    "Lehigh University",
+    "Lesley University",
+    "Lewis & Clark College",
+    "Lewis University",
+    "Liberty University",
+    "Lincoln Memorial University",
+    "Lipscomb University",
+    "Long Island University"
+  ],
+  "ambiguous_school_options": [
+    "University-of-Northbridge",
+    "UNIVERSITY OF NORTHBRIDGE!",
+    "Other"
+  ]
+}

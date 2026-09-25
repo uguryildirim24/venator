@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+build/
+.DS_Store
+.env
+.claude/worktrees/
+.venator-browser/
+
+# Personal stores and Profiles live only in the Install's application data directory.
+/data/
+/run/
+/profiles/*
+!/profiles/example/
+
+.env.*
+!ui/.env.desktop
+.herdr-project/
+*audit-report*

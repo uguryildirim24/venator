@@ -1,0 +1,8 @@
+{
+  "contract": "qualify-output-2",
+  "decision": "cannot_tell",
+  "findings": [],
+  "undecidable": [],
+  "decisive": [],
+  "support": []
+}

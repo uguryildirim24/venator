@@ -1,0 +1,48 @@
+# Profile: resume source of truth — the only facts an Application may draw from.
+# All names and experience below are fictional placeholders. Replace every value before applying.
+# Tailoring may reorder or emphasize these entries; it never invents facts.
+
+name: Avery Example
+contact:
+  location: Chicago, IL
+  phone: 555-555-0100
+  email: avery@example.com
+  linkedin: www.linkedin.com/in/avery-example
+
+# Add a `sections:` list here to name your own section titles and their order
+# (see this file's sections list); without one the renderer uses its defaults.
+# Every entry accepts `include: false` to drop it from a render, and Tailoring
+# may put it back for one Match. A section with no entries is skipped entirely.
+education:
+  # Mark the entry an application form should answer with. Without a flag the
+  # first entry is used.
+  - org: Example University
+    location: Chicago, IL
+    date: May 2020
+    degree: Bachelor of Science in Computer Science
+    primary: true
+    # gpa and coursework are optional — delete the keys rather than leaving
+    # them empty if you would rather not publish them.
+    # gpa: 3.50/4.00
+    # coursework: Data Structures, Algorithms, Databases
+
+# Free-form labelled rows. The labels are yours; nothing reads them by name.
+technical_proficiencies:
+  - label: Languages
+    items: Python, TypeScript, SQL
+  - label: Infrastructure
+    items: PostgreSQL, Docker, AWS
+
+experience:
+  - org: Example Software Studio
+    role: Backend Engineer
+    location: Chicago, IL
+    dates: June 2020 - Present
+    # Fictional evidence for testing only; never use this résumé to apply.
+    bullets:
+      - Built Python APIs backed by PostgreSQL for a fictional inventory service
+      - Maintained TypeScript integrations and Docker deployments
+
+memberships: []
+
+campus_involvement: []
