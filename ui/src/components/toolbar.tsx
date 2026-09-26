@@ -79,9 +79,8 @@ type PostingActionsProps = {
  *
  * Open Application is the visible handoff. It opens the employer's form in a browser the
  * Owner can see, fills confirmed fields, uploads the prepared documents, and stops; the Owner
- * presses submit. It needs prepared documents, and the margin says so beside a Posting that
- * has none. An excluded Posting has no Owner action and no capsule; a dismissed one has
- * Restore in its place.
+ * presses submit. It needs prepared documents; the disabled control says that by its state.
+ * An excluded Posting has no Owner action and no capsule; a dismissed one has Restore in its place.
  */
 export function PostingActions({ detail, control }: PostingActionsProps) {
 	const state = detail.application?.state ?? null;

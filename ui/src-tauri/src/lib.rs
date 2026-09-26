@@ -184,7 +184,10 @@ fn start_api(app: &tauri::AppHandle) -> Option<Child> {
             .ok()?,
     );
     let mut command = Command::new(&runtime);
-    command.arg(server).env("VENATOR_API_PORT", API_PORT.to_string());
+    // The bundled interpreter is under the signed resource tree. This also protects any
+    // Python child the sidecar might start outside the server's explicit spawn environments.
+    command.arg(server).env("VENATOR_API_PORT", API_PORT.to_string())
+        .env("PYTHONDONTWRITEBYTECODE", "1");
 
     // No view is not a failure to start against: it is what an Install that has never run the
     // pipeline has, and the server has its own answer for it. The variable is cleared rather

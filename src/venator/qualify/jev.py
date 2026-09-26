@@ -52,9 +52,10 @@ from venator.qualify.jev_contract import (
     JevValidation,
     validate_jev_response,
 )
-from venator.qualify.jev_policy import PreparedJevCase, prepare_jev_case
+from venator.qualify.jev_policy import PreparedJevCase, _description_reason, prepare_jev_case
 from venator.qualify.jev_reduce import reduce_jev
 from venator.qualify.jev_release import JEV_RELEASE, JevRelease
+from venator.qualify.posting import canonical_posting
 from venator.qualify.store import (
     JEV_KIND,
     append_rows,
@@ -540,6 +541,8 @@ class SelectedWork:
     prepared: list[PreparedJevCase]
     named_unassessed: list[dict[str, Any]]
     report: ExecutionReport
+    # The read-only plan needs only these bindings, not wire states or evidence.
+    selection: list[tuple[str, str]]
 
 
 def select_work(
@@ -552,7 +555,11 @@ def select_work(
     named_keys: Sequence[str] | None,
     release: JevRelease,
     decided_at: str,
+    bindings_only: bool = False,
 ) -> SelectedWork:
+    """Select full cases for execution, or only their input bindings for a plan."""
+    if bindings_only and named_keys:
+        raise ValueError("bindings-only selection requires all passing Postings")
     report = ExecutionReport()
     group_index: dict[str, object] = {}
     policy = profile.filters.jev
@@ -577,6 +584,7 @@ def select_work(
         qualifications_dir, profile.identifier, mode, release.qualifier_version, input_versions,
     )
     prepared: list[PreparedJevCase] = []
+    selection: list[tuple[str, str]] = []
     named_unassessed: list[dict[str, Any]] = []
     for key in wanted:
         posting = by_key[key]
@@ -590,14 +598,32 @@ def select_work(
         if key in current:
             report.current_assessments += 1
             continue
-        prep = prepare_jev_case(
-            posting, profile, month, release, group_index=group_index,
-            compiled_profile=compiled,
-        )
-        if prep.reason is not None:
-            if prep.reason == "snippet":
+        if bindings_only:
+            # Preparation's early gate is canonicalization plus the description
+            # check. Spans, evidence, projection and wire state cannot affect
+            # that gate or the input binding. Leave them for the actual Jev run.
+            if profile.scaffold:
+                reason = "no_profile"
+            else:
+                try:
+                    canonical = canonical_posting(posting, group_index, include_spans=False)
+                except (TypeError, ValueError):
+                    reason = "missing"
+                else:
+                    reason = _description_reason(posting, canonical)
+                    if reason is None:
+                        selection.append((canonical.posting_key, input_versions[key]))
+                        continue
+        else:
+            prep = prepare_jev_case(
+                posting, profile, month, release, group_index=group_index,
+                compiled_profile=compiled,
+            )
+            reason = prep.reason
+        if reason is not None:
+            if reason == "snippet":
                 report.snippets += 1
-            elif prep.reason == "too_long":
+            elif reason == "too_long":
                 report.too_long += 1
             else:
                 report.missing += 1
@@ -613,14 +639,15 @@ def select_work(
                     qualifier_identity=release.qualifier_identity,
                     input_version_value=input_versions[key],
                     mode=mode,
-                    reason=prep.reason,
+                    reason=reason,
                     decided_at=decided_at,
                 ))
             continue
         assert prep.case is not None
         prepared.append(prep.case)
-    report.selected = len(prepared) + len(named_unassessed)
-    return SelectedWork(prepared, named_unassessed, report)
+        selection.append((prep.case.bindings.posting_key, prep.case.bindings.input_version))
+    report.selected = len(selection) + len(named_unassessed)
+    return SelectedWork(prepared, named_unassessed, report, selection)
 
 
 def _promoted_fresh(qualifications_dir: Path, profile_id: str, accepted: str,
@@ -952,6 +979,27 @@ def _print_report(report: ExecutionReport, stream: TextIO | None = None) -> None
           file=sys.stdout if stream is None else stream)
 
 
+def passing_postings(
+    postings_dir: Path, decisions_dir: Path, qualifications_dir: Path,
+    profile: Profile, month: str, named_keys: Sequence[str] = (),
+) -> list[Mapping[str, Any]]:
+    """Read the same current Hard Filter passes for a plan and an execution."""
+    if decisions_dir.exists():
+        verify_decisions_dir(decisions_dir, profile.identifier)
+    latest = load_latest_decisions(decisions_dir)
+    keys = {
+        key for (key, stage), decision in latest.items()
+        if stage == "hard_filter" and decision.get("verdict") == "pass"
+    }
+    if named_keys:
+        keys.intersection_update(named_keys)
+    postings = list(latest_postings(postings_dir, keys=keys).values())
+    return hard_filter_passes(
+        postings, decisions_dir, profile, month, qualifications_dir,
+        latest_decisions=latest,
+    )
+
+
 def run(
     *,
     profile: Profile,
@@ -977,21 +1025,8 @@ def run(
     if profile.filters.jev is None:
         raise ValueError("filters.jev is required for Jev")
     if hard_filter_passes_only:
-        if decisions_dir.exists():
-            verify_decisions_dir(decisions_dir, profile.identifier)
-        latest = load_latest_decisions(decisions_dir)
-        # Non-passing Postings cannot reach Jev. Do not retain their full
-        # descriptions, source facts, or observation history in this process.
-        keys = {
-            key for (key, stage), decision in latest.items()
-            if stage == "hard_filter" and decision.get("verdict") == "pass"
-        }
-        if named_keys:
-            keys.intersection_update(named_keys)
-        postings = list(latest_postings(postings_dir, keys=keys).values())
-        postings = hard_filter_passes(
-            postings, decisions_dir, profile, month, qualifications_dir,
-            latest_decisions=latest,
+        postings = passing_postings(
+            postings_dir, decisions_dir, qualifications_dir, profile, month, named_keys,
         )
     elif named_keys:
         postings = list(latest_postings(postings_dir, keys=set(named_keys)).values())

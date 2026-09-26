@@ -1,5 +1,5 @@
 import { Check, ChevronRight, Loader, Lock } from "lucide-react";
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { FilterDecision, PostingDetail, TrackEvent } from "../../shared/contracts.ts";
 import { applicationFileUrl, type ApplicationManifest, type ApplicationProvider } from "../api.ts";
@@ -196,22 +196,6 @@ function ResumeThumb() {
 	);
 }
 
-/**
- * Principle 6: wherever Open Application is offered, the margin says who submits. Before the
- * documents exist it also says why the toolbar's capsule is off, so that reason sits in one note
- * rather than a second one beside it.
- */
-function SubmitNote({ ready }: { readonly ready: boolean }) {
-	return (
-		<div className="note">
-			<span className="note-title">You press submit</span>
-			<span className="note-subtitle">
-				{ready ? "Open Application fills confirmed fields, then stops." : "Once documents are ready, Open Application fills confirmed fields, then stops."}
-			</span>
-		</div>
-	);
-}
-
 function QuickLook({ postingKey, manifest, open, onOpenChange }: { readonly postingKey: string; readonly manifest: ApplicationManifest; readonly open: boolean; readonly onOpenChange: (open: boolean) => void }) {
 	const [view, setView] = useState<"pdf" | "text" | "letter">("pdf");
 	const pdf = applicationFileUrl(postingKey, "resume.pdf");
@@ -372,7 +356,6 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 						{control.busy === "applied" ? "Saving…" : "I Applied"}
 					</button>
 				</div>
-				<SubmitNote ready />
 				<button type="button" className="note-action" onClick={() => setPrepareOpen(true)} disabled={!allowed}>
 					Prepare again…
 				</button>
@@ -393,10 +376,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 						Prepare Application…
 					</button>
 				</div>
-				<div className="note">
-					<span className="note-subtitle">{note}</span>
-				</div>
-				<SubmitNote ready={false} />
+				{!allowed ? <div className="note"><span className="note-subtitle">{note}</span></div> : null}
 			</>
 		);
 	}
@@ -448,6 +428,41 @@ type PostingPageProps = {
  */
 export function PostingPage({ detail, control }: PostingPageProps) {
 	const [sheet, setSheet] = useState<"description" | "changed" | "history" | "requirements" | null>(null);
+	const pageRef = useRef<HTMLElement>(null);
+
+	// Keep the margin a single flowing column without letting it change the employer's
+	// paragraph heights. Reflow when either column changes size (including loaded documents).
+	useLayoutEffect(() => {
+		const page = pageRef.current;
+		if (page === null) return;
+		let frame = 0;
+		const layout = () => {
+			const cells = [...page.querySelectorAll<HTMLElement>(".page-block > .margin-cell")];
+			if ((page.parentElement?.clientWidth ?? 0) < 680) {
+				for (const cell of cells) cell.style.translate = "";
+				page.style.minHeight = "";
+				return;
+			}
+			let bottom = 0;
+			for (const cell of cells) {
+				if (!cell.textContent?.trim()) continue;
+				const anchor = cell.offsetTop;
+				const top = Math.max(anchor, bottom === 0 ? anchor : bottom + 14);
+				cell.style.translate = `0 ${top - anchor}px`;
+				bottom = top + cell.scrollHeight;
+			}
+			page.style.minHeight = `${bottom + 24}px`;
+		};
+		const schedule = () => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(layout);
+		};
+		const observer = new ResizeObserver(schedule);
+		observer.observe(page.parentElement ?? page);
+		for (const cell of page.querySelectorAll<HTMLElement>(".page-block > .page-cell, .page-block > .margin-cell > *")) observer.observe(cell);
+		schedule();
+		return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+	}, [detail, control.manifest.status, control.prepared]);
 	const { posting, assessment } = detail;
 	const margin = useMemo(
 		() =>
@@ -478,7 +493,7 @@ export function PostingPage({ detail, control }: PostingPageProps) {
 	};
 
 	return (
-		<article className="posting" aria-label={posting.title}>
+		<article ref={pageRef} className="posting" aria-label={posting.title}>
 			<div className="page-block" data-kind="header">
 				<header className="page-cell">
 					<p className="page-eyebrow">{eyebrow}</p>

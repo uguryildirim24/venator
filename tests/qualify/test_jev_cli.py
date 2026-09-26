@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import json
 import threading
 import time
+from types import SimpleNamespace
 from dataclasses import replace
 from pathlib import Path
 
@@ -266,7 +269,10 @@ def test_selective_store_read_keeps_selection_and_payloads(
     passed = {**_posting(), "key": "fixture:passed"}
     killed = {**_posting(), "key": "fixture:killed"}
     stale = {**_posting(), "key": "fixture:stale"}
-    _write_postings(tmp_path / "postings", passed, killed, stale)
+    closed = {**_posting(), "key": "fixture:closed", "listing_status": "closed"}
+    snippet = {**_posting(), "key": "fixture:snippet", "description_kind": "snippet"}
+    assessed = {**_posting(), "key": "fixture:assessed"}
+    _write_postings(tmp_path / "postings", passed, killed, stale, closed, snippet, assessed)
     # A compact observation changes the effective Posting without replacing
     # its description. The version must compare against that merged row.
     with (tmp_path / "postings" / "2026-09-18.jsonl").open("a") as output:
@@ -288,11 +294,42 @@ def test_selective_store_read_keeps_selection_and_payloads(
                     posting, profile, "2026-09", JEV_RELEASE,
                 )},
             }) + "\n")
+    qualifications = tmp_path / "qualifications"
+    qualifications.mkdir()
+    (qualifications / "2026-09-18.jsonl").write_text(json.dumps({
+        "posting_key": assessed["key"], "profile_id": profile.identifier,
+        "mode": "shadow", "qualifier_kind": JEV_KIND,
+        "qualifier_version": JEV_RELEASE.qualifier_version,
+        "input_version": bound_input_version(assessed, profile, "2026-09", JEV_RELEASE),
+        "decision": "review",
+    }) + "\n")
     expected = select_work(
-        hard_filter_passes(effective, decisions, profile, "2026-09", tmp_path / "qualifications"),
+        hard_filter_passes(effective, decisions, profile, "2026-09", qualifications),
         profile=profile, month="2026-09", mode="shadow", qualifications_dir=tmp_path / "qualifications",
         named_keys=None, release=JEV_RELEASE, decided_at="2026-09-18T00:00:00+00:00",
     )
+    # The plan's lightweight binding selection must match full preparation and
+    # the exact Posting order selected by the Jev run, including observations,
+    # stale decisions, closed/snippet Postings and a current shadow result.
+    spec = importlib.util.spec_from_file_location(
+        "runs_plan", Path(__file__).parents[2] / "ui/server/runs/plan.py",
+    )
+    assert spec is not None and spec.loader is not None
+    plan_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plan_module)
+    stores = SimpleNamespace(
+        postings_dir=tmp_path / "postings", decisions_dir=decisions,
+        qualifications_dir=qualifications,
+    )
+    planned = plan_module._jev_plan(profile, stores, "2026-09-18")
+    expected_bindings = [
+        (case.bindings.posting_key, case.bindings.input_version)
+        for case in expected.prepared
+    ]
+    assert planned["postingCount"] == len(expected_bindings)
+    assert planned["selectionHash"] == hashlib.sha256(json.dumps(
+        sorted(expected_bindings), separators=(",", ":"),
+    ).encode()).hexdigest()
     captured = []
     original = jev.select_work
 
@@ -309,10 +346,15 @@ def test_selective_store_read_keeps_selection_and_payloads(
             named_keys=names, hard_filter_passes_only=True, decisions_dir=decisions,
             execute=False, offline=True, max_usd=None, max_requests=None,
         )
-        assert report.as_dict() == expected.report.as_dict()
+        if not names:
+            assert report.as_dict() == expected.report.as_dict()
+        else:
+            assert report.selected == 1
         assert [case.bindings for case in captured[-1].prepared] == [
             case.bindings for case in expected.prepared
         ]
+        if not names:
+            assert captured[-1].selection == expected_bindings
         assert [(dict(case.state), dict(case.questions)) for case in captured[-1].prepared] == [
             (dict(case.state), dict(case.questions)) for case in expected.prepared
         ]

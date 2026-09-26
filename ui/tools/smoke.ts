@@ -313,16 +313,15 @@ const CHECKS: readonly RouteCheck[] = [
 			'role="listbox"',
 			'aria-selected="true"',
 			"Summer 2027 Intern, Automation &amp; Lab Informatics",
-			"Jev: look first — An estimate, not a verdict",
+			"Jev: look first",
+			"Jev: priority for review",
 			// The page, and Venator's notes in the margin beside it.
 			"Verified open",
 			"Prepare Application…",
-			"You press submit",
-			"Hard Filters passed",
 			"Read Full Description",
 		],
 		// A browser tab draws its own window; only the desktop host is native.
-		absent: ["app-native", "Match strength", "Priority rank"],
+		absent: ["app-native", "Match strength", "Priority rank", "An estimate, not a verdict", "Hard Filters passed"],
 	},
 	{
 		hash: "#/queue?page=1",
@@ -336,7 +335,7 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: [
 			"1 Posting",
 			"Data Engineering Intern (Remote, US)",
-			"Jev: review — An estimate, not a verdict",
+			"Jev: review",
 		],
 	},
 	{
@@ -363,7 +362,7 @@ const CHECKS: readonly RouteCheck[] = [
 		label: "Excluded: each Posting with its rule, and no application offered",
 		expected: [
 			"9 Postings",
-			"Jev: skip — An estimate, not a verdict",
+			"Jev: skip",
 			"Location",
 			"Duplicate",
 			"Education fit",
@@ -373,7 +372,7 @@ const CHECKS: readonly RouteCheck[] = [
 			"Everything this rule excluded",
 			"The employer listing is closed.",
 		],
-		absent: ["Prepare Application…", ">Open Application<", "You press submit"],
+		absent: ["Prepare Application…", ">Open Application<"],
 	},
 	{
 		hash: "#/triage",
@@ -450,7 +449,8 @@ const CHECKS: readonly RouteCheck[] = [
 	{
 		hash: `#/postings/${TESSERA_KEY}`,
 		label: "Posting: résumé evidence and an unavailable early review, with no score",
-		expected: ["Intern, Gene Writing Analytics", "On your résumé", "QC reporting in Excel", "Jev unavailable", "An estimate, not a verdict"],
+		expected: ["Intern, Gene Writing Analytics", "On your résumé", "QC reporting in Excel"],
+		absent: ["Jev unavailable", "An estimate, not a verdict"],
 	},
 	{
 		hash: `#/postings/${WORKDAY_KEY}`,

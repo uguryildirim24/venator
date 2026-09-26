@@ -73,7 +73,11 @@ export function createServer(): Hono {
 	// state-changing request against an employer or touches submission.
 	// ui/ONBOARDING-API.md is its contract; server/onboarding/routes.ts states the limits.
 	app.route("/api/onboarding", createOnboardingRoutes());
-	app.route("/api/locations", createLocationRoutes());
+	const locations = createLocationRoutes();
+	// Hono treats a trailing slash as a different path. Both desktop and web callers
+	// must reach the same guarded action surface, including its CORS preflight.
+	app.route("/api/locations", locations);
+	app.route("/api/locations/", locations);
 	app.route("/api", createApiRoutes());
 
 	if (existsSync(APP_BUNDLE_PATH)) {

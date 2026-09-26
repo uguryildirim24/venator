@@ -76,7 +76,7 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	const state = entry.application?.state ?? null;
 	let status: Cell["status"] = null;
 	if (entry.status === "hard-killed") {
-		status = { text: entry.hardFilter?.verdict === "kill" && entry.hardFilter.rule ? ruleLabel(entry.hardFilter.rule) : entry.jev?.decision === "exclude" ? jevSkipLabel(entry.jev.mode) : "Excluded", glyph: "excluded" };
+		status = { text: entry.hardFilter?.verdict === "kill" && entry.hardFilter.rule ? ruleLabel(entry.hardFilter.rule) : entry.jev?.decision === "exclude" ? jevSkipLabel() : "Excluded", glyph: "excluded" };
 	} else if (list === "applied" && state !== null) {
 		status = {
 			text: `${applicationStateLabel(state)}${entry.application?.since ? ` · ${formatDay(entry.application.since)}` : ""}`,
@@ -85,7 +85,7 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	} else if (state === "prepared") {
 		status = { text: "Documents ready", glyph: "ready" };
 	} else if (entry.jev?.decision === "prioritize" || entry.jev?.decision === "review") {
-		status = { text: jevListLabel(entry.jev.decision, entry.jev.mode), glyph: "info" };
+		status = { text: jevListLabel(entry.jev.decision), glyph: "info" };
 	}
 	return {
 		key: posting.key,
@@ -125,7 +125,7 @@ function diagnosticGroups(entries: readonly JevTriageEntry[]): CellGroup[] {
 		time: "",
 		stamp: "",
 		isNew: false,
-		status: { text: `${jevStateLabel(triage.state)}${triage.mode === "shadow" ? " — An estimate, not a verdict" : ""}`, glyph: "info" },
+		status: { text: jevStateLabel(triage.state), glyph: "info" },
 	}));
 	return cells.length === 0 ? [] : [{ key: "diagnostics", header: homeListLabel("unscored"), cells }];
 }

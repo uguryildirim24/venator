@@ -21,6 +21,9 @@ test("current Jev routes passed Postings; résumé assessment, stale Jev and his
 			insert.run(key, "current", decision, 0.7, 0.7, `ak-${key}`);
 			db.prepare("INSERT INTO decisions (posting_key, stage, verdict, decided_at) VALUES (?, 'hard_filter', 'pass', '2026-01-02')").run(key);
 		}
+		// A passing Hard Filter can still have a useful unknown fact in the margin.
+		db.prepare("UPDATE assessments SET unknowns = ? WHERE posting_key = 'skip'")
+			.run(JSON.stringify(["hard-filter fact location was unknown (hard_filter decision)"]));
 		insert.run("stale", "stale", "prioritize", 0.9, 0.9, "ak-old");
 		db.prepare("INSERT INTO decisions (posting_key, stage, verdict, rule, decided_at) VALUES ('killed', 'hard_filter', 'kill', 'eligibility', '2026-01-02')").run();
 		db.prepare("INSERT INTO application_states (posting_key, state) VALUES ('applied', 'prepared')").run();
@@ -31,14 +34,16 @@ test("current Jev routes passed Postings; résumé assessment, stale Jev and his
 		const skipped = readPostingDetail(db, "skip");
 		assert.ok(skipped);
 		assert.equal(skipped.jev?.mode, "shadow");
-		assert.equal(jevSkipLabel(skipped.jev.mode), "Jev: skip — An estimate, not a verdict");
+		assert.equal(jevSkipLabel(), "Jev: skip");
 		db.prepare("UPDATE jev_triage SET mode = 'promoted' WHERE state = 'current'").run();
 		db.prepare("UPDATE jev_selection SET mode = 'promoted'").run();
 		const promoted = readPostingDetail(db, "skip");
 		assert.equal(promoted?.jev?.mode, "promoted");
-		assert.equal(jevSkipLabel("promoted"), "Jev: skip");
+		assert.equal(jevSkipLabel(), "Jev: skip");
 		const notes = buildMargin({ page: skipped.page, decisions: skipped.decisions, assessment: skipped.assessment, jevTriage: skipped.jevTriage });
-		assert.ok(![...notes.header, ...notes.blocks.flatMap((block) => block.notes)].some((note) => note.title === "Excluded by a Hard Filter"));
+		const marginNotes = [...notes.header, ...notes.blocks.flatMap((block) => block.notes)];
+		assert.ok(!marginNotes.some((note) => note.title === "Excluded by a Hard Filter"));
+		assert.ok(marginNotes.some((note) => note.title === "Location: not stated"));
 	} finally { db.close(); }
 });
 

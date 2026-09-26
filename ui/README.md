@@ -74,7 +74,9 @@ allowlist refuse a page from some other site.
 | `/api/onboarding/state` | whether this Install has a Profile yet, and which one is in use |
 
 `GET /api/locations` returns available location choices and the saved selection.
-States and countries group their cities. Remote, Several locations, No location
+States and countries group their cities. Boston spellings share one city choice;
+campus names and job-posting labels use their city, and joined lists split into
+places. Remote spellings share one Remote choice. Several locations, No location
 and Other places are separate choices. A Posting with several places counts in
 each place it lists. `POST /api/locations` takes `{ "selected": ["…"] }` and saves
 the choice in the Install; it doesn't change a Profile or the view.
@@ -141,12 +143,16 @@ only ever written to `<data directory>/profiles`.
 
 The sidebar groups these lists in rounded cards. Its larger rows put a symbol beside
 each name and a count at the right; the selected row has a quiet grey background.
-The space below the cards stays open, with Refresh and Jev it at the foot.
-The last-checked line shows the latest Discover board check, including one run
-from the command line. It says **Not checked yet** if no check has been recorded.
+The sidebar is 216px wide; its off-white cards have no bottom card. The space
+below them stays open, with Refresh and Jev it at the foot. The last-checked line
+shows the latest Discover board check, including one run from the command line.
+It says **Not checked yet** if no check has been recorded.
 
-Lists sort by when a Posting was last verified, never by a score. The résumé
-assessment shows as a note in the margin, not as a list.
+The main screen keeps two columns even at the smallest opening window size.
+The desktop window opens at 1440×900. Lists sort by when a Posting was last
+verified, never by a score. The Posting page's margin shows facts from the résumé
+assessment and Hard Filters beside the relevant text, without explainer lines or
+a Jev disclaimer.
 
 Setup takes over the whole window, with no sidebar. Each step has **Skip for Now**,
 and the step lives in the URL so Back works. When the app opens with no route and no

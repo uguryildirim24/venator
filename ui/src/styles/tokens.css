@@ -35,6 +35,9 @@
 	--space-2-5: 10px;
 	--space-3: 12px;
 	--space-4: 16px;
+	--space-4-5: 18px;
+	--space-5-5: 22px;
+	--space-6-5: 26px;
 	--space-5: 20px;
 	--space-6: 24px;
 	--space-7: 28px;
@@ -51,7 +54,7 @@
 	--mark-offset: 4px;
 
 	/* The window, measured at the 1440×900 reference. */
-	--sidebar-width: 240px;
+	--sidebar-width: 216px;
 	/* The sidebar slot: cards fill it, inset 14 from each edge (ui/DESIGN.md, "Sidebar"). */
 	--sidebar-inset: 14px;
 	/* The kit's Large section header: 43 tall, its title resting 8 above the bottom. */
@@ -59,7 +62,7 @@
 	/* What the macOS traffic lights cover of a toolbar they sit over, with the sidebar hidden. */
 	--traffic-lights-width: 84px;
 	--toolbar-height: 52px;
-	--list-width: 400px;
+	--list-width: 392px;
 	--search-width: 176px;
 	/* A sidebar row, the kit's Large size. */
 	--row-height: 36px;
@@ -76,8 +79,11 @@
 
 	/* The Posting page and its margin. */
 	--page-width: 480px;
+	--page-min-width: 448px;
 	--page-gap: 36px;
-	--page-fold: 720px;
+	--page-fold: 680px;
+	--page-wide: 828px;
+	--page-block-width: 756px;
 	--thumb-width: 40px;
 	--thumb-height: 52px;
 	--thumb-line: 3px;
