@@ -174,35 +174,76 @@
 	padding: 0 var(--space-2-5);
 }
 
+/*
+ * The source list is board A + C of the design book: the kit's Large rows, each section's rows
+ * in a rounded card on the sidebar ground, and the section headers between the cards. The
+ * slot is the space between the top strip and the footer; the cards fill its width, and what
+ * is left under the last card stays open.
+ */
 .sidebar-nav {
 	flex: 1;
 	min-height: 0;
 	overflow-y: auto;
-	padding: 0 var(--space-2-5) var(--space-4);
+	padding: 0 var(--sidebar-inset) var(--space-4);
 }
 
+/* A group card: the kit's form container, on the card ground. The footer can take it too. */
+.sidebar-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--hairline-width);
+	padding: var(--space-1);
+	border-radius: var(--radius-group);
+	background: var(--sidebar-card);
+}
+
+/* A section header sits between two cards, its title resting near the foot of its 43. */
 .sidebar-heading {
-	padding: var(--space-4) var(--space-2-5) var(--space-1-5);
-	font-size: var(--size-subheadline);
-	line-height: var(--leading-subheadline);
-	font-weight: var(--weight-semibold);
+	display: flex;
+	align-items: flex-end;
+	height: var(--sidebar-heading-height);
+	padding: 0 var(--space-1) var(--space-2-5);
+	font-size: var(--size-headline);
+	line-height: var(--leading-headline);
+	font-weight: var(--weight-bold);
 	color: var(--label-secondary);
 }
 
 .sidebar-row {
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: var(--space-2);
-	width: 100%;
 	height: var(--row-height);
-	padding: 0 var(--space-1-5) 0 var(--space-2);
-	border-radius: var(--radius-control);
-	font-size: var(--size-body);
-	line-height: var(--leading-body);
+	padding: 0 var(--space-2);
+	border-radius: var(--radius-row);
+	font-size: var(--size-title3);
+	line-height: var(--leading-title3);
+	font-weight: var(--weight-medium);
 	text-align: left;
 	color: var(--label-primary);
 	text-decoration: none;
 	cursor: default;
+}
+
+/*
+ * A hairline between two rows of a card, drawn in the card's 1px gap and inset 4 from the
+ * row's edges. It is hidden on both sides of the selected row, as the kit hides it; the gap
+ * stays, so the rows do not move when the selection does.
+ */
+.sidebar-row + .sidebar-row::before {
+	content: "";
+	position: absolute;
+	top: calc(-1 * var(--hairline-width));
+	right: var(--space-1);
+	left: var(--space-1);
+	height: var(--hairline-width);
+	background: var(--label-quinary);
+}
+
+.sidebar-row[aria-current="page"]::before,
+.sidebar-row[aria-current="page"] + .sidebar-row::before {
+	content: none;
 }
 
 /* Hover is the row's own ground; a press is the selected pill, and the selection then holds it. */
@@ -215,13 +256,15 @@
 	background: var(--sidebar-selected);
 }
 
+/* The Large symbol, ember: one size up from the toolbar's glyphs, at the same stroke. */
 .sidebar-row .icon {
+	width: var(--icon-size-large);
+	height: var(--icon-size-large);
 	color: var(--ember-vibrant);
 }
 
 .sidebar-count {
 	margin-left: auto;
-	font-size: var(--size-body);
 	color: var(--label-secondary);
 	font-variant-numeric: tabular-nums;
 }
@@ -319,7 +362,7 @@
 
 .sidebar-stamp {
 	flex-shrink: 0;
-	margin: 0 var(--space-2-5) var(--space-2);
+	margin: 0 var(--sidebar-inset) var(--space-2);
 	padding: var(--space-1-5) var(--space-2-5);
 	border-radius: var(--radius-control);
 	background: var(--control);

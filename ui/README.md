@@ -137,6 +137,10 @@ only ever written to `<data directory>/profiles`.
 | `#/onboarding?step=targeting` | setup step 3: job titles, level, places, remote, employers; **Find Jobs** saves the Profile and starts a fetch |
 | `#/profile` | edit the saved Profile's contact, résumé, targets, filters and employers in a form |
 
+The sidebar groups these lists in rounded cards. Its larger rows put a symbol beside
+each name and a count at the right; the selected row has a quiet grey background.
+The space below the cards stays open, with Refresh and Jev it at the foot.
+
 Lists sort by when a Posting was last verified, never by a score. The résumé
 assessment shows as a note in the margin, not as a list.
 
