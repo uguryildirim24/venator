@@ -86,10 +86,10 @@ def append_decisions(decisions_dir: Path, decisions: Iterable[dict], *, day: dat
 #
 # 20 removes the retired trained qualification-model delegation path.
 # 21 adds the SmartRecruiters Source; 22 removes the location Hard Filter.
-# 23 adds employer exclusion; the pre-exclusion revision remains for Profiles
-# without the new field so their existing decisions keep their version.
-FILTERS_REVISION = b"23-employer-exclusion"
-_PRE_EXCLUSION_REVISION = b"22-smartrecruiters-no-location-filter"
+# 23 adds employer exclusion. 24 reads excluded functions in title context;
+# both employer-policy branches move so every Profile replays its decisions.
+FILTERS_REVISION = b"24-title-context-exclusion"
+_PRE_EXCLUSION_REVISION = b"24-title-context-exclusion-no-employer"
 
 #: Blocks that live in a hashed Profile file but reach no decision, keyed by
 #: **which positional argument** of ``filters_version`` the file is — not by its

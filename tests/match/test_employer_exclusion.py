@@ -67,8 +67,8 @@ def test_hash_stability_and_replay(tmp_path):
                 jev_accepted_profile_hash(compiled.profile_hash, policy))
 
     original = hashes()
-    # Pin the pre-exclusion revision for a Profile with no employer policy.
-    digest = hashlib.sha256(b"22-smartrecruiters-no-location-filter")
+    # Pin the no-employer branch after the title-context replay bump.
+    digest = hashlib.sha256(b"24-title-context-exclusion-no-employer")
     for path, skipped in ((directory / "constraints.yaml", ()),
                           (directory / "targeting.yaml", ("sources.boards", "profile.id")),
                           (directory / "resume.yaml", ())):

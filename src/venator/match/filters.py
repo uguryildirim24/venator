@@ -36,6 +36,7 @@ from venator.profile.schema import (
     EducationFitPolicy,
     FilterPolicy,
     RoleTargetPolicy,
+    _TITLE_QUALIFIER,
 )
 from venator.qualify.jev_contract import JevContext
 
@@ -1274,6 +1275,40 @@ def _rungs(rules: RoleTargetPolicy, band: tuple[int, int]) -> str:
     return " and ".join(names)
 
 
+def _excluded_context(title: str, rules: RoleTargetPolicy) -> re.Match[str] | None:
+    """Read a second role in a title qualifier without treating its topic as a job.
+
+    A bare function after a comma/dash, in parentheses, or after a slash can
+    name the job even when the first segment is administrative. A longer
+    qualifier is only a role when it has a narrow title shape: an acronym
+    prefix, a level, an operations designation, or a rung noun immediately
+    after the excluded function. Do not turn 'Driver Developer' or 'Recruiter
+    Enablement' into Driver or Recruiter jobs.
+    """
+    if rules.exclude.pattern is None:
+        return None
+    for segment in _TITLE_QUALIFIER.split(title)[1:]:
+        for match in rules.exclude.pattern.finditer(segment):
+            before = segment[: match.start()].strip()
+            after = segment[match.end() :].strip().rstrip(")").strip()
+            # Slash alternatives within a context, e.g. Coordinator/Driver.
+            # Otherwise only a short acronym may precede the function.
+            if before.endswith("/") and not after:
+                return match
+            if before and not re.fullmatch(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\)?", before):
+                continue
+            if not after or re.fullmatch(r"(?:[IVX]+|Operations|and Logistics?)", after, re.IGNORECASE):
+                return match
+            # An excluded phrase followed by a rung is a complete role name
+            # (Loading Dock Associate), not merely a department name. Require
+            # the rung immediately after it; later segments cannot supply it.
+            if after.casefold().startswith("developer"):
+                continue
+            if any(level.titles.pattern and level.titles.pattern.match(after) for level in rules.levels):
+                return match
+    return None
+
+
 def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> Reading:
     """Kill titles outside the band of the ladder the Profile targets.
 
@@ -1322,14 +1357,9 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
             "pass", "role_target", "no role target is configured; passed conservatively", "unconfigured"
         )
 
-    # One reading of the title, for both branches below. ``exclude`` used to read
-    # the whole title while the ladder read the role, so the fix made for the
-    # ladder — a department is not the job — was missing one line above it, and
-    # ``exclude`` is the branch that runs first and has no conservative escape at
-    # all: it killed "Field Marketing Manager, Account Executive Support" and
-    # "Marketing Coordinator, Recruiter Enablement", marketing roles cut on the
-    # name of the team they support. Both branches now read what
-    # ``alternatives`` returns, so there is one place to be right.
+    # The ladder and leading-role exclusion share the same offers. Qualifiers
+    # are not ladder offers; a separate, narrower check below can recognise a
+    # second excluded role without killing on department or product wording.
     offers = rules.alternatives(title)
     for offer in offers:
         if excluded := rules.exclude.search(offer):
@@ -1339,23 +1369,14 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
                 f"title names {rules.exclude.label} ({excluded.group(0)!r}): {title!r}",
             )
 
-    # A comma normally introduces context, but a context phrase can itself
-    # name an excluded function: ``Contractor, Loading Dock Associate`` is a
-    # loading-dock role even though the leading segment says only Contractor.
-    # Require the excluded wording to be followed by a rung noun from this
-    # Profile before treating it as a function; that preserves legitimate
-    # contexts such as ``Research Associate, Sales Enablement`` while respecting
-    # a complete excluded role phrase.  The check is intentionally generic and
-    # uses the Profile's own ladder rather than a hard-coded loading-dock rule.
-    if rules.exclude.configured:
-        for excluded in rules.exclude.pattern.finditer(title) if rules.exclude.pattern else ():
-            suffix = title[excluded.end() :]
-            if any(level.titles.search(suffix) for level in rules.levels):
-                return Reading(
-                    "kill",
-                    "role_target",
-                    f"title names {rules.exclude.label} ({excluded.group(0)!r}): {title!r}",
-                )
+    # A qualifier can name the function rather than merely its department.
+    # Keep this independent of the rung ladder's leading-segment reading.
+    if excluded := _excluded_context(title, rules):
+        return Reading(
+            "kill",
+            "role_target",
+            f"title names {rules.exclude.label} ({excluded.group(0)!r}): {title!r}",
+        )
 
     # A ladder with no accepted rung cannot place anything. ``accept`` empty or
     # absent is a Profile that has said nothing about where on its ladder it
