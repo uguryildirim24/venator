@@ -1,4 +1,5 @@
 import { Ban, Binoculars, Bookmark, Clock3, Building2, CircleUser, Compass, Crosshair, EyeOff, PanelLeft, Send, type LucideIcon } from "lucide-react";
+import { Fragment } from "react";
 
 import type { DatabaseInfo, Funnel } from "../../shared/contracts.ts";
 import { earlyReviewLabel, homeListLabel, SAMPLE_DATA_DETAIL, SAMPLE_DATA_STAMP } from "../labels.ts";
@@ -47,12 +48,14 @@ type SidebarProps = {
 };
 
 /**
- * The source list: three sections of the kit's Medium rows, and the last fetch at the foot.
+ * The source list: three sections of the kit's Large rows, each in a group card, and the run
+ * controls at the foot.
  *
- * The selected row is a neutral pill; the symbols are ember. Counts are the funnel's, so they
- * agree with every list they name. Applications, Saved and Dismissed are disjoint — the
- * application states `approved` and `rejected` are their own rows — so the three add up to
- * the Postings with application progress.
+ * A section is its header, when it has one, and then one card holding its rows; the space
+ * under the last card stays open. The selected row is a neutral pill; the symbols
+ * are ember. Counts are the funnel's, so they agree with every list they name. Applications,
+ * Saved and Dismissed are disjoint — the application states `approved` and `rejected` are
+ * their own rows — so the three add up to the Postings with application progress.
  */
 export function Sidebar({ route, funnel, database, boards, configured, firstRun, updating, onToggle, onReload }: SidebarProps) {
 	const active = activeRow(route);
@@ -93,16 +96,18 @@ export function Sidebar({ route, funnel, database, boards, configured, firstRun,
 			</div>
 			<nav className="sidebar-nav">
 				{sections.map((section) => (
-					<div key={section.heading ?? "lists"}>
+					<Fragment key={section.heading ?? "lists"}>
 						{section.heading === null ? null : <h2 className="sidebar-heading">{section.heading}</h2>}
-						{section.rows.map((row) => (
-							<a key={row.id} className="sidebar-row" href={row.hash} aria-current={row.id === active ? "page" : undefined}>
-								<row.icon aria-hidden="true" className="icon" />
-								<span>{row.label}</span>
-								{row.count === null || row.count === 0 ? null : <span className="sidebar-count">{row.count.toLocaleString("en-US")}</span>}
-							</a>
-						))}
-					</div>
+						<div className="sidebar-card">
+							{section.rows.map((row) => (
+								<a key={row.id} className="sidebar-row" href={row.hash} aria-current={row.id === active ? "page" : undefined}>
+									<row.icon aria-hidden="true" className="icon" />
+									<span>{row.label}</span>
+									{row.count === null || row.count === 0 ? null : <span className="sidebar-count">{row.count.toLocaleString("en-US")}</span>}
+								</a>
+							))}
+						</div>
+					</Fragment>
 				))}
 			</nav>
 			{database?.kind === "fixture" ? (

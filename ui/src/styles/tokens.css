@@ -52,16 +52,23 @@
 
 	/* The window, measured at the 1440×900 reference. */
 	--sidebar-width: 240px;
+	/* The sidebar slot: cards fill it, inset 14 from each edge (ui/DESIGN.md, "Sidebar"). */
+	--sidebar-inset: 14px;
+	/* The kit's Large section header: 43 tall, its title resting 8 above the bottom. */
+	--sidebar-heading-height: 43px;
 	/* What the macOS traffic lights cover of a toolbar they sit over, with the sidebar hidden. */
 	--traffic-lights-width: 84px;
 	--toolbar-height: 52px;
 	--list-width: 400px;
 	--search-width: 176px;
-	--row-height: 32px;
+	/* A sidebar row, the kit's Large size. */
+	--row-height: 36px;
 	--table-row-height: 24px;
 	--control-height: 24px;
 	--toolbar-control-height: 36px;
 	--icon-size: 16px;
+	/* A sidebar symbol beside a 15pt label: the kit's Large symbol measures 19 to 20 tall. */
+	--icon-size-large: 20px;
 	--icon-stroke: 1.5;
 	--glyph-size: 12px;
 	--dot-size: 8px;
@@ -105,6 +112,8 @@
 
 	/* Radii. */
 	--radius-control: 6px;
+	/* The selection pill of a Large sidebar row. */
+	--radius-row: 8px;
 	--radius-cell: 10px;
 	--radius-group: 10px;
 	--radius-sheet: 12px;
@@ -187,7 +196,13 @@
 	--column-separator: rgba(0, 0, 0, 0.1);
 	--row-selected-inactive: rgba(0, 0, 0, 0.14);
 	--row-hover: rgba(0, 0, 0, 0.04);
-	--sidebar-selected: #d9d9d9;
+	/*
+	 * The sidebar's group cards, and the selected row on them. The card is the kit's Window
+	 * Background at 60% over the sidebar (#f5f5f5 on #e6e6e6). The kit's selection pill is
+	 * Linear Burn at 5%, so it is 5% darker than whatever it sits on: #e8e8e8 on the card.
+	 */
+	--sidebar-card: rgba(255, 255, 255, 0.6);
+	--sidebar-selected: rgba(0, 0, 0, 0.05);
 	--control: #ebebeb;
 	--control-hover: #e2e2e2;
 	--control-pressed: #d5d5d5;
@@ -255,7 +270,9 @@
 		--column-separator: rgba(255, 255, 255, 0.1);
 		--row-selected-inactive: rgba(255, 255, 255, 0.18);
 		--row-hover: rgba(255, 255, 255, 0.05);
-		--sidebar-selected: #232323;
+		/* White at 7% over #161616 is #262626: the +16 step the kit's dark form groups take. */
+		--sidebar-card: rgba(255, 255, 255, 0.07);
+		--sidebar-selected: rgba(255, 255, 255, 0.055);
 		--control: #2e2e2e;
 		--control-hover: #373737;
 		--control-pressed: #424242;
@@ -318,7 +335,9 @@
 	--column-separator: rgba(255, 255, 255, 0.1);
 	--row-selected-inactive: rgba(255, 255, 255, 0.18);
 	--row-hover: rgba(255, 255, 255, 0.05);
-	--sidebar-selected: #232323;
+	/* White at 7% over #161616 is #262626: the +16 step the kit's dark form groups take. */
+	--sidebar-card: rgba(255, 255, 255, 0.07);
+	--sidebar-selected: rgba(255, 255, 255, 0.055);
 	--control: #2e2e2e;
 	--control-hover: #373737;
 	--control-pressed: #424242;
