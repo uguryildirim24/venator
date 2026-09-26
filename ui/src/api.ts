@@ -139,7 +139,7 @@ export function useApi<Value>(path: string | null, reloadToken: number): Request
 
 export type LocationSelection = {
 	readonly selected: readonly string[];
-	readonly choices: readonly { readonly key: string; readonly label: string; readonly count: number }[];
+	readonly choices: readonly { readonly key: string; readonly label: string; readonly count: number; readonly parent?: string }[];
 };
 
 export function useLocations(reloadToken: number): RequestState<LocationSelection> {

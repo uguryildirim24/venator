@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -28,6 +30,7 @@ from venator.qualify.jev_policy import prepare_jev_case
 from venator.qualify.jev_release import JEV_RELEASE
 from venator.qualify.store import JEV_KIND, append_event, append_rows, promotion_events, qualification_rows
 from venator.qualify.versions import jev_assessment_key
+from venator.view.build import build_database
 
 FIXTURE = Path(__file__).resolve().parents[1] / "qualify" / "fixtures" / "jev"
 AS_OF = "2026-09"
@@ -368,3 +371,81 @@ def test_resolve_postings_matches_the_per_posting_resolver_and_creates_nothing(
     )
     assert not absent.exists()
     assert all(resolution.context is None for resolution in empty.values())
+
+
+def test_indexed_resolutions_and_view_equal_full_scan_with_and_without_promotion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from venator.match import run as match_run
+    from venator.qualify import jev_effective
+
+    profile, posting, qualifications, bindings = primed_store(tmp_path)
+    stale_posting = {**posting, "key": "p:stale", "title": "Old title"}
+    stale_bindings = prepare_jev_case(stale_posting, profile, AS_OF).case
+    assert stale_bindings is not None
+    append_rows(qualifications, profile.identifier, [
+        success_row(stale_bindings.bindings, profile.identifier, mode="shadow"),
+        success_row(stale_bindings.bindings, profile.identifier, mode="promoted"),
+    ], day=AS_OF_DAY)
+    postings = [posting, {**stale_posting, "title": "New title"},
+                {**posting, "key": "p:missing", "description_kind": "snippet"}]
+    postings_dir = tmp_path / "postings"
+    write_jsonl(postings_dir / f"{AS_OF_DAY}.jsonl", postings)
+    original = jev_effective.resolve_postings
+
+    def full_scan(items, selected_profile, *, as_of_month, qualifications_dir, release):
+        rows = qualification_rows(qualifications_dir)
+        events = promotion_events(qualifications_dir)
+        return {item["key"]: effective_jev_context(
+            item, selected_profile, as_of_month=as_of_month, release=release,
+            rows=rows, events=events,
+        ) for item in items}
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 9, 13, 12, 0, tzinfo=tz or timezone.utc)
+
+    monkeypatch.setattr(match_run, "datetime", FixedDatetime)
+    for active in (True, False):
+        if not active:
+            state = jev_promotion_state(promotion_events(qualifications), profile.identifier)
+            assert state.active is not None
+            append_event(qualifications, profile.identifier, {
+                "event": "revoked", "profile_id": profile.identifier,
+                "profile_hash": bindings.accepted_profile_hash,
+                "compiled_profile_hash": bindings.profile_hash,
+                "policy_hash": bindings.policy_hash,
+                "qualifier_version": bindings.qualifier_version,
+                "qualifier_kind": JEV_KIND, "components": {},
+                "finalization_sha256": "sha", "cohort_hashes": {},
+                "refers_to": state.active.event_id,
+                "at": "2026-09-13T01:00:00+00:00", "by": "person",
+            })
+        baseline = full_scan(postings, profile, as_of_month=AS_OF,
+                             qualifications_dir=qualifications, release=JEV_RELEASE)
+        indexed = original(postings, profile, as_of_month=AS_OF,
+                           qualifications_dir=qualifications, release=JEV_RELEASE)
+        assert indexed == baseline
+        if active:
+            assert baseline[posting["key"]].context is not None
+        else:
+            assert baseline[posting["key"]].context is None
+        assert baseline["p:stale"].context is None
+        assert baseline["p:missing"].fallback_reason == "snippet"
+        views = []
+        for label, resolver in (("before", full_scan), ("after", original)):
+            monkeypatch.setattr(match_run, "resolve_postings", resolver)
+            decisions_dir = tmp_path / f"decisions-{active}-{label}"
+            database = tmp_path / f"view-{active}-{label}.db"
+            result = run(postings_dir, decisions_dir, profile=profile,
+                         qualifications_dir=qualifications, as_of_month=AS_OF)
+            build_database(postings_dir, decisions_dir, database,
+                           profile=profile, qualifications_dir=qualifications, as_of_month=AS_OF)
+            with sqlite3.connect(database) as connection:
+                tables = [name for (name,) in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+                snapshot = {name: connection.execute(f'SELECT * FROM "{name}" ORDER BY rowid').fetchall()
+                            for name in tables}
+            views.append((result, snapshot))
+        assert views[0] == views[1]

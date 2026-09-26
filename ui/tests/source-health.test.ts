@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
 import { emptyViewDatabase } from "../fixtures/make-fixture.ts";
-import { readSourceHealth } from "../server/queries.ts";
+import { readDatabaseInfo, readSourceHealth } from "../server/queries.ts";
 
 test("source health decodes measured coverage from the current view", () => {
 	const database = emptyViewDatabase();
@@ -29,6 +29,27 @@ test("source health decodes measured coverage from the current view", () => {
 				coverage: { knownJobs: 2, fullVerifiedDetails: 1, needsDetailCheck: 1 },
 			},
 		]);
+	} finally {
+		database.close();
+	}
+});
+
+test("a CLI fetch appears in the sidebar even with Postings and no app runs", () => {
+	const database = emptyViewDatabase();
+	try {
+		database.prepare(`INSERT INTO postings (key, source, board, title, discovered_at)
+			VALUES (?, ?, ?, ?, ?)`).run("greenhouse:acme:1", "greenhouse", "acme", "Scientist", "2026-09-25T09:10:00Z");
+		database.prepare(`INSERT INTO source_health (source_key, status, last_attempt_at, last_success_at, count)
+			VALUES (?, ?, ?, ?, ?)`).run("greenhouse:acme", "ok", "2026-09-25T09:14:00Z", "2026-09-25T09:14:00Z", 1);
+		assert.equal(database.prepare("SELECT COUNT(*) AS count FROM runs").get()?.["count"], 0);
+		assert.equal(readDatabaseInfo(database, ":memory:", "pipeline").lastFetchAt, "2026-09-25T09:14:00Z");
+
+		// An older app heartbeat cannot hide a newer CLI check; a newer one does win.
+		const addRun = database.prepare("INSERT INTO runs (at, status, stage) VALUES (?, 'ok', 'discover')");
+		addRun.run("2026-09-24T10:00:00Z");
+		assert.equal(readDatabaseInfo(database, ":memory:", "pipeline").lastFetchAt, "2026-09-25T09:14:00Z");
+		addRun.run("2026-09-26T10:00:00Z");
+		assert.equal(readDatabaseInfo(database, ":memory:", "pipeline").lastFetchAt, "2026-09-26T10:00:00Z");
 	} finally {
 		database.close();
 	}

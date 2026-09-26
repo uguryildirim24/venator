@@ -63,6 +63,28 @@ from venator.profile import (
 )
 from venator.paths import STORE_HELP, StoreRootError, resolve_store_paths
 
+def _location_places(posting: Mapping[str, object]) -> str:
+    """Keep source places beside the display label, including Workday additionalLocations.
+
+    Old replay rows can lack the structured list; use only explicit source location
+    fields, never descriptions or offices (which need not be work locations).
+    """
+    from venator.discover.common import normalize_locations
+
+    locations = posting.get("locations")
+    names = [item.get("name") for item in locations if isinstance(item, Mapping)] if isinstance(locations, list) else []
+    if not names or re.search(r"\b\d+\s+locations?\b", str(posting.get("location", "")), re.I):
+        facts = posting.get("source_facts")
+        if isinstance(facts, Mapping):
+            for fields in (facts, *(value for value in facts.values() if isinstance(value, Mapping))):
+                recovered = normalize_locations(
+                    fields.get("locationsText") or fields.get("location") or fields.get("locations"),
+                    fields.get("additionalLocations") or fields.get("secondaryLocations"),
+                )
+                names.extend(item["name"] for item in recovered if item["name"])
+    return json.dumps(list(dict.fromkeys(name for name in names if isinstance(name, str) and name.strip())))
+
+
 def _board_names(profile: Profile | None = None) -> dict[str, str]:
     """ATS board token -> employer display name, for Postings stored before the
     company field existed (and for adapters that never learn it)."""
@@ -77,6 +99,7 @@ CREATE TABLE postings (
   company TEXT,
   title TEXT,
   location TEXT,
+  location_places TEXT,
   url TEXT,
   posted_at TEXT,
   discovered_at TEXT,
@@ -548,6 +571,7 @@ def build_database(
             company,
             posting.get("title"),
             posting.get("location"),
+            _location_places(posting),
             posting.get("url"),
             posting.get("posted_at"),
             posting.get("discovered_at"),
@@ -616,8 +640,8 @@ def build_database(
             database.executemany(
                 """
                 INSERT INTO postings (
-                  key, source, board, company, title, location, url, posted_at, discovered_at, description_html
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  key, source, board, company, title, location, location_places, url, posted_at, discovered_at, description_html
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 posting_rows,
             )

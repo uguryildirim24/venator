@@ -14,6 +14,7 @@ writes.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
@@ -426,8 +427,9 @@ def resolve_postings(
 ) -> dict[str, JevResolution]:
     """``effective_jev_context`` for every Posting against one store snapshot.
 
-    The store is verified and read once, not once per Posting. A missing store
-    is read as empty and is never created. ``match.run`` resolves through this.
+    The store is verified and read once, then indexed by Posting key. Each
+    Posting resolves against only its own history. A missing store is read as
+    empty and is never created. ``match.run`` resolves through this.
     """
     rows: list[Mapping[str, object]] = []
     events: list[Mapping[str, object]] = []
@@ -435,13 +437,24 @@ def resolve_postings(
         verify_store(qualifications_dir, profile.identifier)
         rows = list(qualification_rows(qualifications_dir))
         events = list(promotion_events(qualifications_dir))
+    # The per-Posting resolver deliberately snapshots its rows and checks Profile
+    # ownership. Do the ownership check across the *whole* store here before
+    # narrowing the snapshot; a stray row for another Posting must still fail.
+    by_key: dict[str, list[Mapping[str, object]]] = defaultdict(list)
+    for row in rows:
+        owner = row.get("profile_id")
+        if isinstance(owner, str) and owner and owner != profile.identifier:
+            raise ValueError(f"qualification row names Profile {owner!r}, not {profile.identifier!r}")
+        key = row.get("posting_key")
+        if isinstance(key, str):
+            by_key[key].append(row)
     return {
         str(posting["key"]): effective_jev_context(
             posting,
             profile,
             as_of_month=as_of_month,
             release=release,
-            rows=rows,
+            rows=by_key.get(str(posting["key"]), ()),
             events=events,
         )
         for posting in postings

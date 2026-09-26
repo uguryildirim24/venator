@@ -76,7 +76,7 @@ type FixtureSourceHealth = {
 /** Verbatim from coordination/CONTRACTS.md; the server verifies against these columns. */
 const SCHEMA_SQL = `
 CREATE TABLE postings (key TEXT PRIMARY KEY, source TEXT, board TEXT, company TEXT,
-  title TEXT, location TEXT, url TEXT, posted_at TEXT, discovered_at TEXT,
+  title TEXT, location TEXT, location_places TEXT, url TEXT, posted_at TEXT, discovered_at TEXT,
   description_html TEXT);
 CREATE TABLE decisions (id INTEGER PRIMARY KEY, posting_key TEXT, stage TEXT,
   verdict TEXT, rule TEXT, score INTEGER, reason TEXT, filters_version TEXT, decided_at TEXT);

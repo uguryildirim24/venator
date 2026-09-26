@@ -564,10 +564,17 @@ export function readDatabaseInfo(
 	const lastDecisionAt =
 		latestRow === undefined ? null : optionalTextColumn(latestRow, "decided_at");
 
+	// CLI Discover writes source health even when no dashboard run was started. Keep the
+	// latest check from either record; a verified-open Posting is the fallback for older
+	// imports with no fetch records at all.
 	const fetchRow = database
-		.prepare(`SELECT at FROM runs WHERE stage = 'discover' AND status = 'ok' AND julianday(at) IS NOT NULL
-			ORDER BY julianday(at) DESC LIMIT 1`)
-		.get();
+		.prepare(`SELECT at FROM (
+			SELECT at FROM runs WHERE stage = 'discover' AND status = 'ok'
+			UNION ALL SELECT last_attempt_at AS at FROM source_health
+		) WHERE julianday(at) IS NOT NULL ORDER BY julianday(at) DESC LIMIT 1`)
+		.get() ?? database.prepare(`SELECT last_verified_at AS at FROM assessments
+			WHERE listing_status = 'open' AND julianday(last_verified_at) IS NOT NULL
+			ORDER BY julianday(last_verified_at) DESC LIMIT 1`).get();
 	const lastFetchAt = fetchRow === undefined ? null : optionalTextColumn(fetchRow, "at");
 
 	const pauseRow = database.prepare("SELECT status, pause_reason, waiting FROM runs WHERE stage = 'jev' ORDER BY id DESC LIMIT 1").get();

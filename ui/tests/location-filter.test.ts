@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,10 +17,37 @@ test("location choices join city and state spellings, Remote variants, and keep 
 	assert.deepEqual(locationChoices(null), [{ key: "none", label: "No location" }]);
 	assert.ok(locationChoices("Boston, MA").some(({ key }) => key === "state:MA"));
 	assert.deepEqual(locationChoices("Boston, MA (Remote)"), [
-		{ key: "remote", label: "Remote" }, { key: "state:MA", label: "Massachusetts" }, { key: "city:boston,MA", label: "Boston, MA" },
+		{ key: "remote", label: "Remote" }, { key: "state:MA", label: "Massachusetts" }, { key: "city:boston,MA", label: "Boston, MA", parent: "state:MA" },
 	]);
 	assert.deepEqual(locationChoices("Boston, MA; Cambridge, Massachusetts; Boston, MA").map(({ key }) => key),
 		["state:MA", "city:boston,MA", "city:cambridge,MA"]);
+});
+
+test("source ATS variants collapse to one city and multi-place Postings count once in each place", () => {
+	const variants = ["Boston-MA", "Boston, MA", "Boston, Massachusetts", "US-MA-Boston", "Boston MA 02115", "US - Boston, MA"];
+	for (const value of variants) assert.ok(locationChoices(value).some(({ key }) => key === "city:boston,MA"), value);
+	assert.deepEqual(locationChoices("India - Hyderabad").map(({ key }) => key), ["country:india", "city:hyderabad,india"]);
+	assert.deepEqual(locationChoices("3 Locations", ["US - Boston, MA", "US - Cambridge, MA", "Boston-MA"]).map(({ key }) => key),
+		["state:MA", "city:boston,MA", "city:cambridge,MA"]);
+	assert.deepEqual(locationChoices("2 Locations"), [{ key: "several", label: "Several locations" }]);
+	const listing = JSON.parse(readFileSync(new URL("../../tests/discover/fixtures/workday_listing.json", import.meta.url), "utf8"));
+	assert.deepEqual(locationChoices("3 Locations", listing.jobPostings[1].additionalLocations).map(({ key }) => key),
+		["state:MA", "city:cambridge,MA", "state:CA", "city:thousand oaks,CA"]);
+	const db = emptyViewDatabase();
+	try {
+		const insert = db.prepare("INSERT INTO postings (key, source, board, title, location, location_places, url, discovered_at) VALUES (?, 'workday', 'acme', 'Job', ?, ?, 'https://example.test/job', '2026-01-01')");
+		insert.run("one", "2 Locations", JSON.stringify(["US - Boston, MA", "US - Cambridge, MA"]));
+		insert.run("two", "2 Locations", "[]");
+		insert.run("three", "Remote - US", "[]");
+		const choices = availableLocations(db);
+		assert.equal(choices.find(({ key }) => key === "state:MA")?.count, 1);
+		assert.equal(choices.find(({ key }) => key === "city:boston,MA")?.count, 1);
+		assert.equal(choices.find(({ key }) => key === "city:cambridge,MA")?.count, 1);
+		assert.equal(choices.find(({ key }) => key === "several")?.count, 1);
+		assert.deepEqual(choices.map(({ count }) => count), choices.map(({ count }) => count).sort((a, b) => b - a));
+		assert.equal(choices.find(({ key }) => key === "city:cambridge,MA")?.parent, "state:MA");
+		assert.equal(matchingLocationKeys(db, ["city:cambridge,MA"]), '["one"]');
+	} finally { db.close(); }
 });
 
 test("a cross-origin simple POST cannot change the Install's location choice", async () => {
