@@ -2,10 +2,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useMemo, useState, type RefObject } from "react";
 
 import type { Funnel, JevTriageDecision, JevTriageEntry, PostingEntry } from "../../shared/contracts.ts";
-import { useJevTriage, usePostingDetail, usePostings } from "../api.ts";
+import { useJevTriage, useLocations, usePostingDetail, usePostings } from "../api.ts";
 import { useApplicationControl } from "../application.ts";
 import { useDelayed } from "../delayed.ts";
 import { CellList, type Cell, type CellGroup } from "../components/cells.tsx";
+import { LocationFilter } from "../components/location-filter.tsx";
 import { PostingPage } from "../components/posting-page.tsx";
 import { PostingActions, Toolbar, type SearchProps } from "../components/toolbar.tsx";
 import { dayKey, formatDay, formatDayHeader, formatMoment, formatTime } from "../format.ts";
@@ -150,6 +151,8 @@ type WorkspaceProps = {
  */
 export function Workspace({ route, reloadToken, onReload, funnel, searchField, sidebarHidden, onShowSidebar }: WorkspaceProps) {
 	const source = sourceOf(route);
+	const locations = useLocations(reloadToken);
+	const locationFiltered = locations.status === "ready" && locations.value.selected.length > 0;
 	const offset = source.page * PAGE_SIZE;
 	const postingsQuery =
 		source.kind === "list"
@@ -178,7 +181,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	const awaitingList = source.kind === "list" && source.list === "unscored" && source.search === "";
 	const keyMissing = useJevKeyMissing(awaitingList, reloadToken + keyToken);
 	const awaitingKey = awaitingList && keyMissing && route.name !== "posting" && keys.length > 0;
-	const selectedKey = route.name === "posting" ? route.key : awaitingKey ? null : (keys[0] ?? null);
+	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || keys.includes(route.key)) ? route.key : awaitingKey ? null : (keys[0] ?? null);
 	const detail = usePostingDetail(selectedKey, reloadToken);
 	const control = useApplicationControl(selectedKey, reloadToken, onReload);
 	const [keyboardMoves, setKeyboardMoves] = useState(0);
@@ -257,8 +260,11 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 			{updating ? (
 				<UpdatingState />
 			) : (
-			<div className="panes">
+			// Keyed by the list, so choosing another in the sidebar is a view arriving (window.css,
+			// "A view arriving") while choosing a Posting within it is not.
+			<div className="panes" key={source.kind === "list" ? source.list : source.kind}>
 				<section className="list-pane" aria-label={title}>
+					<LocationFilter locations={locations} onReload={() => { onReload(); if (source.page > 0) replaceRoute(sourceHash(source, 0)); }} />
 					<div className="list-scroll">
 						{listState.status === "error" ? (
 							<div className="empty">
@@ -267,7 +273,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 							</div>
 						) : null}
 						{listState.status === "ready" && shown === 0 ? (
-							<EmptyList source={source.kind === "list" ? source.list : source.kind} search={search} beyond={(total ?? 0) > 0} funnel={funnel} onReload={onReload} />
+							locationFiltered && search === "" && source.page === 0 && total === 0 ? <div className="empty"><p className="empty-title">No Postings in these locations</p><p>Choose more places or clear the location filter to see everything again.</p></div> : <EmptyList source={source.kind === "list" ? source.list : source.kind} search={search} beyond={(total ?? 0) > 0} funnel={funnel} onReload={onReload} />
 						) : (
 							<>
 								{/* Early review always says what it is; a toolbar subtitle is too narrow to hold it whole. */}

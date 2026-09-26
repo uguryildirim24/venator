@@ -137,6 +137,22 @@ export function useApi<Value>(path: string | null, reloadToken: number): Request
 	return path !== null && response.path === path && response.reloadToken === reloadToken ? response.state : { status: "loading" };
 }
 
+export type LocationSelection = {
+	readonly selected: readonly string[];
+	readonly choices: readonly { readonly key: string; readonly label: string; readonly count: number }[];
+};
+
+export function useLocations(reloadToken: number): RequestState<LocationSelection> {
+	return useApi<LocationSelection>("/locations/", reloadToken);
+}
+
+export async function saveLocations(selected: readonly string[]): Promise<void> {
+	const response = await fetch(`${API_BASE_URL}/locations/`, {
+		method: "POST", headers: { "content-type": "application/json", "X-Venator-Location": "1" }, body: JSON.stringify({ selected }),
+	});
+	if (!response.ok) throw new Error("The location choice could not be saved.");
+}
+
 export function useSummary(reloadToken: number): RequestState<SummaryResponse> {
 	return useApi<SummaryResponse>("/summary", reloadToken);
 }

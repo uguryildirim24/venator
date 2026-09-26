@@ -32,6 +32,9 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
     devDependencies:
       '@oxlint/plugins':
         specifier: 1.79.0
@@ -50,7 +53,7 @@ importers:
         version: 19.2.4(@types/react@19.2.18)
       '@vitejs/plugin-react':
         specifier: ^6.0.5
-        version: 6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0))
+        version: 6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.1))
       happy-dom:
         specifier: ^20.11.2
         version: 20.11.2
@@ -62,7 +65,7 @@ importers:
         version: 7.0.2
       vite:
         specifier: ^8.2.1
-        version: 8.2.1(@types/node@26.2.0)(jiti@2.7.0)
+        version: 8.2.1(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.1)
 
 packages:
 
@@ -1549,6 +1552,11 @@ packages:
       utf-8-validate:
         optional: true
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
 snapshots:
 
   '@floating-ui/core@1.8.0':
@@ -2555,10 +2563,10 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@vitejs/plugin-react@6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0))':
+  '@vitejs/plugin-react@6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.2.1(@types/node@26.2.0)(jiti@2.7.0)
+      vite: 8.2.1(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.1)
 
   aria-hidden@1.2.6:
     dependencies:
@@ -2858,7 +2866,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.18
 
-  vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0):
+  vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -2869,7 +2877,10 @@ snapshots:
       '@types/node': 26.2.0
       fsevents: 2.3.3
       jiti: 2.7.0
+      yaml: 2.9.1
 
   whatwg-mimetype@3.0.0: {}
 
   ws@8.21.3: {}
+
+  yaml@2.9.1: {}

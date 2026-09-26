@@ -21,6 +21,7 @@ import {
 import { API_SERVER_PORT, APP_DEV_PORT } from "../shared/ports.ts";
 import { readFromView, ViewSchemaError } from "./db.ts";
 import { readOnboardingState } from "./onboarding/state.ts";
+import { matchingLocationKeys, readLocationSelection } from "./location-filter.ts";
 import {
 	countJevTriageEntries,
 	POSTING_SORTS,
@@ -139,7 +140,8 @@ export function createApiRoutes(): Hono {
 	api.get("/summary", (context) => {
 		const summary = readFromView((view): SummaryResponse => {
 			return {
-				funnel: readFunnel(view.database),
+				funnel: readFunnel(view.database, matchingLocationKeys(view.database, readLocationSelection())),
+				unfilteredDiscovered: readFunnel(view.database).discovered,
 				database: readDatabaseInfo(view.database, view.path, view.kind),
 				sources: readSourceHealth(view.database),
 			};
@@ -158,8 +160,9 @@ export function createApiRoutes(): Hono {
 			offset: parseOffset(context.req.query("offset")),
 		};
 		const response = readFromView((view): PostingsResponse => {
-			const counts = countPostingEntryTotals(view.database, query);
-			const entries = counts.total === 0 ? [] : readPostingEntries(view.database, query);
+			const filtered = { ...query, locationKeys: matchingLocationKeys(view.database, readLocationSelection()) };
+			const counts = countPostingEntryTotals(view.database, filtered);
+			const entries = counts.total === 0 ? [] : readPostingEntries(view.database, filtered);
 			return {
 				entries,
 				total: counts.total,
@@ -196,9 +199,10 @@ export function createApiRoutes(): Hono {
 			offset: parseOffset(context.req.query("offset")),
 		};
 		const response = readFromView((view): JevTriageResponse => {
+			const filtered = { ...query, locationKeys: matchingLocationKeys(view.database, readLocationSelection()) };
 			return {
-				entries: readJevTriageEntries(view.database, query),
-				total: countJevTriageEntries(view.database, query),
+				entries: readJevTriageEntries(view.database, filtered),
+				total: countJevTriageEntries(view.database, filtered),
 				limit: query.limit,
 				offset: query.offset,
 			};

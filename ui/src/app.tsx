@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type AnimationEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DiscoveredProfile, OnboardingStateResponse, ProfileWriteResponse } from "../shared/onboarding.ts";
 import { useOnboardingState, useReloadToken, useSummary } from "./api.ts";
@@ -21,6 +21,7 @@ import {
 import { SHORTCUTS } from "./shortcuts.ts";
 import { EmployersView } from "./views/employers.tsx";
 import { NoJobsYet } from "./views/first-run.tsx";
+import { ProfileRoute } from "./views/profile.tsx";
 import { InspectorView } from "./views/inspector.tsx";
 import { SAVED_SHEET } from "./views/onboarding/copy.ts";
 import { OnboardingFlow } from "./views/onboarding/flow.tsx";
@@ -40,7 +41,15 @@ export function App() {
 	const install = useOnboardingState(installToken);
 	const [helpOpen, setHelpOpen] = useState(false);
 	const [sidebarHidden, setSidebarHidden] = useState(false);
+	/**
+	 * The fold in flight, if one is: set by the toggle and cleared when the sidebar's own slide
+	 * ends. The stylesheet slides the sidebar and the panes on this, not on `sidebarHidden`, so
+	 * a pane that mounts later (a list chosen, a table opened) sits where it belongs instead of
+	 * replaying the fold, and nothing slides on the first paint.
+	 */
+	const [fold, setFold] = useState<"leaving" | "returning" | null>(null);
 	const [saved, setSaved] = useState<ProfileWriteResponse | null>(null);
+	const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
 	const searchField = useRef<HTMLInputElement | null>(null);
 
 	const installState = install.status === "ready" ? install.value : null;
@@ -63,6 +72,10 @@ export function App() {
 		sent.current = true;
 		replaceRoute(onboardingHash());
 	}, [installState]);
+	useEffect(() => {
+		if (route.name === "onboarding" && installState?.configured === true) replaceRoute("#/profile");
+		if (route.name === "profile" && installState?.configured === false) replaceRoute(onboardingHash());
+	}, [route.name, installState]);
 
 	const bindings = useMemo<readonly KeyBinding[]>(
 		() => [
@@ -95,7 +108,7 @@ export function App() {
 	const database = summary.status === "ready" ? summary.value.database : null;
 	const boards = summary.status === "ready" ? (summary.value.sources?.length ?? 0) : 0;
 	const updating = useDelayed(summary.status === "loading");
-	const firstRun = funnel !== null && funnel.discovered === 0;
+	const firstRun = summary.status === "ready" && summary.value.unfilteredDiscovered === 0;
 	const implied = impliedProfile(installState);
 	const help = <HelpSheet shortcuts={SHORTCUTS} open={helpOpen} onOpenChange={setHelpOpen} />;
 	/** What a Profile write said worth reading, once setup hands over to the window. */
@@ -120,9 +133,10 @@ export function App() {
 
 	/**
 	 * Setting up Venator owns the whole window: a title, no sidebar, no toolbar. It is
-	 * reachable whether or not this Install is configured — Profile in the sidebar leads back.
+	 * reachable during first setup; an existing Profile has its own editor.
 	 */
 	if (route.name === "onboarding") {
+		if (install.status !== "ready" || installState?.configured === true) return null;
 		return (
 			<div className={`window-bleed ${nativeClasses}`}>
 				<OnboardingFlow
@@ -139,9 +153,19 @@ export function App() {
 		);
 	}
 
-	const showSidebar = () => setSidebarHidden(false);
+	const hideSidebar = () => {
+		setSidebarHidden(true);
+		setFold("leaving");
+	};
+	const showSidebar = () => {
+		setSidebarHidden(false);
+		setFold("returning");
+	};
+	const onFoldEnd = (event: AnimationEvent<HTMLDivElement>) => {
+		if (event.animationName === "sidebar-leave" || event.animationName === "sidebar-return") setFold(null);
+	};
 	return (
-		<div className={`window ${nativeClasses}`} data-sidebar={sidebarHidden ? "hidden" : undefined}>
+		<div className={`window ${nativeClasses}`} data-sidebar={sidebarHidden ? "hidden" : undefined} data-fold={fold ?? undefined} onAnimationEnd={onFoldEnd}>
 			<Sidebar
 				route={route}
 				funnel={funnel}
@@ -150,7 +174,7 @@ export function App() {
 				configured={installState?.configured === true}
 				firstRun={firstRun}
 				updating={updating}
-				onToggle={() => setSidebarHidden(true)}
+				onToggle={hideSidebar}
 				onReload={reload}
 			/>
 			<main className="window-main">
@@ -169,10 +193,22 @@ export function App() {
 						page={route.page ?? 0}
 						funnel={funnel}
 						reloadToken={reloadToken}
+						onReload={reload}
 						searchField={searchField}
 						sidebarHidden={sidebarHidden}
 						onShowSidebar={showSidebar}
 					/>
+				) : route.name === "profile" ? (
+					installState === null ? null : (
+						<ProfileRoute
+							installState={installState}
+							selected={selectedProfile}
+							onSelect={setSelectedProfile}
+							onSaved={reload}
+							sidebarHidden={sidebarHidden}
+							onShowSidebar={showSidebar}
+						/>
+					)
 				) : route.name === "employers" ? (
 					<EmployersView summary={summary} sidebarHidden={sidebarHidden} onShowSidebar={showSidebar} />
 				) : (

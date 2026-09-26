@@ -1,10 +1,10 @@
 import { RotateCw, Square } from "lucide-react";
 import { useState } from "react";
 
-import type { RunKind, RunPlan, RunState } from "../../shared/runs.ts";
+import type { RunKind, RunState } from "../../shared/runs.ts";
 import { Sheet } from "../components/sheet.tsx";
 import { formatMoment } from "../format.ts";
-import { earlyReviewLabel, jevPauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";
+import { jevPauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";
 import { FIRST_RUN } from "../views/onboarding/copy.ts";
 import { JEV_IT_KIND } from "./jev-it.ts";
 import { useRunControl, type RunControl } from "./use-run.ts";
@@ -12,18 +12,31 @@ import { useRunControl, type RunControl } from "./use-run.ts";
 /** The button's words, exactly as Sample asked for them. */
 const JEV_IT_LABEL = "Jev it";
 
+/**
+ * The press that starts a run, in one of the kit's two shapes (ui/DESIGN.md, "Sidebar").
+ *
+ * Refresh is the borderless glyph the mock draws beside the last fetch. Jev it is the large
+ * capsule every prominent press in the app is — Continue, Find Jobs, Add Key — and it is
+ * ember while there is something to sort and a key to sort it with. With no key it is the
+ * same capsule in grey: the press still works, and pauses cleanly, but Add Key… is then the
+ * one ember press on the screen.
+ */
+type Press =
+	| { readonly kind: "glyph"; readonly label: string; readonly icon: typeof RotateCw }
+	| { readonly kind: "capsule"; readonly label: string; readonly prominent: boolean };
+
 type RunRowProps = {
 	readonly kind: RunKind;
 	readonly control: RunControl;
-	/** The two lines shown while this kind is not running. */
-	readonly idle: readonly [string, string];
+	/** The line or two shown beside the press while this kind is not running. */
+	readonly idle: readonly string[];
+	/** The plan's own sentence in full, as the idle lines' tooltip. */
+	readonly idleTitle?: string | undefined;
 	/** The press is off before anybody presses: no plan yet, or one that says there is nothing to do. */
 	readonly off: boolean;
-	/** A line under the row saying why the press is off, when the idle lines do not already. */
+	/** A line under the row, in words: why the press is off, the last pause, the last run. */
 	readonly note: string | null;
-	/** The press. An icon names itself with `label`; with no icon, `label` is the button's words. */
-	readonly label: string;
-	readonly icon: typeof RotateCw | null;
+	readonly press: Press;
 	/** The job list is being rebuilt: say so, with a bar that only moves, and hold the press. */
 	readonly updating?: boolean | undefined;
 };
@@ -61,11 +74,11 @@ function RunFailureDetail({ run }: { readonly run: RunState }) {
 }
 
 /**
- * One run control in the sidebar footer: two lines of words and the press that starts it.
+ * One run control in the sidebar footer: its lines in words, and the press that starts it.
  *
  * Both controls sit on `useRunControl`, so neither starts anything the run panel could not: a
  * press redeems the plan token the server issued, and nothing starts on render. While this
- * kind is running the two lines become the stage in words and a bar that fills one step per
+ * kind is running the lines become the stage in words and a bar that fills one step per
  * finished stage. That is a count of stages, not an estimate of time.
  *
  * The server runs one thing at a time, and each control reads the same current run. So a run
@@ -75,7 +88,7 @@ function RunFailureDetail({ run }: { readonly run: RunState }) {
  * that finished left behind, and what the pipeline printed — in a sheet rather than in a
  * 240px column.
  */
-function RunRow({ kind, control, idle, off, note, label, icon: Icon, updating = false }: RunRowProps) {
+function RunRow({ kind, control, idle, idleTitle, off, note, press, updating = false }: RunRowProps) {
 	const { run, busy, actionError, start, stop } = control;
 	const [failureOpen, setFailureOpen] = useState(false);
 	const own = run !== null && run.kind === kind ? run : null;
@@ -85,6 +98,9 @@ function RunRow({ kind, control, idle, off, note, label, icon: Icon, updating = 
 	const stage = running ? (own.stages.find((entry) => entry.state === "running") ?? null) : null;
 	const finished = running ? own.stages.filter((entry) => entry.state === "ok").length : 0;
 	const failed = own !== null && (own.phase === "failed" || own.phase === "stopped") ? own : null;
+	// A press in flight does not hold the button: `start` ignores a second press on its own, and
+	// disabling here would flash the capsule grey for the moment before the run appears.
+	const held = off || elsewhere;
 
 	return (
 		<div className="run-row">
@@ -101,31 +117,32 @@ function RunRow({ kind, control, idle, off, note, label, icon: Icon, updating = 
 						<>
 							<span>{stage === null ? "Starting…" : `${runStageLabel(stage.stage)}…`}</span>
 							<span className="run-progress" role="progressbar" aria-valuemin={0} aria-valuemax={own.stages.length} aria-valuenow={finished}>
-								<span style={{ width: `${(finished / Math.max(1, own.stages.length)) * 100}%` }} />
+								<span style={{ transform: `scaleX(${String(finished / Math.max(1, own.stages.length))})` }} />
 							</span>
 						</>
 					) : (
-						<>
-							<span>{idle[0]}</span>
-							<span>{idle[1]}</span>
-						</>
+						idle.map((line) => (
+							<span key={line} title={idleTitle}>
+								{line}
+							</span>
+						))
 					)}
 				</div>
 				{updating && !running ? null : running ? (
 					<button type="button" className="icon-button" onClick={stop} disabled={busy} aria-label="Stop the run" title="Stop the run">
 						<Square aria-hidden="true" className="icon" />
 					</button>
-				) : Icon === null ? (
-					<button type="button" className="button" onClick={start} disabled={busy || off || elsewhere}>
-						{label}
+				) : press.kind === "capsule" ? (
+					<button type="button" className="button" data-size="large" data-tone={press.prominent && !held ? "prominent" : undefined} onClick={start} disabled={held}>
+						{press.label}
 					</button>
 				) : (
-					<button type="button" className="icon-button" onClick={start} disabled={busy || off || elsewhere} aria-label={label} title={label}>
-						<Icon aria-hidden="true" className="icon" />
+					<button type="button" className="icon-button" onClick={start} disabled={held} aria-label={press.label} title={press.label}>
+						<press.icon aria-hidden="true" className="icon" />
 					</button>
 				)}
 			</div>
-			{running ? null : elsewhere ? <span>Waits for the run that is going</span> : note === null ? null : <span className="run-failure">{note}</span>}
+			{running ? null : elsewhere ? <span className="run-note">Waits for the run that is going</span> : note === null ? null : <span className="run-note">{note}</span>}
 			{actionError === null ? null : <span className="run-failure">{actionError.message}</span>}
 			{running || failed === null || failed.failure === null ? null : (
 				<>
@@ -151,7 +168,7 @@ type FetchRowProps = {
 	readonly updating: boolean;
 };
 
-/** The last fetch in two lines, and the icon that starts the next. */
+/** The last fetch in two lines, and the glyph that starts the next. */
 function FetchRow({ boards, lastFetchAt, onSettled, updating }: FetchRowProps) {
 	const kind: RunKind = "fetch-and-filter";
 	const control = useRunControl(kind, 0, onSettled);
@@ -162,48 +179,81 @@ function FetchRow({ boards, lastFetchAt, onSettled, updating }: FetchRowProps) {
 			: plan !== null && !plan.startable
 				? (plan.notes[0]?.message ?? "There is nothing for a run to fetch yet.")
 				: null;
-	const idle: readonly [string, string] =
+	const idle: readonly string[] =
 		lastFetchAt === null
 			? ["Not checked yet", "Refresh fetches your boards"]
 			: [`Checked ${boards.toLocaleString("en-US")} ${boards === 1 ? "board" : "boards"}`, formatMoment(lastFetchAt)];
 	return (
-		<RunRow kind={kind} control={control} idle={idle} off={plan === null || !plan.startable} note={note} label={runKindLabel(kind)} icon={RotateCw} updating={updating} />
+		<RunRow
+			kind={kind}
+			control={control}
+			idle={idle}
+			off={plan === null || !plan.startable}
+			note={note}
+			press={{ kind: "glyph", label: runKindLabel(kind), icon: RotateCw }}
+			updating={updating}
+		/>
 	);
 }
 
-/**
- * What a Jev it plan says it would do, in its own words.
- *
- * The plan is the only source: this row never counts Postings itself and never estimates a
- * cost. No Jev result is shown here or anywhere else.
- */
-function planWords(plan: RunPlan): string {
-	if (plan.jev === null || plan.jev === undefined) return "The Jev plan did not say what it would assess";
-	const { postingCount, summary } = plan.jev;
-	const said = summary.trim();
-	if (said !== "") return said;
-	return `${postingCount.toLocaleString("en-US")} ${postingCount === 1 ? "Posting" : "Postings"} awaiting Jev`;
+/** How many Postings the plan would send to Jev, as the one line beside the press. */
+function awaitingLabel(count: number): string {
+	if (count === 0) return "Nothing awaiting Jev";
+	return `${count.toLocaleString("en-US")} awaiting Jev`;
 }
 
 type JevItRowProps = {
 	readonly kind: RunKind;
+	/** The last Jev it pause the view recorded, if the latest Jev run ended in one. */
+	readonly jevPause: { readonly reason: string; readonly waiting: number } | null;
 	readonly onSettled: () => void;
 };
 
 /**
- * Jev it: one press scores every Posting early review has not seen yet.
+ * Jev it: one press sorts every Posting that passed the Hard Filters and has no Jev result.
  *
- * Before the press it shows what the plan returned, in words; while it runs and after, the
- * same stage, bar and failure line the fetch shows. A plan with nothing to score turns the
- * press off, and the words beside it say so.
+ * The line beside the press is the plan's count, and the plan's full sentence is its tooltip.
+ * This row never counts Postings itself and never estimates a cost, and no Jev result is
+ * shown here or anywhere else. Under it, one note at most: the last pause and what resumes
+ * it, the plan's word on a missing key, or when the last sort finished. A plan with nothing
+ * to sort turns the press off and the line says so.
  */
-function JevItRow({ kind, onSettled }: JevItRowProps) {
+function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
 	const control = useRunControl(kind, 0, onSettled);
 	const { plan, planError, run } = control;
-	const words = planError !== null ? planError.message : plan === null ? "Asking what it would score…" : planWords(plan);
-	const scored = run !== null && run.kind === kind && run.phase === "succeeded" && run.endedAt !== null ? run.endedAt : null;
-	const idle: readonly [string, string] = [scored === null ? earlyReviewLabel() : `Scored · ${formatMoment(scored)}`, words];
-	return <RunRow kind={kind} control={control} idle={idle} off={plan === null || !plan.startable} note={null} label={JEV_IT_LABEL} icon={null} />;
+	const count = plan?.jev?.postingCount ?? null;
+	const keyMissing = plan?.notes.find((entry) => entry.code === "jev-key-missing") ?? null;
+	const sorted = run !== null && run.kind === kind && run.phase === "succeeded" && run.endedAt !== null ? run.endedAt : null;
+	const line =
+		planError !== null
+			? "Jev could not be planned"
+			: plan === null
+				? "Counting what awaits Jev…"
+				: count === null
+					? "The Jev plan did not say what it would assess"
+					: awaitingLabel(count);
+	const note =
+		planError !== null
+			? planError.message
+			: jevPause !== null
+				? jevPauseLabel(jevPause.reason)
+				: keyMissing !== null
+					? keyMissing.message
+					: sorted !== null
+						? `Sorted ${formatMoment(sorted)}`
+						: null;
+	const off = plan === null || !plan.startable;
+	return (
+		<RunRow
+			kind={kind}
+			control={control}
+			idle={[line]}
+			idleTitle={plan?.jev?.summary}
+			off={off}
+			note={note}
+			press={{ kind: "capsule", label: JEV_IT_LABEL, prominent: keyMissing === null }}
+		/>
+	);
 }
 
 type RunStatusProps = FetchRowProps & {
@@ -212,16 +262,17 @@ type RunStatusProps = FetchRowProps & {
 };
 
 /**
- * The sidebar's footer: the fetch, and Jev it beneath it, drawn the same way.
+ * The sidebar's footer: the fetch, and Jev it beneath it.
  *
- * Neither is ember: a sidebar run control is not one of ember's uses in ui/DESIGN.md.
+ * Refresh stays the borderless glyph the mock draws; Jev it is the footer's one prominent
+ * press, ember once there is something to sort and a key to sort it with (ui/DESIGN.md,
+ * principle 2).
  */
 export function RunStatus({ boards, lastFetchAt, onSettled, jevPause, jevIt, updating }: RunStatusProps) {
 	return (
 		<div className="sidebar-footer" aria-label="Runs">
 			<FetchRow boards={boards} lastFetchAt={lastFetchAt} onSettled={onSettled} updating={updating} />
-			{jevPause && !updating ? <span role="status">{jevPauseLabel(jevPause.reason, jevPause.waiting)}</span> : null}
-			{jevIt && !updating ? <JevItRow kind={JEV_IT_KIND} onSettled={onSettled} /> : null}
+			{jevIt && !updating ? <JevItRow kind={JEV_IT_KIND} jevPause={jevPause ?? null} onSettled={onSettled} /> : null}
 		</div>
 	);
 }

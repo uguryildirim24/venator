@@ -14,10 +14,14 @@
  * the app sets that attribute: light and dark follow the system, on the web and on the desktop.
  *
  * One accent, ember, and it paints exactly six things: list selection while the list has
- * focus, the prominent toolbar button, the prominent press of a setup step or first-run state,
- * sidebar symbols, the new-Posting dot, and the "required and not on your résumé" mark. Green
- * is the "on your résumé" mark and its check, and the filled ready check in setup, and nothing
- * else. Every other thing is grey. There is no red.
+ * focus, the prominent toolbar button, the prominent press of a setup step, a first-run state
+ * or the run controls (Jev it, once there is something to sort), sidebar symbols, the
+ * new-Posting dot, and the "required and not on your résumé" mark. Green is the "on your
+ * résumé" mark and its check, and the filled ready check in setup, and nothing else. Every
+ * other thing is grey. There is no red.
+ *
+ * Hover and pressed fills are shades of the same grounds, and they change instantly, as the
+ * kit's do. Nothing here animates a colour.
  */
 
 :root {
@@ -146,10 +150,26 @@
 	--weight-semibold: 600;
 	--weight-bold: 700;
 
-	/* Motion. Selection is instant; popovers and sheets use this one ease. */
+	/*
+	 * Motion (ui/DESIGN.md, "Motion"). Selection, hover and pressed states change instantly.
+	 * What moves — a sheet arriving, the sidebar folding away, a setup step turning, a view
+	 * taking the screen — moves once, on transform and opacity only, and then rests. `--ease`
+	 * is the kit's deceleration; `--ease-spring` is a spring sampled into a curve (damping
+	 * ratio 0.85, response 280ms, 0.6% overshoot), for the pieces that slide into place.
+	 */
 	--motion-base: 180ms;
+	--motion-slow: 300ms;
 	--spin-duration: 900ms;
 	--ease: cubic-bezier(0.2, 0, 0, 1);
+	--ease-spring: linear(
+		0, 0.0336 4.2%, 0.115 8.3%, 0.22 12.5%, 0.334 16.7%, 0.446 20.8%, 0.55 25%, 0.642 29.2%,
+		0.722 33.3%, 0.789 37.5%, 0.843 41.7%, 0.887 45.8%, 0.921 50%, 0.947 54.2%, 0.967 58.3%,
+		0.981 62.5%, 0.991 66.7%, 0.998 70.8%, 1.002 75%, 1.004 79.2%, 1.006 83.3%, 1.006 91.7%, 1
+	);
+	/* How far a sheet, a step or a view travels as it arrives, and how much smaller it starts. */
+	--rise: 8px;
+	--step-travel: 24px;
+	--settle-scale: 0.98;
 
 	/* ------------------------------------------------------------- 2. colour: light */
 
@@ -169,15 +189,20 @@
 	--row-hover: rgba(0, 0, 0, 0.04);
 	--sidebar-selected: #d9d9d9;
 	--control: #ebebeb;
-	--control-pressed: #dedede;
+	--control-hover: #e2e2e2;
+	--control-pressed: #d5d5d5;
 	--search-field: #f6f6f6;
 	/* The kit's fills: a setup card or group (5%), the drop zone (3%), a chip (10%). */
 	--group: rgba(0, 0, 0, 0.05);
 	--drop: rgba(0, 0, 0, 0.03);
 	--chip: rgba(0, 0, 0, 0.1);
+	--chip-hover: rgba(0, 0, 0, 0.14);
+	--chip-pressed: rgba(0, 0, 0, 0.2);
 	--field: #ffffff;
 	--field-edge: rgba(0, 0, 0, 0.12);
 	--ember: #b4521c;
+	--ember-hover: #a84c1a;
+	--ember-pressed: #9a4517;
 	--ember-selection: #b4521c;
 	--ember-vibrant: #c9601f;
 	--on-ember: #ffffff;
@@ -202,10 +227,12 @@
 	 */
 	--vendor-claude-bg: #d97757;
 	--vendor-claude-bg-hover: #e28a6b;
+	--vendor-claude-bg-pressed: #c96a4b;
 	--vendor-claude-fg: #20120c;
 	--vendor-claude-edge: rgba(32, 18, 12, 0.24);
 	--vendor-chatgpt-bg: #ffffff;
 	--vendor-chatgpt-bg-hover: #f5f5f5;
+	--vendor-chatgpt-bg-pressed: #e8e8e8;
 	--vendor-chatgpt-fg: #0d0d0d;
 	--vendor-chatgpt-edge: rgba(0, 0, 0, 0.45);
 }
@@ -230,14 +257,19 @@
 		--row-hover: rgba(255, 255, 255, 0.05);
 		--sidebar-selected: #232323;
 		--control: #2e2e2e;
-		--control-pressed: #3a3a3a;
+		--control-hover: #373737;
+		--control-pressed: #424242;
 		--search-field: #313131;
 		--group: rgba(255, 255, 255, 0.05);
 		--drop: rgba(255, 255, 255, 0.03);
 		--chip: rgba(255, 255, 255, 0.1);
+		--chip-hover: rgba(255, 255, 255, 0.14);
+		--chip-pressed: rgba(255, 255, 255, 0.2);
 		--field: rgba(255, 255, 255, 0.06);
 		--field-edge: rgba(255, 255, 255, 0.12);
 		--ember: #b4521c;
+		--ember-hover: #c05a20;
+		--ember-pressed: #a94d1b;
 		--ember-selection: #a94d1b;
 		--ember-vibrant: #f08a4b;
 		--on-ember: #ffffff;
@@ -255,10 +287,12 @@
 
 		--vendor-claude-bg: #d97757;
 		--vendor-claude-bg-hover: #e28a6b;
+		--vendor-claude-bg-pressed: #c96a4b;
 		--vendor-claude-fg: #20120c;
 		--vendor-claude-edge: rgba(255, 255, 255, 0.22);
 		--vendor-chatgpt-bg: #ffffff;
 		--vendor-chatgpt-bg-hover: #f5f5f5;
+		--vendor-chatgpt-bg-pressed: #e8e8e8;
 		--vendor-chatgpt-fg: #0d0d0d;
 		--vendor-chatgpt-edge: rgba(255, 255, 255, 0.45);
 	}
@@ -286,14 +320,19 @@
 	--row-hover: rgba(255, 255, 255, 0.05);
 	--sidebar-selected: #232323;
 	--control: #2e2e2e;
-	--control-pressed: #3a3a3a;
+	--control-hover: #373737;
+	--control-pressed: #424242;
 	--search-field: #313131;
 	--group: rgba(255, 255, 255, 0.05);
 	--drop: rgba(255, 255, 255, 0.03);
 	--chip: rgba(255, 255, 255, 0.1);
+	--chip-hover: rgba(255, 255, 255, 0.14);
+	--chip-pressed: rgba(255, 255, 255, 0.2);
 	--field: rgba(255, 255, 255, 0.06);
 	--field-edge: rgba(255, 255, 255, 0.12);
 	--ember: #b4521c;
+	--ember-hover: #c05a20;
+	--ember-pressed: #a94d1b;
 	--ember-selection: #a94d1b;
 	--ember-vibrant: #f08a4b;
 	--on-ember: #ffffff;
@@ -311,10 +350,12 @@
 
 	--vendor-claude-bg: #d97757;
 	--vendor-claude-bg-hover: #e28a6b;
+	--vendor-claude-bg-pressed: #c96a4b;
 	--vendor-claude-fg: #20120c;
 	--vendor-claude-edge: rgba(255, 255, 255, 0.22);
 	--vendor-chatgpt-bg: #ffffff;
 	--vendor-chatgpt-bg-hover: #f5f5f5;
+	--vendor-chatgpt-bg-pressed: #e8e8e8;
 	--vendor-chatgpt-fg: #0d0d0d;
 	--vendor-chatgpt-edge: rgba(255, 255, 255, 0.45);
 }

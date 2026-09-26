@@ -3,7 +3,9 @@
  *
  * **This is not a YAML implementation and it is not a Profile reader.** `src/venator/profile/`
  * is the arbiter of what a Profile means, and a second parser in a second language would be a
- * second opinion. What this does is far smaller: it finds the two blocks it is allowed to
+ * second opinion. (The Profile screen's `profile-form.ts` does parse, to show a Profile as
+ * fields and patch what changed; it too decides nothing and ends in the same read-back.)
+ * What this does is far smaller: it finds the two blocks it is allowed to
  * touch — `sources.names` and `sources.boards` — appends to them, and leaves every other byte
  * of the document exactly as it found it, comments and all. Re-emitting the file would need a
  * reader; appending to it does not.

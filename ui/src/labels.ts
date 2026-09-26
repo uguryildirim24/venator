@@ -24,6 +24,7 @@ import type {
 	PostingStatus,
 } from "../shared/contracts.ts";
 import type { ExtractedField, RuntimeState } from "../shared/onboarding.ts";
+import type { DegreeLevel, EeoField, HardFilterRule, ScreeningField, TriState } from "../shared/profile-form.ts";
 import type { SectionKey } from "./onboarding/draft.ts";
 import type { RunKind, RunStage } from "../shared/runs.ts";
 import type { HomeList } from "./router.ts";
@@ -525,16 +526,20 @@ const JEV_DECISIONS = {
 	unassessed: "Unavailable",
 } satisfies Record<JevTriageDecision, string>;
 
-export function jevPauseLabel(reason: string, waiting: number): string {
+/**
+ * The last Jev it pause, as the short line under the run controls (ui/DESIGN.md, "Sidebar").
+ * How many Postings still wait is the line above it, from the plan, so this says only why
+ * Jev stopped and what resumes it.
+ */
+export function jevPauseLabel(reason: string): string {
 	const state = {
-		"no-key": "no API key",
-		"out-of-credit": "out of credit",
-		"account-unusable": "account unavailable",
-		"cap-reached": "spending cap reached",
-		"transport-failed": "connection unavailable",
+		"no-key": "Jev paused: no API key. Add one and press Jev it again.",
+		"out-of-credit": "Jev paused: out of credit. Press Jev it again once there is some.",
+		"account-unusable": "Jev paused: account unavailable. Press Jev it again once it is back.",
+		"cap-reached": "Jev paused at the spending cap. Press Jev it again to continue.",
+		"transport-failed": "Jev paused: connection unavailable. Press Jev it again to continue.",
 	};
-	const description = Object.entries(state).find(([code]) => code === reason)?.[1] ?? "unavailable";
-	return `Jev paused: ${description}. ${waiting.toLocaleString("en-US")} ${waiting === 1 ? "Posting" : "Postings"} waiting. They'll be sorted on the next Jev it press once it's available.`;
+	return Object.entries(state).find(([code]) => code === reason)?.[1] ?? "Jev paused. Press Jev it again to continue.";
 }
 
 export function jevDecisionLabel(decision: JevTriageDecision): string {
@@ -570,4 +575,81 @@ export function jevSkipLabel(mode: JevTriageMode): string {
 export function jevListLabel(decision: "prioritize" | "review", mode: JevTriageMode): string {
 	const label = decision === "prioritize" ? "Jev: look first" : "Jev: review";
 	return mode === "shadow" ? `${label} — An estimate, not a verdict` : label;
+}
+
+/**
+ * The rungs `profiles/example/targeting.yaml` documents, as the Level popup says them. A rung
+ * a Profile names on its own is a name and is rendered as one.
+ */
+const RUNGS = new Map<string, string>([
+	["intern", "Internship"],
+	["entry", "Entry level"],
+	["mid", "Mid level"],
+	["senior", "Senior"],
+	["executive", "Director and above"],
+]);
+
+export function rungLabel(rung: string): string {
+	return RUNGS.get(rung) ?? nameCase(rung);
+}
+
+/** `schema.py: DEGREE_LEVELS`, in English. */
+const DEGREE_LEVELS = {
+	high_school: "High school",
+	associate: "Associate degree",
+	bachelor: "Bachelor’s degree",
+	master: "Master’s degree",
+	doctorate: "Doctorate",
+} satisfies Record<DegreeLevel, string>;
+
+export function degreeLevelLabel(level: DegreeLevel): string {
+	return DEGREE_LEVELS[level];
+}
+
+/** A YAML true, false or null on the Profile screen. Null is "not answered", never a No. */
+const TRI_STATES = {
+	unanswered: "Not answered",
+	yes: "Yes",
+	no: "No",
+} satisfies Record<TriState, string>;
+
+export function triStateLabel(state: TriState): string {
+	return TRI_STATES[state];
+}
+
+/** What each Hard Filter does, under its name on the Profile screen. */
+const HARD_FILTER_LINES = {
+	work_authorization: "Skips jobs whose wording rules you out.",
+	education_fit: "Skips jobs that ask for more education or years than you have.",
+	role_target: "Keeps jobs at your level and skips other functions.",
+	eligibility: "Skips jobs outside your timing and pay.",
+} satisfies Record<HardFilterRule, string>;
+
+export function hardFilterLine(rule: HardFilterRule): string {
+	return HARD_FILTER_LINES[rule];
+}
+
+/** The screening answers `constraints.yaml` holds, as a form asks them. */
+const SCREENING_FIELDS = {
+	salary_expectations: "Salary expectations",
+	resides_near_posting: "Live near the job",
+	prior_employment_at_company: "Worked there before",
+	relatives_at_company: "Relatives there",
+	how_heard: "How you heard",
+	country: "Country",
+} satisfies Record<ScreeningField, string>;
+
+export function screeningFieldLabel(field: ScreeningField): string {
+	return SCREENING_FIELDS[field];
+}
+
+const EEO_FIELDS = {
+	gender: "Gender",
+	hispanic_latino: "Hispanic or Latino",
+	veteran_status: "Veteran status",
+	disability_status: "Disability status",
+} satisfies Record<EeoField, string>;
+
+export function eeoFieldLabel(field: EeoField): string {
+	return EEO_FIELDS[field];
 }

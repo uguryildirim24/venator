@@ -17,6 +17,7 @@ import sys
 from collections.abc import Iterable, Mapping
 from contextlib import closing
 from datetime import date, datetime, timezone
+from itertools import islice
 from pathlib import Path
 from venator.discover.run import DETAIL_REFRESH_AFTER
 from venator.discover.store import posting_revision
@@ -391,13 +392,15 @@ def build_database(
             input_versions=qualification_versions,
         )
         promotion_revision = promotion_state.revision
-    decisions = list(iter_jsonl(decisions_dir))
-    latest_decisions = {
-        (decision["posting_key"], decision["stage"]): decision
-        for decision in decisions
-        if isinstance(decision.get("posting_key"), str)
-        and isinstance(decision.get("stage"), str)
-    }
+    # Only the latest row per Posting/stage is needed in memory for assessment.
+    # Replay the append-only store again when inserting into SQLite instead of
+    # retaining hundreds of thousands of historical Filter Decisions as dicts.
+    latest_decisions = {}
+    decision_count = 0
+    for decision in iter_jsonl(decisions_dir):
+        decision_count += 1
+        if isinstance(decision.get("posting_key"), str) and isinstance(decision.get("stage"), str):
+            latest_decisions[(decision["posting_key"], decision["stage"])] = decision
     track_events = load_events(track_dir)
     runs = list(_iter_jsonl_file(runs_file))
     folded_states = fold_states(track_events, latest_decisions)
@@ -636,7 +639,7 @@ def build_database(
                   posting_key, stage, verdict, rule, score, reason, filters_version, decided_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                [
+                (
                     (
                         decision.get("posting_key"),
                         decision.get("stage"),
@@ -647,8 +650,8 @@ def build_database(
                         decision.get("filters_version"),
                         decision.get("decided_at"),
                     )
-                    for decision in decisions
-                ],
+                    for decision in islice(iter_jsonl(decisions_dir), decision_count)
+                ),
             )
             database.execute("""INSERT INTO hard_filter_latest
                 SELECT posting_key, id FROM (
@@ -730,7 +733,7 @@ def build_database(
             pass
         raise
     _warn_about_unnamed_employers(companies, profile=profile)
-    return len(postings), len(decisions)
+    return len(postings), decision_count
 
 
 def _install_holds_no_profile(

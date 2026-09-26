@@ -41,13 +41,14 @@ Day to day, run `pnpm dev` and open <http://127.0.0.1:5173>.
 
 ## The API
 
-The server mounts four routers, in this order (`server/app.ts`):
+The server mounts five routers, in this order (`server/app.ts`):
 
 | Mount | Methods | What it does | Contract |
 |---|---|---|---|
 | `/api/runs` | `POST`, plus `GET` for run state | starts Refresh or Jev it | [RUN-API.md](RUN-API.md) |
 | `/api/applications` | `POST`, plus `GET` for status and files | save, dismiss, restore, prepare, applied, handoff | below |
-| `/api/onboarding` | `POST`, plus `GET /settings` | setup: writes Profile files and settings | [ONBOARDING-API.md](ONBOARDING-API.md) |
+| `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | setup and editing a saved Profile | [ONBOARDING-API.md](ONBOARDING-API.md) |
+| `/api/locations` | `GET`, `POST` | read and save this Install's list location choice | below |
 | `/api` | `GET` only | reads the view database | below |
 
 The order matters. Hono's CORS middleware answers a preflight by itself, and a router
@@ -57,7 +58,7 @@ block the write. That only happens cross-origin, which is the packaged desktop a
 `tests/runs-mounting.test.ts` checks the preflights.
 
 Every action route needs its own header (`X-Venator-Run: 1`,
-`X-Venator-Application: 1` or `X-Venator-Onboarding: 1`) and a local `Origin` from
+`X-Venator-Application: 1`, `X-Venator-Onboarding: 1` or `X-Venator-Location: 1`) and a local `Origin` from
 the allowlist. The check is shared, in `server/http/local-action-guard.ts`. The
 header isn't a password. It forces the browser to send a preflight, which lets the
 allowlist refuse a page from some other site.
@@ -71,6 +72,10 @@ allowlist refuse a page from some other site.
 | `/api/postings/:key` | one Posting: the reading page (sanitised text), the employer HTML for the sandboxed frame, the full decision history including replays, and its TrackEvents |
 | `/api/jev-triage?decision=&q=&limit=&offset=` | stale and unavailable Jev results for the selected release, most recently verified first. No probability or score leaves the server |
 | `/api/onboarding/state` | whether this Install has a Profile yet, and which one is in use |
+
+`GET /api/locations` returns available location choices and the saved selection.
+`POST /api/locations` takes `{ "selected": ["…"] }` and saves the choice in the
+Install; it doesn't change a Profile or the view.
 
 ### Application routes
 
@@ -130,13 +135,21 @@ only ever written to `<data directory>/profiles`.
 | `#/onboarding` | setup step 1: connect an assistant, and optionally save a Jev key |
 | `#/onboarding?step=resume` | setup step 2: add a résumé and tick what's right |
 | `#/onboarding?step=targeting` | setup step 3: job titles, level, places, remote, employers; **Find Jobs** saves the Profile and starts a fetch |
+| `#/profile` | edit the saved Profile's contact, résumé, targets, filters and employers in a form |
 
 Lists sort by when a Posting was last verified, never by a score. The résumé
 assessment shows as a note in the margin, not as a list.
 
 Setup takes over the whole window, with no sidebar. Each step has **Skip for Now**,
 and the step lives in the URL so Back works. When the app opens with no route and no
-real Profile, it goes to setup once. **Profile** in the sidebar leads back there.
+real Profile, it goes to setup once. **Profile** in the sidebar opens the saved
+Profile's form instead. Changes are checked before Save; fields the form doesn't
+show remain in the Profile. The location choice above the lists filters visible
+Postings, page counts and pagination without changing the view database.
+
+Jev it is a separate press in the sidebar footer. Its waiting, running and paused
+states stay visible while Refresh remains a fetch-and-filter action. Lists and the
+inspector use lighter transitions, with reduced motion respected.
 
 The first-run states (No jobs yet, Jev needs a key, Updating your job list) are in
 `src/views/first-run.tsx`. None of them starts anything just by being shown.
@@ -160,7 +173,8 @@ The packaged app starts its own API:
 - Otherwise it runs the bundled Node (`src-tauri/binaries/node-<triple>`) on
   `src-tauri/resources/server.mjs`. Both come from `pnpm sidecar` and are gitignored.
   The app can't rely on a system Node, because GUI apps get a minimal `PATH`. This
-  adds about 120 MB.
+  adds about 120 MB. On a Mac, Playwright uses this same Node sidecar instead of
+  shipping another one inside Python.
 - The window stays hidden until the API answers. If it never does, the window opens
   anyway and shows the dashboard's error banner.
 - The API is stopped when the app quits.
@@ -230,7 +244,7 @@ The app runs the whole pipeline itself, so it needs Python. `pnpm python --targe
 - Windows x86-64: python.org's embeddable CPython (about 154 MB staged), with
   `python313._pth` rewritten to find the rest.
 - Apple silicon: python-build-standalone `3.13.15+20260924` `install_only` (about
-  280 MB staged).
+  280 MB staged before removing Playwright's duplicate Node and build-only pip).
 
 Both archives are checked against a sha256 pinned in `tools/python-runtime.ts`. The
 runtime wheels come from `uv export --no-dev` over `uv.lock`, with
@@ -275,7 +289,7 @@ error says so. It never falls back to a system Python.
 
 ```
 server/     Hono API
-  app.ts              the four mounts, in order
+  app.ts              the five mounts, in order
   locations.ts        where everything lives
   db.ts               opening the view and checking its schema
   queries.ts          SQL; rows.ts decodes it; jev.ts decodes Jev rows

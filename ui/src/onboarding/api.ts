@@ -8,12 +8,9 @@
  *
  * Two rules live here rather than in a screen:
  *
- * - **Nothing in this module runs on its own.** Every function is called from a handler for
- *   something a person pressed. There is no hook here that fetches on mount, because a runtime
- *   probe launches a real process and spends the Owner's own subscription, and a screen that
- *   could accidentally poll one would be spending money on a render. The one thing that *is*
- *   safe on load — `GET /api/onboarding/state`, which lists directories — stays in `api.ts`
- *   with the rest of the reads.
+ * - **Only read-only calls run on mount.** The existing Profile and Install settings are
+ *   safe to read on entry; probes, writes and paid PDF readings are only called from presses.
+ *   `GET /api/onboarding/state`, which lists directories, stays in `api.ts`.
  * - **A failure arrives as a value, not as a string.** The surface answers every failure with
  *   the same body: a stable `code`, a `message` written for the person reading it, a `remedy`
  *   when there is one, and the `field` at fault. `OnboardingRequestError` carries all four so
@@ -34,6 +31,7 @@ import {
 	type ResumeSuggestion,
 	type RuntimeProbeResponse,
 } from "../../shared/onboarding.ts";
+import type { ExistingProfileResponse, ProfileDocuments, ProfileForm } from "../../shared/profile-form.ts";
 import { API_BASE_URL } from "../api.ts";
 import type { ProfileProposalBody } from "./draft.ts";
 
@@ -100,8 +98,8 @@ async function post<Value>(path: string, request: RequestInit): Promise<Value> {
 /**
  * Everything this surface is ever sent, named rather than left open.
  *
- * The list is short on purpose: three tiny questions, one whole Profile, and a handful of
- * employers for a Profile that already exists. Naming them keeps the write surface's input
+ * The list is short on purpose: setup questions, one new Profile, an existing Profile edit,
+ * and a handful of employers. Naming them keeps the write surface's input
  * visible in one place — nothing reaches it that is not one of these.
  */
 type ProbeBody =
@@ -123,7 +121,15 @@ type OnboardingRequestBody =
 	| { readonly text: string }
 	| { readonly url: string }
 	| ProfileProposalBody
-	| EmployerRegistrationBody;
+	| EmployerRegistrationBody
+	| ProfileFormBody;
+
+/** The body of `POST /api/onboarding/existing-profile`: the form, and the files as they were opened. */
+export type ProfileFormBody = {
+	readonly name: string;
+	readonly form: ProfileForm;
+	readonly original: ProfileDocuments;
+};
 
 function postJson<Value>(path: string, body: OnboardingRequestBody): Promise<Value> {
 	return post<Value>(path, { headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -167,6 +173,29 @@ export function probeRuntimes(scope: ProbeScope): Promise<RuntimeProbeResponse> 
 }
 
 export type InstallSettings = { readonly runtime: "claude" | "codex"; readonly jevKeyPresent: boolean };
+
+/** Reads the Install's Profile as the Profile screen shows it, with the files it was read from. */
+export async function readProfileForm(name: string): Promise<ExistingProfileResponse> {
+	const response = await fetch(`${API_BASE_URL}/onboarding/existing-profile?name=${encodeURIComponent(name)}`, {
+		headers: { [ONBOARDING_REQUEST_HEADER]: ONBOARDING_REQUEST_HEADER_VALUE },
+	});
+	if (!response.ok) {
+		const body: OnboardingErrorBody | null = await response.json().catch(() => null);
+		throw failureFrom(response.status, body);
+	}
+	// SAFETY: this local route answers with the shared ExistingProfileResponse shape.
+	return await response.json() as ExistingProfileResponse;
+}
+
+/**
+ * Saves the Profile screen's form.
+ *
+ * `original` is the three files as they were opened; the server refuses to write over a
+ * Profile that changed since, and writes only the form's differences into them.
+ */
+export function saveProfileForm(name: string, form: ProfileForm, original: ProfileDocuments): Promise<{ saved: boolean }> {
+	return postJson<{ saved: boolean }>("/existing-profile", { name, form, original });
+}
 
 export async function readInstallSettings(): Promise<InstallSettings> {
 	const response = await fetch(`${API_BASE_URL}/onboarding/settings`, {

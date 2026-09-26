@@ -24,9 +24,14 @@ Everything is on `http://127.0.0.1:5170`, the same server as the dashboard.
 
 ## What this surface may do
 
-It has eight routes: `GET` and `POST settings`, `runtime/probe`, `resume/import`,
-`boards/resolve`, `profile` and `employers` under `/api/onboarding`, plus
-`GET /api/onboarding/state` on the read-only `/api` router.
+It also has `GET` and `POST /api/onboarding/existing-profile` for the Profile
+screen. GET takes a Profile `name` and returns its three original YAML documents
+and their editable form. POST takes `name`, `original` (those three documents) and
+`form`; it refuses a Profile changed on disk since opening and saves only the form's
+differences, preserving fields not shown. The other routes are `GET` and `POST
+settings`, `runtime/probe`, `resume/import`, `boards/resolve`, `profile` and
+`employers` under `/api/onboarding`, plus `GET /api/onboarding/state` on the
+read-only `/api` router.
 
 - It writes only inside `<application data directory>/profiles/`, plus
   `<application data directory>/settings.json` for the assistant choice. The Jev key

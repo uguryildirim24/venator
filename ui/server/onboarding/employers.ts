@@ -49,10 +49,10 @@ import { LONE_SURROGATE } from "./yaml.ts";
 export const MAXIMUM_EMPLOYERS_PER_REQUEST = 25;
 
 /** As long as any ATS routing string this pipeline has met, and bounded so it stays one line. */
-const MAXIMUM_TOKEN_LENGTH = 200;
+export const MAXIMUM_TOKEN_LENGTH = 200;
 
 /** An employer's name as somebody would say it, not a paragraph. */
-const MAXIMUM_NAME_LENGTH = 200;
+export const MAXIMUM_NAME_LENGTH = 200;
 
 /**
  * An adapter name is an identifier the pipeline chose — `greenhouse`, `lever`, `workday`.
@@ -62,7 +62,7 @@ const MAXIMUM_NAME_LENGTH = 200;
  * drift apart, and every value that reaches here came out of `venator.discover.register`'s own
  * answer by way of `/boards/resolve`.
  */
-const SOURCE_NAME = /^[a-z][a-z0-9_]*$/u;
+export const SOURCE_NAME = /^[a-z][a-z0-9_]*$/u;
 
 /**
  * Characters the Profile loader will not read out of a file as themselves.
@@ -90,7 +90,7 @@ const UNREADABLE_TO_THE_LOADER = /[\u007F-\u009F\u2028\u2029\uFFFE\uFFFF]/u;
  * characters above, excluded by codepoint rather than by `\s`, which does not cover them —
  * and `\p{Cs}`, which is not a character at all.
  */
-const BOARD_TOKEN = /^[^\s"'\\#:/{}[\],&*\p{Cs}]+$/u;
+export const BOARD_TOKEN = /^[^\s"'\\#:/{}[\],&*\p{Cs}]+$/u;
 
 /** One Profile this Install owns, and the one file of it this surface may append to. */
 type ProfileTargeting = { readonly directory: string; readonly file: string };

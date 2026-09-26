@@ -157,23 +157,23 @@ export function EmployerPicker({ boards, onChange }: EmployerPickerProps) {
 					{boards.map((board) => (
 						<div key={boardKey(board)} className="setup-row">
 							<span className="setup-row-lines">
-								<span className="setup-row-title">{board.name}</span>
+								<span className="setup-row-title">{board.name === "" ? TARGETING.unnamed : board.name}</span>
 								<span className="setup-row-subtitle">{`${sourceLabel(board.source)} job board`}</span>
 							</span>
 							<span className="setup-row-trail">
-								{board.confirmed ? (
+								{board.confirmed === true ? (
 									<span className="ready">
 										<CircleCheck aria-hidden="true" className="icon" />
 										{TARGETING.ready}
 									</span>
-								) : (
+								) : board.confirmed === false ? (
 									<span className="ready">{TARGETING.notChecked}</span>
-								)}
+								) : null}
 								<button
 									type="button"
 									className="icon-button"
-									aria-label={removeEmployer(board.name)}
-									title={removeEmployer(board.name)}
+									aria-label={removeEmployer(board.name === "" ? TARGETING.unnamed : board.name)}
+									title={removeEmployer(board.name === "" ? TARGETING.unnamed : board.name)}
 									onClick={() => onChange(boards.filter((entry) => boardKey(entry) !== boardKey(board)))}
 								>
 									<Minus aria-hidden="true" className="icon" />

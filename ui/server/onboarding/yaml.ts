@@ -9,7 +9,9 @@
  *
  * There is no reader here on purpose. Reading a Profile back is the Python loader's job and
  * it is the arbiter of what a Profile means; a second parser in a second language would be a
- * second opinion.
+ * second opinion. The one YAML reader this surface does have, `profile-form.ts`, is for
+ * showing an existing Profile as fields and patching what changed; it decides nothing, and
+ * what it writes still goes through the loader's read-back before it is renamed into place.
  */
 
 import type { JsonMapping, JsonValue } from "./json.ts";

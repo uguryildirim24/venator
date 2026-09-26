@@ -436,7 +436,8 @@ export type BoardResolveResponse = {
 export type BoardEntry = {
 	readonly source: string;
 	readonly board: string;
-	readonly confirmed: boolean;
+	/** Whether the live board answered when it was resolved; null for a board read from a Profile, which nothing checked. */
+	readonly confirmed: boolean | null;
 	/**
 	 * The employer as the Owner writes it. Required for every board: Dedup resolves an ATS
 	 * Posting's employer through `sources.names`, so a board with no entry there has no

@@ -139,11 +139,18 @@ function main(): void {
 	const root = pythonStagingRoot(RESOURCES, triple);
 	const absent = (): readonly string[] =>
 		missingRuntimeParts((path) => existsSync(resolve(root, ...path.split("/"))), target);
-	if (absent().length > 0) {
-		say("staging", `no Python runtime under ${PYTHON_RESOURCES}/${triple}/ yet; staging one now`);
+	// A runtime staged by an older build still passes the positive file checks, but carries
+	// Playwright's duplicate Node and pip. Do not silently reuse it in a new Mac bundle.
+	const carriesBuildTools = (): boolean => target.platform === "darwin" && (
+		existsSync(resolve(root, "python/lib/python3.13/site-packages/playwright/driver/node")) ||
+		existsSync(resolve(root, "python/lib/python3.13/site-packages/pip"))
+	);
+	if (absent().length > 0 || carriesBuildTools()) {
+		say("staging", `Python runtime missing or carries build-only files under ${PYTHON_RESOURCES}/${triple}/; staging one now`);
 		step(PYTHON, triple);
 	}
 
+	if (carriesBuildTools()) throw new Error("the staged Mac Python still carries Playwright's private Node or pip");
 	const missing = absent();
 	if (missing.length === 0) {
 		say("runtime ok", `${PYTHON_RESOURCES}/${triple}/ carries the interpreter, the wheels and the pipeline`);

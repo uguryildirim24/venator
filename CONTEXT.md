@@ -72,6 +72,8 @@ look-first ordering until a release for that field exists.
 Refresh fetches Postings, records Filter Decisions and rebuilds the view. Passes
 without a current Jev result wait in Awaiting Jev. Only pressing Jev it sends them to
 Jev. If Jev pauses, the rest wait for the next Jev it, not the next Refresh.
+The sidebar's location choice narrows what is displayed; it is not a Hard Filter
+and never changes a Filter Decision.
 
 ## Applying
 

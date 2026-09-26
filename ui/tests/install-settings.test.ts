@@ -13,7 +13,7 @@ test("a saved runtime is the only runtime for document children; no key goes to 
 	try {
 		const context: LocationContext = {
 			platform: "darwin", home, workingDirectory: home, checkoutRoot: null,
-			environment: (name) => name === "VENATOR_HOME" ? home : name === "TYPESAFE_API_KEY" ? "sentinel" : name === "VENATOR_LLM_RUNTIME" ? "api" : undefined,
+			environment: (name) => name === "VENATOR_HOME" ? home : name === "TYPESAFE_API_KEY" ? "sentinel" : name === "PLAYWRIGHT_NODEJS_PATH" ? "/Applications/Venator.app/Contents/MacOS/node" : name === "VENATOR_LLM_RUNTIME" ? "api" : undefined,
 		};
 		assert.equal(documentRuntime(context), "claude");
 		await saveDocumentRuntime("codex", context);
@@ -21,6 +21,7 @@ test("a saved runtime is the only runtime for document children; no key goes to 
 		assert.deepEqual(JSON.parse(readFileSync(join(home, "settings.json"), "utf8")), { runtime: "codex" });
 		assert.equal(runEnvironment(context)["VENATOR_LLM_RUNTIME"], "codex");
 		assert.equal(runEnvironment(context)["TYPESAFE_API_KEY"], undefined);
+		assert.equal(runEnvironment(context)["PLAYWRIGHT_NODEJS_PATH"], "/Applications/Venator.app/Contents/MacOS/node");
 		assert.equal(jevRunEnvironment(context)["TYPESAFE_API_KEY"], "sentinel");
 		assert.equal(nonJevInheritedEnvironment(context)["TYPESAFE_API_KEY"], undefined);
 	} finally {
