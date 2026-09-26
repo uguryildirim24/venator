@@ -170,8 +170,10 @@ filters:
   #
   # A Posting offering two titles ("Engineer II / Senior Software Engineer") is
   # placed at the easiest of them; words within one title compose, so "Associate
-  # Director" is a Director. An acronym is its own word, so write it out: "chief"
-  # and "officer" cannot see "CISO", any more than "vice president" sees "VP".
+  # Director" is a Director. Only the leading role sets the rung: "Head" after a
+  # comma, dash or parenthesis does not make the Posting executive. An acronym
+  # is its own word, so write it out: "chief" and "officer" cannot see "CISO",
+  # any more than "vice president" sees "VP".
   role_target:
     label: seniority band
     levels: # lowest rung first
@@ -206,6 +208,9 @@ filters:
       - mid
       - senior
     # Functions outside this search at any level. Leave empty for no exclusions.
+    # A term also catches a second role after a comma, dash, slash or in
+    # parentheses ("Coordinator, Recruiter"), but not a department or product
+    # ("Marketing Coordinator, Recruiter Enablement"). These terms do not set the rung.
     exclude:
       label: a function outside this search
       terms:

@@ -219,11 +219,9 @@ class RoleLevel:
 #: ``'Loading / Dock'`` — and ``exclude``, which is word-bounded and literal,
 #: then killed a Posting on a phrase its title never contained.
 _STATED_ALTERNATIVE = re.compile(r"(\s*/\s*|\s+\bor\b\s+)", re.IGNORECASE)
-#: Where a title stops naming the role and starts naming its context. Everything
-#: after the first comma, bracket or dash is the department, the team, the
-#: product, the city or the shift — never the rung — and a slash in *there*
-#: separates technologies, not rungs: "Product Lead, Software/Applied AI" is one
-#: Product Lead.
+#: Where the rung-reading role ends and context begins. The context does not
+#: place a rung, even when it names a second excluded function: "Product Lead,
+#: Software/Applied AI" is one Product Lead, not two ladder offers.
 #:
 #: The whitespace ahead of the boundary belongs to the context, so the leading
 #: segment comes back trimmed as the Owner wrote it.
@@ -306,13 +304,11 @@ class RoleTargetPolicy:
     def alternatives(self, title: str) -> tuple[str, ...]:
         """The roles a Posting's title offers — the leading segment only.
 
-        **The one place a title becomes a role.** Every check that reads a title
-        for the job it names goes through this: the rung ladder and the excluded
-        functions both read what it returns, and a check added later gets the
-        right reading by default rather than by its author remembering. Reading
-        the title as written is a different question — identity, display, the
-        text a person is shown — and the callers that want it ask for the title
-        rather than for this.
+        **The one place a title becomes a ladder offer.** The rung ladder and
+        the leading-segment excluded-function check both read these spans. An
+        additional excluded-function check reads narrowly shaped role qualifiers
+        separately; it never places a rung from a department. Identity and
+        display still read the title as written.
 
         That is not a style preference. The same misreading has now been found
         twice in one function: the ladder scanned "Research Associate, Head and

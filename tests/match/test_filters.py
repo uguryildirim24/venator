@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import random
+import re
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ from venator.match.filters import (
     work_authorization_filter,
 )
 from venator.profile import load_profile
-from venator.profile.schema import EducationFitPolicy, FilterPolicy, RoleTargetPolicy
+from venator.profile.schema import EducationFitPolicy, FilterPolicy, Matcher, RoleTargetPolicy
 
 REPOSITORY = Path(__file__).parents[2]
 
@@ -213,6 +214,53 @@ def test_role_target_kills_titles_above_the_band_the_profile_targets() -> None:
     # band as the ladder allows, and a title whose closest reading is still out
     # of band was never ambiguous about being out of band.
     assert "above" in reason and "senior" in reason
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Courier (Driver) - Eurofins Environment Testing Northeast - Cherry Hill, NJ",
+        "On-Call Courier (Driver)",
+        "Courier (Driver) - On Call",
+        "Line technician, Warehouse",
+        "Associate II, Warehouse",
+        "Material Handler,  CAR-T Warehouse Operations",
+        "Operator - Warehouse",
+        "Logistics Associate – Warehouse",
+        "BFT - Mobile Operations Coordinator/Driver",
+        "Supply Chain Operations Specialist Trainee (Warehouse and Logistic) (Career Conversion Program)",
+        "Exeter Hospital - Pharmacy Technician II",
+        "Investigational Drug Services (IDS) Pharmacy Technician, On-Site",
+    ],
+)
+def test_excluded_function_in_title_context_is_killed(title: str) -> None:
+    assert role_target_filter(posting(title=title), _function_policy())[0] == "kill"
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "GMP/GDP Compliance Specialist – Warehouse & Distribution Operations (m/f/d)",
+        "Software Engineer III - Driver Developer (Autonomous Lab)",
+        "TAKAMI (SAP S/4 HANA) project Warehouse (EWM) 導入担当者",
+        "Lab Associate / Lab Courier Beverly Primary Care",
+        "Pharmacy Intern",
+        "Clinical Pharmacist",
+        "Experienced Pharmaceutical Manufacturing Technician",
+        "Marketing Coordinator, Recruiter Enablement",
+        "Research Associate, Sales Enablement",
+    ],
+)
+def test_topic_or_other_function_is_not_an_excluded_role(title: str) -> None:
+    assert role_target_filter(posting(title=title), _function_policy())[0] == "pass"
+
+
+def _function_policy() -> FilterPolicy:
+    terms = ("driver", "warehouse", "pharmacy technician", "sales", "recruiter")
+    pattern = re.compile(r"\b(?:" + "|".join(re.escape(term) for term in terms) + r")\b", re.I)
+    role = dataclasses.replace(POLICY.role_target, exclude=Matcher("an excluded function", pattern))
+    # Isolate the exclusion decision from the example Profile's seniority band.
+    return dataclasses.replace(POLICY, role_target=dataclasses.replace(role, accept=()))
 
 
 def test_role_target_passes_a_title_it_cannot_place() -> None:
