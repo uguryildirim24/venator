@@ -74,8 +74,10 @@ allowlist refuse a page from some other site.
 | `/api/onboarding/state` | whether this Install has a Profile yet, and which one is in use |
 
 `GET /api/locations` returns available location choices and the saved selection.
-`POST /api/locations` takes `{ "selected": ["…"] }` and saves the choice in the
-Install; it doesn't change a Profile or the view.
+States and countries group their cities. Remote, Several locations, No location
+and Other places are separate choices. A Posting with several places counts in
+each place it lists. `POST /api/locations` takes `{ "selected": ["…"] }` and saves
+the choice in the Install; it doesn't change a Profile or the view.
 
 ### Application routes
 
@@ -140,6 +142,8 @@ only ever written to `<data directory>/profiles`.
 The sidebar groups these lists in rounded cards. Its larger rows put a symbol beside
 each name and a count at the right; the selected row has a quiet grey background.
 The space below the cards stays open, with Refresh and Jev it at the foot.
+The last-checked line shows the latest Discover board check, including one run
+from the command line. It says **Not checked yet** if no check has been recorded.
 
 Lists sort by when a Posting was last verified, never by a score. The résumé
 assessment shows as a note in the margin, not as a list.

@@ -744,6 +744,11 @@
 }
 
 .location-menu p { margin: var(--space-2); }
+.location-children { padding-left: var(--space-4); }
+.location-group-summary { list-style: none; }
+.location-group-summary::-webkit-details-marker { display: none; }
+.location-group-chevron { flex: none; }
+.location-menu details[open] > .location-group-summary .location-group-chevron { transform: rotate(90deg); }
 
 .location-option {
 	display: flex;

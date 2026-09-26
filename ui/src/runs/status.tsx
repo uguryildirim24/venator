@@ -161,7 +161,7 @@ function RunRow({ kind, control, idle, idleTitle, off, note, press, updating = f
 type FetchRowProps = {
 	/** How many boards the last fetch checked: one source-health row each. */
 	readonly boards: number;
-	/** When the latest completed fetch finished, or null when none has. */
+	/** When boards were last checked, including a CLI Discover, or null when none has. */
 	readonly lastFetchAt: string | null;
 	readonly onSettled: () => void;
 	readonly jevPause?: { readonly reason: string; readonly waiting: number } | null;

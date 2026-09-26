@@ -99,9 +99,14 @@ you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
   waiting Postings to Jev, with a $10 limit per press. If it stops (no key, no
   credit, a connection problem, or the limit), earlier results stay and the rest
   wait for the next press. The run shows what is waiting and when the view is ready.
-- The location choice above a list narrows the visible Postings and counts to a
-  place, Remote, or Postings without a location. It doesn't change the Profile or
-  rerun Hard Filters.
+- The location choice above a list narrows the visible Postings and counts. Open
+  a state or country to choose its cities, or choose the whole state or country.
+  Remote, Several locations, No location and Other places have their own choices.
+  A Posting with several listed places appears in each one. This doesn't change
+  the Profile or rerun Hard Filters.
+- The sidebar's last-checked line shows when Discover last checked your boards,
+  including checks run from the command line. It says **Not checked yet** until
+  a board check has been recorded.
 - **For you** is what Jev says to look at first. **Explore** is what it says to
   review. **Excluded** holds Hard Filter kills and Jev exclusions. **Applications**,
   **Saved** and **Dismissed** hold what you've acted on.

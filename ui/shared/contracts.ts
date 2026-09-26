@@ -113,7 +113,7 @@ export type PostingEntry = {
 	readonly application: ApplicationState | null;
 	readonly assessment?: JobAssessment;
 	readonly jev: { readonly decision: "prioritize" | "review" | "exclude"; readonly mode: JevTriageMode } | null;
-	/** Discovered in the latest completed fetch (`DatabaseInfo.lastFetchAt`). Nothing is stored. */
+	/** Discovered within the latest completed Discover run window. Nothing is stored. */
 	readonly isNew: boolean;
 };
 
@@ -277,8 +277,9 @@ export type DatabaseInfo = {
 	readonly filtersVersions: readonly string[];
 	readonly lastDecisionAt: string | null;
 	/**
-	 * When the latest completed fetch finished: the newest `runs` heartbeat for a Discover
-	 * stage that reported ok. Null when no fetch has completed. It is what "new" is counted from.
+	 * The latest board check: a Discover heartbeat, source-health attempt, or verified-open
+	 * Posting clock. Null when no fetch has been recorded. The "new" count uses run heartbeats
+	 * separately.
 	 */
 	readonly lastFetchAt: string | null;
 	readonly jevPause: { readonly reason: string; readonly waiting: number } | null;
