@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from venator.discover.store import posting_revision
+from venator.discover.store import load_postings, posting_revision
 from venator.llm.system_one import (
     KEY_VAR,
     MODEL,
@@ -24,7 +24,9 @@ from venator.qualify.jev import (
     MAX_IN_FLIGHT,
     QualificationLock,
     execute_prepared_cases,
+    hard_filter_passes,
     is_protected,
+    run,
     main,
     select_work,
 )
@@ -253,6 +255,67 @@ def test_hard_filter_pass_selection_is_exact_and_read_only(
     assert second["selected"] == 0
     assert second["current_assessments"] == 1
     assert poster.calls == []
+
+
+def test_selective_store_read_keeps_selection_and_payloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import venator.qualify.jev as jev
+
+    profile = _profile()
+    passed = {**_posting(), "key": "fixture:passed"}
+    killed = {**_posting(), "key": "fixture:killed"}
+    stale = {**_posting(), "key": "fixture:stale"}
+    _write_postings(tmp_path / "postings", passed, killed, stale)
+    # A compact observation changes the effective Posting without replacing
+    # its description. The version must compare against that merged row.
+    with (tmp_path / "postings" / "2026-09-18.jsonl").open("a") as output:
+        output.write(json.dumps({"key": passed["key"], "_observation": {"title": "Updated intern"}}) + "\n")
+    effective = load_postings(tmp_path / "postings")
+    version = current_filter_version(
+        profile, jev_promotion_state([], profile.identifier), JEV_RELEASE,
+    )
+    decisions = tmp_path / "decisions"
+    decisions.mkdir()
+    with (decisions / "2026-09-18.jsonl").open("w") as output:
+        for posting in effective:
+            output.write(json.dumps({
+                "posting_key": posting["key"], "stage": "hard_filter",
+                "verdict": "kill" if posting["key"] == killed["key"] else "pass",
+                "posting_version": "stale" if posting["key"] == stale["key"] else posting_revision(posting),
+                "filters_version": version,
+                "facts": {"jev": "fallback", "jev_input": bound_input_version(
+                    posting, profile, "2026-09", JEV_RELEASE,
+                )},
+            }) + "\n")
+    expected = select_work(
+        hard_filter_passes(effective, decisions, profile, "2026-09", tmp_path / "qualifications"),
+        profile=profile, month="2026-09", mode="shadow", qualifications_dir=tmp_path / "qualifications",
+        named_keys=None, release=JEV_RELEASE, decided_at="2026-09-18T00:00:00+00:00",
+    )
+    captured = []
+    original = jev.select_work
+
+    def capture(*args, **kwargs):
+        work = original(*args, **kwargs)
+        captured.append(work)
+        return work
+
+    monkeypatch.setattr(jev, "select_work", capture)
+    for names in ([], [passed["key"]]):
+        report = run(
+            profile=profile, month="2026-09", as_of="2026-09-18", mode="shadow",
+            postings_dir=tmp_path / "postings", qualifications_dir=tmp_path / "qualifications",
+            named_keys=names, hard_filter_passes_only=True, decisions_dir=decisions,
+            execute=False, offline=True, max_usd=None, max_requests=None,
+        )
+        assert report.as_dict() == expected.report.as_dict()
+        assert [case.bindings for case in captured[-1].prepared] == [
+            case.bindings for case in expected.prepared
+        ]
+        assert [(dict(case.state), dict(case.questions)) for case in captured[-1].prepared] == [
+            (dict(case.state), dict(case.questions)) for case in expected.prepared
+        ]
 
 
 def test_preview_does_not_claim_or_call_network(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

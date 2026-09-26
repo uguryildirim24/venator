@@ -17,8 +17,101 @@
 	grid-template-columns: 0 minmax(0, 1fr);
 }
 
+/*
+ * Folding the sidebar away, and bringing it back.
+ *
+ * The grid changes once, on `data-sidebar`. The pieces then slide into their new places on
+ * transform alone: the sidebar leaves to the left, and the list column, the panes and a table
+ * follow it by the same distance on the same curve, so the seam between them never opens. The
+ * sidebar keeps its width and paints above the main pane while it moves, and goes invisible the
+ * moment its slide ends.
+ *
+ * The slide itself hangs on `data-fold`, which app.tsx sets at the toggle and clears when the
+ * sidebar's own animation ends. So a pane that mounts later, with the sidebar long folded, sits
+ * where it belongs rather than replaying the fold, and nothing slides on the first paint.
+ */
 .window[data-sidebar="hidden"] .sidebar {
 	visibility: hidden;
+	transition: visibility 0s linear var(--motion-slow);
+}
+
+.window[data-fold="leaving"] .sidebar {
+	animation: sidebar-leave var(--motion-slow) var(--ease-spring) both;
+}
+
+.window[data-fold="returning"] .sidebar {
+	animation: sidebar-return var(--motion-slow) var(--ease-spring) both;
+}
+
+.window[data-fold="leaving"] :is(.toolbar-list, .panes, .table-view) {
+	animation: follow-leave var(--motion-slow) var(--ease-spring) both;
+}
+
+.window[data-fold="returning"] :is(.toolbar-list, .panes, .table-view) {
+	animation: follow-return var(--motion-slow) var(--ease-spring) both;
+}
+
+/* A first-run state is centred in the main pane, so it moves half as far. */
+.window[data-fold="leaving"] > .window-main > .first-run {
+	animation: follow-leave-half var(--motion-slow) var(--ease-spring) both;
+}
+
+.window[data-fold="returning"] > .window-main > .first-run {
+	animation: follow-return-half var(--motion-slow) var(--ease-spring) both;
+}
+
+@keyframes sidebar-leave {
+	from {
+		transform: none;
+	}
+	to {
+		transform: translateX(calc(-1 * var(--sidebar-width)));
+	}
+}
+
+@keyframes sidebar-return {
+	from {
+		transform: translateX(calc(-1 * var(--sidebar-width)));
+	}
+	to {
+		transform: none;
+	}
+}
+
+@keyframes follow-leave {
+	from {
+		transform: translateX(var(--sidebar-width));
+	}
+	to {
+		transform: none;
+	}
+}
+
+@keyframes follow-return {
+	from {
+		transform: translateX(calc(-1 * var(--sidebar-width)));
+	}
+	to {
+		transform: none;
+	}
+}
+
+@keyframes follow-leave-half {
+	from {
+		transform: translateX(calc(var(--sidebar-width) / 2));
+	}
+	to {
+		transform: none;
+	}
+}
+
+@keyframes follow-return-half {
+	from {
+		transform: translateX(calc(-1 * var(--sidebar-width) / 2));
+	}
+	to {
+		transform: none;
+	}
 }
 
 .window-main {
@@ -62,9 +155,11 @@
 /* ------------------------------------------------------------------ sidebar */
 
 .sidebar {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	flex-direction: column;
-	min-width: 0;
+	width: var(--sidebar-width);
 	min-height: 0;
 	overflow: hidden;
 	background: var(--sidebar);
@@ -107,8 +202,15 @@
 	text-align: left;
 	color: var(--label-primary);
 	text-decoration: none;
+	cursor: default;
 }
 
+/* Hover is the row's own ground; a press is the selected pill, and the selection then holds it. */
+.sidebar-row:hover {
+	background: var(--row-hover);
+}
+
+.sidebar-row:active,
 .sidebar-row[aria-current="page"] {
 	background: var(--sidebar-selected);
 }
@@ -124,10 +226,16 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/*
+ * The run controls: the last fetch with its borderless refresh glyph, as the mock draws them,
+ * and Jev it beneath as the large capsule a first-run press is — ember while there is
+ * something to sort and a key to sort it with, plain otherwise. Each row is its lines beside
+ * its press, and a note under both when there is one.
+ */
 .sidebar-footer {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-1-5);
+	gap: var(--space-3);
 	flex-shrink: 0;
 	padding: var(--space-3) var(--space-4) var(--space-4) var(--space-5);
 	font-size: var(--size-subheadline);
@@ -147,11 +255,21 @@
 	gap: var(--space-2);
 }
 
+.run-status > .button,
+.run-status > .icon-button {
+	flex-shrink: 0;
+}
+
 .run-status-lines {
 	display: flex;
 	flex-direction: column;
 	flex: 1;
 	min-width: 0;
+}
+
+.run-note {
+	color: var(--label-secondary);
+	text-wrap: pretty;
 }
 
 .run-progress {
@@ -161,11 +279,14 @@
 	background: var(--label-quinary);
 }
 
+/* The bar fills by scaling, so each finished stage is one composited move and no layout. */
 .run-progress > span {
 	display: block;
+	width: 100%;
 	height: 100%;
+	transform-origin: left center;
 	background: var(--label-secondary);
-	transition: width var(--motion-base) var(--ease);
+	transition: transform var(--motion-base) var(--ease);
 }
 
 /* Rebuilding the job list has no steps to count, so its bar says only that it is moving. */
@@ -228,6 +349,11 @@
 	background: var(--row-hover);
 }
 
+.icon-button:active:not(:disabled) {
+	background: var(--control-pressed);
+	color: var(--label-primary);
+}
+
 .icon-button:disabled {
 	color: var(--label-tertiary);
 }
@@ -246,6 +372,11 @@
 	color: var(--label-primary);
 	white-space: nowrap;
 	text-decoration: none;
+}
+
+/* Hover and pressed are the next two shades of the button's own ground, and they change instantly. */
+.button:hover:not(:disabled) {
+	background: var(--control-hover);
 }
 
 .button:active:not(:disabled) {
@@ -270,8 +401,12 @@
 	color: var(--on-ember);
 }
 
+.button[data-tone="prominent"]:hover:not(:disabled) {
+	background: var(--ember-hover);
+}
+
 .button[data-tone="prominent"]:active:not(:disabled) {
-	background: var(--ember-selection);
+	background: var(--ember-pressed);
 }
 
 .button[data-tone="prominent"]:disabled {
@@ -287,6 +422,10 @@
 	background: var(--row-hover);
 }
 
+.button[data-tone="borderless"]:active:not(:disabled) {
+	background: var(--control-pressed);
+}
+
 .link-button {
 	display: inline-flex;
 	align-items: baseline;
@@ -295,6 +434,17 @@
 	line-height: var(--leading-body);
 	color: var(--label-primary);
 	text-align: left;
+}
+
+/* A link's hover is its underline; its press is a step quieter. */
+.link-button:hover:not(:disabled) {
+	text-decoration: underline;
+	text-decoration-color: var(--label-tertiary);
+	text-underline-offset: var(--space-0-5);
+}
+
+.link-button:active:not(:disabled) {
+	color: var(--label-secondary);
 }
 
 .link-button .count {
@@ -421,6 +571,14 @@
 	color: var(--label-primary);
 }
 
+.icon-group > *:hover:not(:disabled) {
+	background: var(--row-hover);
+}
+
+.icon-group > *:active:not(:disabled) {
+	background: var(--control-pressed);
+}
+
 .icon-group > *:disabled {
 	color: var(--label-tertiary);
 }
@@ -442,6 +600,14 @@
 	white-space: nowrap;
 }
 
+.capsule:hover:not(:disabled) {
+	background: var(--ember-hover);
+}
+
+.capsule:active:not(:disabled) {
+	background: var(--ember-pressed);
+}
+
 .capsule:disabled {
 	background: var(--control);
 	color: var(--label-secondary);
@@ -450,6 +616,14 @@
 .capsule[data-tone="plain"] {
 	background: var(--control);
 	color: var(--label-primary);
+}
+
+.capsule[data-tone="plain"]:hover:not(:disabled) {
+	background: var(--control-hover);
+}
+
+.capsule[data-tone="plain"]:active:not(:disabled) {
+	background: var(--control-pressed);
 }
 
 /* ------------------------------------------------------------------ panes */
@@ -461,12 +635,85 @@
 	min-height: 0;
 }
 
+/*
+ * A view arriving. The panes, a table and a first-run state rise into place once, when they
+ * enter: a list chosen in the sidebar, the inspector, the job list coming back. A Posting
+ * taking another's place does not move — that is the j and k of reading a list, and it is
+ * instant. After the entry the transform is `none` again, so nothing stays composited.
+ */
+.panes,
+.table-view,
+.window-main > .first-run {
+	transition:
+		opacity var(--motion-base) var(--ease),
+		transform var(--motion-slow) var(--ease-spring);
+}
+
+@starting-style {
+	.panes,
+	.table-view,
+	.window-main > .first-run {
+		opacity: 0;
+		transform: translateY(var(--space-1));
+	}
+}
+
 .list-pane {
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
 	border-right: var(--hairline-width) solid var(--column-separator);
 }
+
+.location-filter {
+	position: relative;
+	flex-shrink: 0;
+	padding: var(--space-2) var(--space-4);
+	border-bottom: var(--hairline-width) solid var(--label-quinary);
+	font-size: var(--size-body);
+	color: var(--label-secondary);
+}
+
+.location-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	cursor: pointer;
+	list-style: none;
+	color: var(--label-primary);
+}
+
+.location-trigger::-webkit-details-marker { display: none; }
+
+.location-menu {
+	position: absolute;
+	z-index: 2;
+	top: 100%;
+	left: var(--space-4);
+	width: calc(100% - 2 * var(--space-4));
+	max-height: var(--sheet-height);
+	overflow-y: auto;
+	padding: var(--space-2);
+	border: var(--hairline-width) solid var(--column-separator);
+	border-radius: var(--radius-control);
+	background: var(--window);
+	box-shadow: var(--sheet-shadow);
+}
+
+.location-menu p { margin: var(--space-2); }
+
+.location-option {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: var(--space-2);
+	color: var(--label-primary);
+	cursor: pointer;
+}
+
+.location-option input { accent-color: var(--label-primary); }
+.location-option:hover { background: var(--control); }
+.location-count { margin-left: auto; color: var(--label-secondary); }
 
 .list-scroll {
 	flex: 1;
@@ -542,6 +789,12 @@
 	visibility: hidden;
 }
 
+/* Hover is the faintest ground; a press shows the selection it is about to become. Both instant. */
+.cell:hover {
+	background: var(--row-hover);
+}
+
+.cell:active,
 .cell[aria-selected="true"] {
 	background: var(--row-selected-inactive);
 }
@@ -682,10 +935,27 @@
 	border-top: var(--hairline-width) solid var(--label-quinary);
 	text-align: left;
 	color: var(--label-primary);
+	text-decoration: none;
+	cursor: default;
 }
 
 .empty-destinations > *:first-child {
 	border-top: 0;
+	border-top-left-radius: var(--radius-group);
+	border-top-right-radius: var(--radius-group);
+}
+
+.empty-destinations > *:last-child {
+	border-bottom-left-radius: var(--radius-group);
+	border-bottom-right-radius: var(--radius-group);
+}
+
+.empty-destinations > *:hover {
+	background: var(--row-hover);
+}
+
+.empty-destinations > *:active {
+	background: var(--control-pressed);
 }
 
 .empty-destinations .form-help {
@@ -973,6 +1243,19 @@
 	text-underline-offset: var(--space-0-5);
 }
 
+.note-action:hover:not(:disabled) {
+	text-decoration-color: var(--label-secondary);
+}
+
+.note-action:active:not(:disabled) {
+	color: var(--label-secondary);
+}
+
+.note-action:disabled {
+	color: var(--label-secondary);
+	text-decoration: none;
+}
+
 .margin-count {
 	font-size: var(--size-subheadline);
 	line-height: var(--leading-subheadline);
@@ -1130,6 +1413,14 @@
 	color: var(--label-primary);
 }
 
+.segmented > button:hover:not([aria-pressed="true"]) {
+	background: var(--control-hover);
+}
+
+.segmented > button:active:not([aria-pressed="true"]) {
+	background: var(--control-pressed);
+}
+
 .segmented > button[aria-pressed="true"] {
 	background: var(--window);
 	box-shadow: 0 0 0 var(--hairline-width) var(--column-separator);
@@ -1145,6 +1436,14 @@
 	background: var(--control);
 	font-size: var(--size-callout);
 	color: var(--label-primary);
+}
+
+.chip:hover {
+	background: var(--control-hover);
+}
+
+.chip:active {
+	background: var(--control-pressed);
 }
 
 .table-scroll {
@@ -1206,6 +1505,7 @@
 	background: var(--row-hover);
 }
 
+.table tbody tr:active,
 .table tbody tr[aria-selected="true"] {
 	background: var(--row-selected-inactive);
 }
@@ -1267,6 +1567,58 @@
 
 .sheet[data-size="wide"] {
 	width: min(var(--sheet-wide), calc(100vw - var(--space-8)));
+}
+
+/*
+ * A sheet arrives the way the kit's do: the scrim fades in, and the panel settles down into
+ * place from a little above, a touch smaller, on the spring. Leaving is the same path, shorter.
+ * Radix keeps the panel mounted until the closing animation ends, so it never just vanishes.
+ * Opacity and transform only, and the centring transform rides along in every keyframe.
+ */
+.sheet-overlay[data-state="open"] {
+	animation: scrim-in var(--motion-base) var(--ease) both;
+}
+
+.sheet-overlay[data-state="closed"] {
+	animation: scrim-out var(--motion-base) var(--ease) both;
+}
+
+.sheet[data-state="open"] {
+	animation: sheet-in var(--motion-slow) var(--ease-spring) both;
+}
+
+.sheet[data-state="closed"] {
+	animation: sheet-out var(--motion-base) var(--ease) both;
+}
+
+@keyframes scrim-in {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes scrim-out {
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes sheet-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, calc(-50% - var(--rise))) scale(var(--settle-scale));
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, -50%);
+	}
+}
+
+@keyframes sheet-out {
+	to {
+		opacity: 0;
+		transform: translate(-50%, calc(-50% - var(--space-1))) scale(var(--settle-scale));
+	}
 }
 
 .sheet-title {
@@ -1350,6 +1702,10 @@
 	border: 0;
 	border-radius: var(--radius-control);
 	background: var(--window);
+}
+
+.form-row select:hover {
+	background: var(--search-field);
 }
 
 .form-help {

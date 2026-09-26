@@ -53,6 +53,7 @@ export type Route =
 	  }
 	| { readonly name: "onboarding"; readonly step: OnboardingStep }
 	| { readonly name: "employers" }
+	| { readonly name: "profile" }
 	| {
 			readonly name: "triage";
 			readonly decision: JevTriageDecision | null;
@@ -113,6 +114,7 @@ export function parseRoute(hash: string): Route {
 		return { name: "onboarding", step: ONBOARDING_STEPS.find((candidate) => candidate === step) ?? "runtime" };
 	}
 	if (path === "/employers") return { name: "employers" };
+	if (path === "/profile") return { name: "profile" };
 	if (path.startsWith("/inspector")) {
 		return { name: "inspector", filters: parseFilters(search), page: parsePage(new URLSearchParams(search)) };
 	}
@@ -148,6 +150,10 @@ export function inspectorHash(filters: InspectorFilters, page = 0): string {
 	if (page > 0) parameters.set("page", String(page));
 	const query = parameters.toString();
 	return query === "" ? "#/inspector" : `#/inspector?${query}`;
+}
+
+export function profileHash(): string {
+	return "#/profile";
 }
 
 export function employersHash(): string {

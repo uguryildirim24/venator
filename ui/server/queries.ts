@@ -51,6 +51,7 @@ export const POSTING_SORTS: readonly PostingSort[] = ["verified", "discovered", 
 
 export type PostingQuery = {
 	readonly search: string | null;
+	readonly locationKeys?: string | null;
 	readonly status: PostingStatus | null;
 	/** Narrows to Saved, Dismissed, or the rest of the Postings with application progress. */
 	readonly application?: ApplicationFilter | null;
@@ -141,7 +142,8 @@ entries AS (
 
 /** Search spans the fields an owner would recall: what it was, where, and why it was decided. */
 const ENTRY_FILTER = `
-  WHERE ($status IS NULL OR status = $status)
+  WHERE ($locationKeys IS NULL OR key IN (SELECT value FROM json_each($locationKeys)))
+    AND ($status IS NULL OR status = $status)
     AND ($application IS NULL
       OR ($application = 'saved' AND app_state = 'approved')
       OR ($application = 'dismissed' AND app_state = 'rejected')
@@ -255,6 +257,7 @@ function decodeDecision(row: SqlRow): FilterDecision {
 function filterParameters(query: PostingQuery) {
 	return {
 		status: query.status,
+		locationKeys: query.locationKeys ?? null,
 		application: query.application ?? null,
 		rule: query.rule,
 		pattern: likePattern(query.search),
@@ -406,6 +409,7 @@ function readBestJevTriage(database: DatabaseSync, key: string) {
 
 export type JevTriageQuery = {
 	readonly decision: JevTriageDecision | null;
+	readonly locationKeys?: string | null;
 	readonly search: string | null;
 	readonly limit: number;
 	readonly offset: number;
@@ -413,6 +417,7 @@ export type JevTriageQuery = {
 
 const JEV_TRIAGE_FILTER = `
   WHERE t.mode = $mode AND t.state <> 'current'
+    AND ($locationKeys IS NULL OR p.key IN (SELECT value FROM json_each($locationKeys)))
     AND ($decision IS NULL OR t.decision = $decision)
     AND ($pattern IS NULL OR (
       lower(p.title) LIKE $pattern
@@ -462,6 +467,7 @@ export function readJevTriageEntries(database: DatabaseSync, query: JevTriageQue
 		)
 		.all({
 			mode,
+			locationKeys: query.locationKeys ?? null,
 			decision: query.decision,
 			pattern: likePattern(query.search),
 			limit: query.limit,
@@ -482,6 +488,7 @@ export function countJevTriageEntries(database: DatabaseSync, query: JevTriageQu
 		)
 		.get({
 			mode,
+			locationKeys: query.locationKeys ?? null,
 			decision: query.decision,
 			pattern: likePattern(query.search),
 		});
@@ -513,7 +520,7 @@ export function readSourceHealth(database: DatabaseSync): readonly SourceHealth[
 	}));
 }
 
-export function readFunnel(database: DatabaseSync): Funnel {
+export function readFunnel(database: DatabaseSync, locationKeys: string | null = null): Funnel {
 	const row = database.prepare(`${postingEntries()} SELECT
 		COUNT(*) AS discovered,
 		SUM(status = 'unscored') AS unscored,
@@ -528,7 +535,7 @@ export function readFunnel(database: DatabaseSync): Funnel {
 		SUM(status = 'not-filtered') AS not_filtered,
 		SUM(app_state = 'approved') AS saved,
 		SUM(app_state = 'rejected') AS dismissed
-		FROM entries`).get();
+		FROM entries WHERE ($locationKeys IS NULL OR key IN (SELECT value FROM json_each($locationKeys)))`).get({ locationKeys });
 	const count = (name: string) => row === undefined ? 0 : (optionalIntegerColumn(row, name) ?? 0);
 	return {
 		discovered: count("discovered"), unscored: count("unscored"),

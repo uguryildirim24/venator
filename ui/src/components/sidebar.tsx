@@ -2,7 +2,7 @@ import { Ban, Binoculars, Bookmark, Clock3, Building2, CircleUser, Compass, Cros
 
 import type { DatabaseInfo, Funnel } from "../../shared/contracts.ts";
 import { earlyReviewLabel, homeListLabel, SAMPLE_DATA_DETAIL, SAMPLE_DATA_STAMP } from "../labels.ts";
-import { employersHash, onboardingHash, queueHash, triageHash, type HomeList, type Route } from "../router.ts";
+import { employersHash, profileHash, queueHash, triageHash, type HomeList, type Route } from "../router.ts";
 import { RunStatus } from "../runs/status.tsx";
 
 type Row = {
@@ -22,6 +22,7 @@ function activeRow(route: Route): string | null {
 	if (route.name === "queue") return route.list;
 	if (route.name === "triage") return "triage";
 	if (route.name === "employers") return "employers";
+	if (route.name === "profile") return "profile";
 	if (route.name === "posting") {
 		if (route.returnTo?.startsWith("#/inspector") === true) return null;
 		return route.from;
@@ -78,7 +79,7 @@ export function Sidebar({ route, funnel, database, boards, configured, firstRun,
 			heading: "Sources",
 			rows: [
 				{ id: "employers", label: "Employers", icon: Building2, hash: employersHash(), count: boards },
-				{ id: "profile", label: "Profile", icon: CircleUser, hash: onboardingHash(), count: null },
+				{ id: "profile", label: "Profile", icon: CircleUser, hash: profileHash(), count: null },
 			],
 		},
 	];

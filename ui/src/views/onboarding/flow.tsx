@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ProfileWriteResponse } from "../../../shared/onboarding.ts";
 import { extractedFieldLabel } from "../../labels.ts";
@@ -145,13 +145,25 @@ export function OnboardingFlow({ step, implied, onWritten }: FlowProps) {
 	const heading = HEADINGS[step];
 	const tight = step === "targeting" || (step === "resume" && source !== null);
 
+	/**
+	 * Which way the column enters (onboarding.css, "A step turning"): from the right when the
+	 * step number went up, from the left when it went down. The previous step is read during
+	 * the render that changes it and recorded after, so the column that mounts for the new
+	 * step sees where it came from.
+	 */
+	const previousStep = useRef(heading.index);
+	const enter = heading.index >= previousStep.current ? "forward" : "back";
+	useEffect(() => {
+		previousStep.current = heading.index;
+	}, [heading.index]);
+
 	return (
 		<div className="setup">
 			<header className="setup-titlebar" data-tauri-drag-region>
 				{SETUP_WINDOW_TITLE}
 			</header>
 			<div className="setup-body">
-				<div className="setup-column" data-density={tight ? "tight" : undefined}>
+				<div key={step} className="setup-column" data-density={tight ? "tight" : undefined} data-enter={enter}>
 					<header className="setup-heading">
 						<p className="setup-step">{stepCaption(heading.index)}</p>
 						<h1 className="setup-title">{heading.title}</h1>

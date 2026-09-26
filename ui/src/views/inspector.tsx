@@ -2,7 +2,8 @@ import { X } from "lucide-react";
 import { useCallback, useMemo, type RefObject } from "react";
 
 import { POSTING_STATUSES, type Funnel, type PostingEntry, type PostingStatus } from "../../shared/contracts.ts";
-import { usePostings } from "../api.ts";
+import { useLocations, usePostings } from "../api.ts";
+import { LocationFilter } from "../components/location-filter.tsx";
 import { Toolbar } from "../components/toolbar.tsx";
 import { formatDay, formatMoment } from "../format.ts";
 import { useListNavigation } from "../keys.ts";
@@ -30,6 +31,7 @@ type InspectorProps = {
 	readonly page: number;
 	readonly funnel: Funnel | null;
 	readonly reloadToken: number;
+	readonly onReload: () => void;
 	readonly searchField: RefObject<HTMLInputElement | null>;
 	readonly sidebarHidden: boolean;
 	readonly onShowSidebar: () => void;
@@ -41,7 +43,8 @@ type InspectorProps = {
  * rule exclude" in two presses — the rule, then the row — and a row opens its Posting with the
  * reason beside it.
  */
-export function InspectorView({ filters, page, funnel, reloadToken, searchField, sidebarHidden, onShowSidebar }: InspectorProps) {
+export function InspectorView({ filters, page, funnel, reloadToken, onReload, searchField, sidebarHidden, onShowSidebar }: InspectorProps) {
+	const locations = useLocations(reloadToken);
 	const returnTo = inspectorHash(filters, page);
 	const query = useMemo(() => inspectorQuery(filters, page * PAGE_SIZE), [filters, page]);
 	const state = usePostings(query, reloadToken);
@@ -72,6 +75,7 @@ export function InspectorView({ filters, page, funnel, reloadToken, searchField,
 				layout="single"
 			/>
 			<section className="table-view" aria-label="Filter inspector">
+				<LocationFilter locations={locations} onReload={() => { onReload(); if (page > 0) replaceRoute(inspectorHash(filters)); }} />
 				<div className="table-filters">
 					<div className="segmented" role="group" aria-label="Where a Posting stands">
 						<button type="button" aria-pressed={filters.status === null} onClick={() => setFilters({ ...filters, status: null })}>

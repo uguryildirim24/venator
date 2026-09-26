@@ -7,7 +7,9 @@
  * to. Steps one and two write nothing at all; step three writes three files into this
  * Install's own application data directory.
  *
- * **And one route for what happens after them.** Setup finishes whether or not an employer was
+ * **After setup**, existing Profiles are read and edited without going through the connect
+ * screens; the edit preserves every file and verifies the staged Profile before replacing it.
+ * Setup finishes whether or not an employer was
  * registered, and it must — resolving a board needs the network, so a hard blocker there would
  * refuse a Profile to somebody whose connection cannot reach a careers page. That leaves a
  * state somebody can be stranded in: a Profile, no employers, and a run control correctly off
@@ -27,7 +29,7 @@
  *   `GET`s the employer page a person pasted and the ATS board it names, and follows no
  *   redirect. Reading a public careers page is how a board becomes registrable at all — the
  *   pipeline's own CLI does exactly this — and it is as far as it goes.
- * - All five routes run the pipeline as a subprocess, and every one of them reads.
+ * - The verification and discovery routes use the pipeline subprocess, and every one reads.
  *   `/runtime/probe` runs `venator.llm.probe`; `/boards/resolve` runs
  *   `venator.discover.register`; `/profile` and `/employers` each run
  *   `onboarding/verify_profile.py`, which loads the Profile they have staged and have not yet
@@ -38,10 +40,9 @@
  *   is the one place on this surface besides the probe that can spend the Owner's own
  *   subscription: only on the path a person selected by name, only for one completion, and
  *   never by default, by fallback or by retry. See the route itself.
- * - Nothing here writes outside `<application data directory>/profiles/`. Not the checkout,
- *   not `data/`, not `build/`, not one file anywhere else. Two routes write at all —
- *   `/profile`, which creates a Profile, and `/employers`, which appends to one file of a
- *   Profile that exists in the Install. A same-named checkout Profile cannot supersede it.
+ * - Profile writes stay inside `<application data directory>/profiles/`; settings stay in
+ *   the Install and the Jev key stays in Keychain. An existing Profile edit keeps its other
+ *   files and assets. A same-named checkout Profile cannot supersede an Install Profile.
  * - Nothing here fabricates a Profile fact. A screening answer with no value stays null, an
  *   EEO field is never defaulted to a decline, and a sponsorship answer is refused unless the
  *   Profile states outright that sponsorship is required.
@@ -84,6 +85,9 @@ import { OnboardingError } from "./errors.ts";
 import { asBoolean, asList, asMapping, asText, at, isPresent, JsonParseError, parseJson } from "./json.ts";
 import type { JsonMapping } from "./json.ts";
 import { readProfileUpload } from "./profile-upload.ts";
+import type { ExistingProfileResponse } from "../../shared/profile-form.ts";
+import { readProfileDocuments, type ProfileDocuments } from "./profile-edit.ts";
+import { formOf, profileFormFromBody, saveProfileForm } from "./profile-form.ts";
 import { validateProfileName, writeProfile, type ProfileProposal } from "./profile.ts";
 import { readResumePdf, ResumeReaderBusyError, type ResumePdfOutcome } from "./resume-pdf.ts";
 import {
@@ -130,8 +134,8 @@ function refuseOversizedBody(declared: string | undefined, limit: number, remedy
 	}
 }
 
-function readJsonBody(text: string): JsonMapping {
-	if (text.length > MAXIMUM_JSON_BYTES) {
+function readJsonBody(text: string, limit = MAXIMUM_JSON_BYTES): JsonMapping {
+	if (text.length > limit) {
 		throw new OnboardingError("body_too_large", "That request is larger than this step accepts.");
 	}
 	if (text.trim() === "") return {};
@@ -548,6 +552,38 @@ export function createOnboardingRoutes(): Hono {
 			allowHeaders: ["Content-Type", ONBOARDING_REQUEST_HEADER],
 		}),
 	);
+
+	onboarding.get("/existing-profile", (context) => {
+		requireOnboardingHeader(context.req.header(ONBOARDING_REQUEST_HEADER), context.req.header("origin"));
+		const name = context.req.query("name") ?? "";
+		validateProfileName(name);
+		const documents = readProfileDocuments(name);
+		return context.json({ documents, form: formOf(documents) } satisfies ExistingProfileResponse);
+	});
+
+	/**
+	 * The Profile screen's save: the form, and the three files as they were opened.
+	 *
+	 * The files travel back so the stale check is the same one the raw edit had — a Profile
+	 * that changed on disk since it was opened is refused, never merged. What is written is the
+	 * difference between the form and the form of those files (`profile-form.ts`).
+	 */
+	onboarding.post("/existing-profile", async (context) => {
+		requireOnboardingHeader(context.req.header(ONBOARDING_REQUEST_HEADER), context.req.header("origin"));
+		refuseOversizedBody(context.req.header("content-length"), MAXIMUM_JSON_BYTES * 6, null);
+		const body = readJsonBody(await context.req.text(), MAXIMUM_JSON_BYTES * 6);
+		const name = asText(at(body, "name")) ?? "";
+		validateProfileName(name);
+		const original = asMapping(at(body, "original"));
+		const files = ["resume.yaml", "constraints.yaml", "targeting.yaml"];
+		if (original === null || files.some((file) => asText(at(original, file)) === null)) {
+			throw new OnboardingError("bad_request", "Send the three Profile files as you opened them.");
+		}
+		const form = profileFormFromBody(at(body, "form"));
+		// SAFETY: the three required file strings were checked above.
+		await saveProfileForm(name, form, original as ProfileDocuments);
+		return context.json({ saved: true });
+	});
 
 	onboarding.get("/settings", async (context) => {
 		requireOnboardingHeader(context.req.header(ONBOARDING_REQUEST_HEADER), context.req.header("origin"));

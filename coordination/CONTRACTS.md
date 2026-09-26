@@ -229,16 +229,18 @@ so if `/api` came first it would answer every write path's preflight with
 |---|---|---|
 | `/api/runs` | `POST`, plus `GET` for this process's own run state | starts `fetch-and-filter` (`discover,filters,view`) or `jev-it` (Jev, then a view rebuild) from a single-use plan token |
 | `/api/applications` | `POST`, plus `GET` for status and prepared files | status, file, prepare, save, dismiss, restore, applied and handoff through `venator.applications` |
-| `/api/onboarding` | `POST`, plus `GET /settings` | writes Profile files under the Install's application data directory, saves the assistant choice and the Jev key; its read and probe routes write nothing |
+| `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | creates or edits Profile files under the Install's application data directory, saves the assistant choice and the Jev key; its read and probe routes write nothing |
+| `/api/locations` | `GET`, `POST` | reads available locations and saves the list choice in this Install; does not change Filter Decisions |
 | `/api` | `GET` | reads `build/venator.db`; starts nothing and writes nothing |
 
 Each action surface needs its own header (`X-Venator-Run`, `X-Venator-Application`,
-`X-Venator-Onboarding`) and an allowed local `Origin`.
+`X-Venator-Onboarding`, `X-Venator-Location`) and an allowed local `Origin`.
 
 Onboarding writes one Profile at a time inside a server process. It refuses lone
 surrogates and symbolic links, stages the YAML, loads it back through
 `venator.profile`, and renames it into place only if that load works. Two separate
-server processes are not coordinated.
+server processes are not coordinated. Editing a saved Profile compares the original
+three YAML files before writing only changed form fields; unseen fields survive.
 
 A plan token works once, and starting a run checks the plan again. Stopping a run
 signals the whole child process tree.

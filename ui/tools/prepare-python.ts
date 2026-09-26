@@ -41,7 +41,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -146,6 +146,17 @@ async function main(): Promise<void> {
 		if (target.platform === "darwin") {
 			stageMacInterpreter(archive, scratch);
 			stageMacWheels(scratch, CHECKOUT_ROOT, CACHE);
+			// The API sidecar ships a signed Node 24 beside the host executable. Playwright's
+			// driver package requires Node >=20 and uses PLAYWRIGHT_NODEJS_PATH at runtime;
+			// its private Node and pip (needed only by uv while assembling wheels) must not ship.
+			const site = resolve(scratch, "python/lib/python3.13/site-packages");
+			rmSync(resolve(site, "playwright/driver/node"));
+			rmSync(resolve(site, "pip"), { recursive: true });
+			for (const entry of readdirSync(site)) {
+				if (/^pip-[^/]+\.dist-info$/.test(entry)) {
+					rmSync(resolve(site, entry), { recursive: true });
+				}
+			}
 			const interpreter = resolve(scratch, "python/bin/python3.13");
 			const result = execFileSync(interpreter, ["-c", "import venator, playwright, pdfplumber, yaml; print(venator.__file__)"], {
 				encoding: "utf8", env: { ...process.env, PYTHONNOUSERSITE: "1" },

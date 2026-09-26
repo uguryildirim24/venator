@@ -133,7 +133,10 @@ calls Jev with `--pipeline`. In that mode the cap comes from `VENATOR_JEV_MAX_US
 or $10 if it isn't set. Jev it always sets it to $10. If there is no key, no credit,
 a service or network failure, or the cap is reached, Jev stops cleanly, keeps earlier
 results and records how many Postings are still waiting. The next Jev it picks them
-up.
+up. Preparation now loads only the latest Postings that passed Hard Filters before
+selecting Jev work, rather than holding every discovered Posting in memory. The
+view builder likewise retains only the latest decision per Posting for assessment
+and replays the store when inserting the full history into SQLite.
 
 Results are appended to `data/qualifications/<date>.jsonl`, and validated responses
 are cached under `data/qualifications/jev/responses/`. Killed, closed, snippet-only

@@ -82,14 +82,21 @@ def _read_rows(postings_dir: Path) -> Iterable[dict]:
                 yield value
 
 
-def latest_postings(postings_dir: Path) -> dict[str, dict]:
-    """Return the effective current observation for each Posting key."""
+def latest_postings(postings_dir: Path, *, keys: set[str] | None = None) -> dict[str, dict]:
+    """Return current observations, optionally retaining only named Posting keys.
+
+    Parse every row (including unselected rows) so malformed JSON and missing
+    keys still fail at the store boundary. A selected delta still sees every
+    earlier observation for its key.
+    """
 
     latest: dict[str, dict] = {}
     for posting in _read_rows(postings_dir):
         key = posting.get("key")
         if not isinstance(key, str) or not key:
             raise ValueError("Posting is missing a non-empty string key")
+        if keys is not None and key not in keys:
+            continue
         if "_observation" in posting:
             updates, removed = posting["_observation"], posting.get("_remove", [])
             if (

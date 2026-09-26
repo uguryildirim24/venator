@@ -285,6 +285,8 @@ export type DatabaseInfo = {
 };
 
 export type SummaryResponse = {
+	/** All Postings before the Owner's location view choice, for first-run detection only. */
+	readonly unfilteredDiscovered: number;
 	readonly funnel: Funnel;
 	readonly database: DatabaseInfo;
 	readonly sources?: readonly SourceHealth[];

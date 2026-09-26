@@ -59,6 +59,9 @@ const FORWARDED: readonly string[] = [
 	DATA_DIRECTORY_ENVIRONMENT,
 	PYTHON_ENVIRONMENT,
 	BUNDLED_PYTHON_ENVIRONMENT,
+	// The desktop host sets this to its signed Node sidecar; the staged Playwright driver
+	// has no private Node and must receive the override in every pipeline child.
+	"PLAYWRIGHT_NODEJS_PATH",
 ];
 
 /**

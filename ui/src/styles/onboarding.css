@@ -47,6 +47,34 @@
 	gap: var(--setup-gap-tight);
 }
 
+/*
+ * A step turning. The column enters from the side the person is moving towards — from the
+ * right on Continue, from the left on Back — and settles on the spring, once. The title bar
+ * and the footer stay where they are, as an assistant window's do.
+ */
+.setup-column {
+	transition:
+		opacity var(--motion-base) var(--ease),
+		transform var(--motion-slow) var(--ease-spring);
+}
+
+@starting-style {
+	.setup-column[data-enter="forward"] {
+		opacity: 0;
+		transform: translateX(var(--step-travel));
+	}
+
+	.setup-column[data-enter="back"] {
+		opacity: 0;
+		transform: translateX(calc(-1 * var(--step-travel)));
+	}
+}
+
+/* The Profile screen: the same column under the window's toolbar rather than a title bar. */
+.setup-column[data-inset="toolbar"] {
+	padding-top: var(--space-2);
+}
+
 .setup-heading {
 	display: flex;
 	flex-direction: column;
@@ -194,6 +222,11 @@
 	width: var(--form-label-width);
 }
 
+/* A group whose questions are sentences rather than words: the label column is half again as wide. */
+.setup-group[data-labels="wide"] .setup-row-label {
+	width: calc(var(--form-label-width) * 1.5);
+}
+
 .setup-row-field {
 	display: flex;
 	flex: 1;
@@ -205,6 +238,38 @@
 	flex-direction: column;
 	flex: 1;
 	min-width: 0;
+}
+
+/* A field and, under it, what holds Save: the reason sits beside the input it names. */
+.field-lines {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	gap: var(--space-1);
+}
+
+.field-lines > .text-field,
+.field-lines > .token-field {
+	flex: none;
+}
+
+.field-issue {
+	padding-inline: var(--space-1);
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
+	color: var(--label-secondary);
+	text-wrap: pretty;
+}
+
+/* Why Save is held, beside it in the toolbar. */
+.toolbar-note {
+	min-width: 0;
+	font-size: var(--size-subheadline);
+	color: var(--label-secondary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .setup-row-title {
@@ -234,6 +299,10 @@
 
 button.setup-row:hover {
 	background: var(--row-hover);
+}
+
+button.setup-row:active {
+	background: var(--chip);
 }
 
 button.setup-row:first-child {
@@ -319,6 +388,15 @@ textarea.text-field {
 	white-space: nowrap;
 }
 
+/* A token is a press that removes it: the chip's next two shades say so. */
+button.token:hover {
+	background: var(--chip-hover);
+}
+
+button.token:active {
+	background: var(--chip-pressed);
+}
+
 .chip-list {
 	display: flex;
 	flex-direction: row;
@@ -336,6 +414,10 @@ button.chip-list {
 
 button.chip-list:hover {
 	background: var(--row-hover);
+}
+
+button.chip-list:active {
+	background: var(--chip);
 }
 
 /* A popup button: the kit's capsule, a native menu underneath, a chevron pair beside it. */
@@ -358,6 +440,14 @@ button.chip-list:hover {
 	font-weight: var(--weight-medium);
 	color: var(--label-primary);
 	appearance: none;
+}
+
+.popup select:hover {
+	background: var(--control-hover);
+}
+
+.popup select:active {
+	background: var(--control-pressed);
 }
 
 .popup .icon {
@@ -413,6 +503,10 @@ button.chip-list:hover {
 	background: var(--vendor-claude-bg-hover);
 }
 
+.vendor-button[data-vendor="claude"]:active:not(:disabled) {
+	background: var(--vendor-claude-bg-pressed);
+}
+
 .vendor-button[data-vendor="chatgpt"] {
 	border-color: var(--vendor-chatgpt-edge);
 	background: var(--vendor-chatgpt-bg);
@@ -421,6 +515,10 @@ button.chip-list:hover {
 
 .vendor-button[data-vendor="chatgpt"]:hover:not(:disabled) {
 	background: var(--vendor-chatgpt-bg-hover);
+}
+
+.vendor-button[data-vendor="chatgpt"]:active:not(:disabled) {
+	background: var(--vendor-chatgpt-bg-pressed);
 }
 
 .vendor-line {
@@ -486,6 +584,14 @@ button.chip-list:hover {
 	text-underline-offset: var(--space-0-5);
 }
 
+.text-link:hover {
+	text-decoration-thickness: var(--bar-width);
+}
+
+.text-link:active {
+	color: var(--label-secondary);
+}
+
 .disclosure-button {
 	display: inline-flex;
 	align-items: center;
@@ -505,6 +611,14 @@ button.chip-list:hover {
 	transition: transform var(--motion-base) var(--ease);
 }
 
+.disclosure-button:hover .icon {
+	background: var(--control-hover);
+}
+
+.disclosure-button:active .icon {
+	background: var(--control-pressed);
+}
+
 /* Closed points down, open points up: the kit's disclosure button, not a list triangle. */
 .disclosure-button[aria-expanded="true"] .icon {
 	transform: rotate(180deg);
@@ -514,6 +628,17 @@ button.chip-list:hover {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	transition:
+		opacity var(--motion-base) var(--ease),
+		transform var(--motion-base) var(--ease);
+}
+
+/* What the disclosure opens drops into place under it. */
+@starting-style {
+	.about-group {
+		opacity: 0;
+		transform: translateY(calc(-1 * var(--space-1)));
+	}
 }
 
 .about-group li {
@@ -589,6 +714,18 @@ button.chip-list:hover {
 	gap: var(--space-1);
 	font-size: var(--size-callout);
 	color: var(--label-secondary);
+}
+
+/* One heading of the Skills sheet with its minus: the fields, then the button beside them. */
+.sheet-entry {
+	display: flex;
+	align-items: flex-end;
+	gap: var(--space-2);
+}
+
+.sheet-entry > .sheet-fields {
+	flex: 1;
+	min-width: 0;
 }
 
 /* ---------------------------------------------------------------- step 3: employers */

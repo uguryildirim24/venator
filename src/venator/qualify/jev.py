@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
 
-from venator.discover.store import posting_revision
+from venator.discover.store import latest_postings, posting_revision
 from venator.qualify.compile import compile_profile
 from venator.llm.system_one import (
     CASE_DEADLINE,
@@ -490,11 +490,13 @@ def hard_filter_passes(
     profile: Profile,
     month: str,
     qualifications_dir: Path,
+    *,
+    latest_decisions: Mapping[tuple[str, str], Mapping[str, Any]] | None = None,
 ) -> list[Mapping[str, Any]]:
     """Postings whose current passing Filter Decision could need Jev."""
-    if decisions_dir.exists():
+    if decisions_dir.exists() and latest_decisions is None:
         verify_decisions_dir(decisions_dir, profile.identifier)
-    latest = load_latest_decisions(decisions_dir)
+    latest = latest_decisions if latest_decisions is not None else load_latest_decisions(decisions_dir)
     jev_mode = profile.filters.qualification_mode == "jev"
     if qualifications_dir.exists():
         verify_store(qualifications_dir, profile.identifier)
@@ -974,9 +976,27 @@ def run(
 ) -> ExecutionReport:
     if profile.filters.jev is None:
         raise ValueError("filters.jev is required for Jev")
-    postings = load_postings(postings_dir)
     if hard_filter_passes_only:
-        postings = hard_filter_passes(postings, decisions_dir, profile, month, qualifications_dir)
+        if decisions_dir.exists():
+            verify_decisions_dir(decisions_dir, profile.identifier)
+        latest = load_latest_decisions(decisions_dir)
+        # Non-passing Postings cannot reach Jev. Do not retain their full
+        # descriptions, source facts, or observation history in this process.
+        keys = {
+            key for (key, stage), decision in latest.items()
+            if stage == "hard_filter" and decision.get("verdict") == "pass"
+        }
+        if named_keys:
+            keys.intersection_update(named_keys)
+        postings = list(latest_postings(postings_dir, keys=keys).values())
+        postings = hard_filter_passes(
+            postings, decisions_dir, profile, month, qualifications_dir,
+            latest_decisions=latest,
+        )
+    elif named_keys:
+        postings = list(latest_postings(postings_dir, keys=set(named_keys)).values())
+    else:
+        postings = load_postings(postings_dir)
     now = decided_at or f"{as_of}T00:00:00+00:00"
     today = day or as_of
     work = select_work(

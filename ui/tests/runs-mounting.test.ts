@@ -116,7 +116,7 @@ test("the onboarding surface is the five POST routes its contract names, and not
 		.map((route) => `${route.method} ${route.path}`);
 	assert.deepEqual(
 		[...registered].sort(),
-		[...ONBOARDING_WRITE_PATHS.map((path) => `POST ${path}`), "GET /settings"].sort(),
+		[...ONBOARDING_WRITE_PATHS.map((path) => `POST ${path}`), "GET /settings", "GET /existing-profile", "POST /existing-profile"].sort(),
 	);
 });
 
@@ -192,7 +192,7 @@ test("nothing on the onboarding surface answers outside the five POST routes", a
 	const elsewhere = ["/", "/anything", "/smuggled", "/profile/x", "/employers/all", "/venator-probe"];
 	for (const path of [...ONBOARDING_WRITE_PATHS, ...elsewhere]) {
 		for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]) {
-			if ((method === "POST" && ONBOARDING_WRITE_PATHS.includes(path)) || (["GET", "HEAD"].includes(method) && path === "/settings")) continue;
+			if ((method === "POST" && (ONBOARDING_WRITE_PATHS.includes(path) || path === "/existing-profile")) || (["GET", "HEAD"].includes(method) && (path === "/settings" || path === "/existing-profile"))) continue;
 			const response = await onboarding.request(
 				new Request(`http://127.0.0.1:5170${path}`, {
 					method,
@@ -224,6 +224,8 @@ const SERVED_ONBOARDING_ROUTES: readonly string[] = [
 	...ONBOARDING_WRITE_PATHS.map((path) => `POST /api/onboarding${path}`),
 	"GET /api/onboarding/state",
 	"GET /api/onboarding/settings",
+	"GET /api/onboarding/existing-profile",
+	"POST /api/onboarding/existing-profile",
 ];
 
 test("the served app registers nothing under /api/onboarding but the routes its contract names", () => {
@@ -249,7 +251,7 @@ test("and the served app answers no write method under /api/onboarding outside t
 	const elsewhere = ["/", "/state", "/anything", "/smuggled", "/profile/x", "/employers/all", "/venator-probe"];
 	for (const path of [...ONBOARDING_WRITE_PATHS, ...elsewhere]) {
 		for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
-			if (method === "POST" && ONBOARDING_WRITE_PATHS.includes(path)) continue;
+			if (method === "POST" && (ONBOARDING_WRITE_PATHS.includes(path) || path === "/existing-profile")) continue;
 			const response = await app.request(
 				new Request(`http://127.0.0.1:5170/api/onboarding${path}`, {
 					method,

@@ -183,7 +183,7 @@ fn start_api(app: &tauri::AppHandle) -> Option<Child> {
             .resolve("resources/server.mjs", BaseDirectory::Resource)
             .ok()?,
     );
-    let mut command = Command::new(runtime);
+    let mut command = Command::new(&runtime);
     command.arg(server).env("VENATOR_API_PORT", API_PORT.to_string());
 
     // No view is not a failure to start against: it is what an Install that has never run the
@@ -211,6 +211,9 @@ fn start_api(app: &tauri::AppHandle) -> Option<Child> {
     match bundled_python(app) {
         Some(interpreter) => {
             log::info!("the API can run the pipeline with {}", interpreter.display());
+            // The staged Playwright driver has no private Node. Hand its supported override
+            // to the server so every Python child uses this bundle's signed Node sidecar.
+            command.env("PLAYWRIGHT_NODEJS_PATH", &runtime);
             command.env(install::BUNDLED_PYTHON_ENV, interpreter);
         }
         None => {

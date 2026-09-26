@@ -1,9 +1,9 @@
-import { ChevronRight, File as FileGlyph, FileText, LoaderCircle } from "lucide-react";
+import { File as FileGlyph, FileText, LoaderCircle } from "lucide-react";
 import { useCallback, useRef, useState, type DragEvent, type ReactNode } from "react";
 
 import type { ExtractedField, ResumeParseMode } from "../../../shared/onboarding.ts";
 import { Sheet, SheetClose } from "../../components/sheet.tsx";
-import { assistantLabel, extractedFieldLabel, resumeFieldLabel } from "../../labels.ts";
+import { assistantLabel, extractedFieldLabel } from "../../labels.ts";
 import { importResumePdf, importResumeText, OnboardingRequestError } from "../../onboarding/api.ts";
 import {
 	unconfirmedFields,
@@ -16,7 +16,7 @@ import {
 	type SectionKey,
 } from "../../onboarding/draft.ts";
 import { readByLine, RESUME, THIS_MAC_CAPTION, wholeResumeCaption, wholeResumeOption } from "./copy.ts";
-import { Popup } from "./parts.tsx";
+import { EDUCATION_FIELDS, EntryFields, EXPERIENCE_FIELDS, Popup, PROFICIENCY_FIELDS, Row, rowWords, skillsOf } from "./parts.tsx";
 
 /** Where the résumé on screen came from: a file or pasted text, and who read it. */
 export type ResumeSource = {
@@ -79,71 +79,11 @@ function GroupHeader({ title, checked, onCheck }: {
 /** The Contact group's order on the board: where to reach the person before how to link them. */
 const CONTACT_ORDER: readonly ExtractedField[] = ["name", "location", "email", "phone", "linkedin"];
 
-type TextFields = Readonly<Record<string, string>>;
-type EntryField = { readonly key: string; readonly lines?: boolean };
-
-const EXPERIENCE_FIELDS: readonly EntryField[] = [
-	{ key: "role" }, { key: "org" }, { key: "location" }, { key: "dates" }, { key: "bullets", lines: true },
-];
-const EDUCATION_FIELDS: readonly EntryField[] = [
-	{ key: "degree" }, { key: "org" }, { key: "location" }, { key: "date" }, { key: "gpa" }, { key: "coursework", lines: true },
-];
-const PROFICIENCY_FIELDS: readonly EntryField[] = [{ key: "label" }, { key: "items" }];
-
-/** One entry's fields in a sheet: what the row stands for, editable. */
-function EntryFields<Entry extends TextFields>({ section, entry, fields, onEntry }: {
-	readonly section: SectionKey;
-	readonly entry: Entry;
-	readonly fields: readonly EntryField[];
-	readonly onEntry: (entry: Entry) => void;
-}) {
-	return (
-		<div className="sheet-fields">
-			{fields.map((field) => (
-				<label key={field.key}>
-					{resumeFieldLabel(section, field.key)}
-					{field.lines === true ? (
-						<textarea className="text-field" value={entry[field.key] ?? ""} onChange={(event) => onEntry({ ...entry, [field.key]: event.target.value })} />
-					) : (
-						<input className="text-field" value={entry[field.key] ?? ""} onChange={(event) => onEntry({ ...entry, [field.key]: event.target.value })} />
-					)}
-				</label>
-			))}
-		</div>
-	);
-}
-
 type Editing =
 	| { readonly kind: "experience"; readonly index: number }
 	| { readonly kind: "education"; readonly index: number }
 	| { readonly kind: "skills" }
 	| null;
-
-function joined(...parts: readonly string[]): string {
-	return parts.map((part) => part.trim()).filter((part) => part !== "").join(" · ");
-}
-
-function skillsOf(entries: readonly ProficiencyEntry[]): readonly string[] {
-	return entries.flatMap((entry) => entry.items.split(",").map((item) => item.trim()).filter((item) => item !== ""));
-}
-
-/** A row's title and the line under it: the role or degree first, the place and dates after. */
-function rowWords(headline: string, org: string, when: string) {
-	const title = headline.trim() === "" ? org : headline;
-	return { title, subtitle: joined(title === org ? "" : org, when) };
-}
-
-function Row({ title, subtitle, onOpen }: { readonly title: string; readonly subtitle: string; readonly onOpen: () => void }) {
-	return (
-		<button type="button" className="setup-row" onClick={onOpen}>
-			<span className="setup-row-lines">
-				<span className="setup-row-title">{title}</span>
-				{subtitle === "" ? null : <span className="setup-row-subtitle">{subtitle}</span>}
-			</span>
-			<ChevronRight aria-hidden="true" className="chevron" />
-		</button>
-	);
-}
 
 /**
  * Step two: add a résumé, read it, check what was read.

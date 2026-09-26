@@ -39,6 +39,7 @@ import { createOnboardingRoutes } from "./onboarding/routes.ts";
 import { createApiRoutes } from "./routes.ts";
 import { createRunRoutes } from "./runs/routes.ts";
 import { createApplicationRoutes } from "./applications/routes.ts";
+import { createLocationRoutes } from "./location-routes.ts";
 
 const BUNDLE_MISSING_NOTICE = [
 	"venator review dashboard",
@@ -72,6 +73,7 @@ export function createServer(): Hono {
 	// state-changing request against an employer or touches submission.
 	// ui/ONBOARDING-API.md is its contract; server/onboarding/routes.ts states the limits.
 	app.route("/api/onboarding", createOnboardingRoutes());
+	app.route("/api/locations", createLocationRoutes());
 	app.route("/api", createApiRoutes());
 
 	if (existsSync(APP_BUNDLE_PATH)) {

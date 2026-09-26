@@ -1,6 +1,6 @@
 # Run API
 
-The routes behind **Refresh** and **Jev it**. They start the same pipeline stages
+The routes behind **Refresh** and the sidebar footer's **Jev it**. They start the same pipeline stages
 you could start from a terminal, and nothing else. The screens are built against
 this file.
 

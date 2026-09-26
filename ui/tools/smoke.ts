@@ -31,8 +31,10 @@
  * API for every Posting and proves neither number crosses the wire. See `HELD_NUMBERS`.
  */
 
+import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 
 import {
 	buildEmptyViewDatabase,
@@ -41,9 +43,11 @@ import {
 	FIXTURE_ON_SCREEN_TEXT,
 } from "../fixtures/make-fixture.ts";
 import { FIXTURE_DATABASE_PATH } from "../server/locations.ts";
+import { formOf } from "../server/onboarding/profile-form.ts";
+import type { PlanResponse, RunPlan } from "../shared/runs.ts";
 import { SLOW_MS } from "../src/delayed.ts";
 import { SAMPLE_DATA_STAMP } from "../src/labels.ts";
-import { CONNECT, FIRST_RUN, refreshBody, RESUME, THIS_MAC_CAPTION } from "../src/views/onboarding/copy.ts";
+import { CONNECT, FIRST_RUN, PROFILE, refreshBody, RESUME, TARGETING, THIS_MAC_CAPTION } from "../src/views/onboarding/copy.ts";
 import { startApi } from "./api-process.ts";
 import { startRenderer, type FixtureResponse, type Host, type RouteRenderer } from "./dom-harness.ts";
 import { checkLabelContract } from "./label-contract.ts";
@@ -454,6 +458,19 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: ["Process Development Intern, Drug Substance Technologies", ">Amgen"],
 	},
 	{
+		hash: "#/profile",
+		label: "Profile: an existing Install opens its saved facts as fields, not setup and not file text",
+		expected: [
+			PROFILE.contact, 'value="Avery Example"', PROFILE.history, "Backend Engineer", "Example University", PROFILE.skills, "TypeScript",
+			TARGETING.jobs, "backend engineer", TARGETING.employers, "Cloudflare", PROFILE.filters, "Education fit", "Role target",
+			"Mid level to Senior", "Bachelor’s degree", PROFILE.answers, "Not answered", PROFILE.install, CONNECT.keySaved, PROFILE.save,
+		],
+		absent: [
+			"Connect an assistant", "Use Claude", "Use ChatGPT", "Set Up Venator", "<textarea", "name: Avery", "qualification_mode",
+			"restriction_patterns", "primary: true", "experience_years", "requires_sponsorship", "Résumé facts",
+		],
+	},
+	{
 		hash: "#/queue?list=unscored",
 		label: "first run: Awaiting Jev with no key keeps the list, selects nothing, and asks for the key",
 		expected: [FIRST_RUN.keyTitle, "Add your TypeSafe key and Jev sorts", "into look first, review and skip. Until then they wait here.", FIRST_RUN.addKey, FIRST_RUN.getKey, 'role="listbox"'],
@@ -728,10 +745,16 @@ function judge(check: RouteCheck, markup: string): void {
 	}
 }
 
+let smokeSetup = false;
+let smokeProfile = false;
 async function runChecks(renderer: RouteRenderer, checks: readonly RouteCheck[]): Promise<void> {
 	for (const check of checks) {
 		checked += 1;
-		judge(check, check.press === undefined ? await renderer.render(check.hash) : await renderer.press(check.hash, check.press));
+		smokeSetup = check.hash.startsWith("#/onboarding");
+		smokeProfile = check.hash === "#/profile";
+		try {
+			judge(check, check.press === undefined ? await renderer.render(check.hash) : await renderer.press(check.hash, check.press));
+		} finally { smokeSetup = false; smokeProfile = false; }
 	}
 }
 
@@ -808,13 +831,65 @@ function fixtureJevCount(path: string): number {
 const JEV_POSTING_COUNT = fixtureJevCount(FIXTURE_DATABASE_PATH);
 const JEV_PLAN_SUMMARY =
 	`${JEV_POSTING_COUNT} Postings passed the Hard Filters, have description text, and have no Jev result under the current release. Jev will pause until an API key is available.`;
+const JEV_KEY_MISSING_NOTE = "No TypeSafe key is saved, so these Postings wait for Jev until you add one.";
 
+/**
+ * The footer's Jev row, with the key the pass answers with: none.
+ *
+ * The line beside the press is the plan's count in words and the plan's full sentence is that
+ * line's tooltip, so both are pinned — the count as visible text, the sentence as the `title`
+ * it now travels in. The press is the large capsule every prominent press in the app is, in
+ * grey: with no key, Add Key… on the Awaiting Jev screen is the one ember press, and the
+ * plan's own note under the row says why (ui/DESIGN.md, principle 2). It stays pressable.
+ */
 const JEV_PLAN_CHECK: RouteCheck = {
 	hash: "#/queue",
-	label: "runs: Awaiting Jev keeps the button ready without showing a Jev number or cost preview",
-	expected: [JEV_PLAN_SUMMARY, '<button type="button" class="button">Jev it</button>'],
-	absent: ["spend allowance", "next refresh"],
+	label: "runs: Awaiting Jev keeps the button ready, in grey, without showing a Jev number or cost preview",
+	expected: [
+		`${JEV_POSTING_COUNT} awaiting Jev`,
+		`title="${JEV_PLAN_SUMMARY}"`,
+		JEV_KEY_MISSING_NOTE,
+		'<button type="button" class="button" data-size="large">Jev it</button>',
+	],
+	absent: ["spend allowance", "next refresh", 'data-tone="prominent">Jev it'],
 };
+
+/** The same row once a key is saved: the plan carries no note, and the press is ember. */
+const JEV_READY_CHECK: RouteCheck = {
+	hash: "#/queue",
+	label: "runs: with a key saved, Jev it is the footer's ember press",
+	expected: [`${JEV_POSTING_COUNT} awaiting Jev`, '<button type="button" class="button" data-size="large" data-tone="prominent">Jev it</button>'],
+	absent: [JEV_KEY_MISSING_NOTE],
+};
+
+/**
+ * Answers the next Jev plans as a plan with a key behind it, and hands back the undo. Only the
+ * note changes: the count, the summary and the token are the pass's own.
+ */
+function answerJevPlanWithKey(): () => void {
+	const previous = globalThis.fetch;
+	globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+		const response = await previous(input, init);
+		const path = new URL(String(input), "http://127.0.0.1").pathname;
+		if (path !== "/api/runs/plan" || JSON.parse(String(init?.body)).kind !== "jev-it") return response;
+		const body: PlanResponse = await response.json();
+		const plan: RunPlan = { ...body.plan, notes: body.plan.notes.filter((note) => note.code !== "jev-key-missing") };
+		return new Response(JSON.stringify({ plan }), { status: 200, headers: { "content-type": "application/json" } });
+	};
+	return () => {
+		globalThis.fetch = previous;
+	};
+}
+
+async function checkJevReady(renderer: RouteRenderer): Promise<void> {
+	checked += 1;
+	const restore = answerJevPlanWithKey();
+	try {
+		judge(JEV_READY_CHECK, await renderer.render(JEV_READY_CHECK.hash));
+	} finally {
+		restore();
+	}
+}
 
 /**
  * Answers the next runtime probe with a fixed body, and hands back the undo.
@@ -851,8 +926,10 @@ async function runProbedChecks(renderer: RouteRenderer, checks: readonly ProbedC
 		checked += 1;
 		const restore = answerProbeWith(check.response);
 		try {
+			smokeSetup = true;
 			judge(check, await renderer.press(check.hash, check.press));
 		} finally {
+			smokeSetup = false;
 			restore();
 		}
 	}
@@ -862,6 +939,14 @@ async function runProbedChecks(renderer: RouteRenderer, checks: readonly ProbedC
 const SETTINGS = JSON.stringify({ runtime: "claude", jevKeyPresent: false });
 
 /** The fixture answers every request that would otherwise consult the checkout's stores or Profile. */
+/** The scaffold Profile the repository ships, as the Profile screen's fixture: every group has something in it. */
+const EXAMPLE_PROFILE_DIRECTORY = fileURLToPath(new URL("../../profiles/example/", import.meta.url));
+const EXAMPLE_PROFILE = {
+	"resume.yaml": readFileSync(join(EXAMPLE_PROFILE_DIRECTORY, "resume.yaml"), "utf8"),
+	"constraints.yaml": readFileSync(join(EXAMPLE_PROFILE_DIRECTORY, "constraints.yaml"), "utf8"),
+	"targeting.yaml": readFileSync(join(EXAMPLE_PROFILE_DIRECTORY, "targeting.yaml"), "utf8"),
+};
+
 function fixtureAnswer(view: "fixture" | "empty"): FixtureResponse {
 	return (input, init) => {
 		const path = new URL(String(input), "http://127.0.0.1").pathname;
@@ -871,15 +956,16 @@ function fixtureAnswer(view: "fixture" | "empty"): FixtureResponse {
 		});
 		if (method === "GET" && path === "/api/onboarding/state") {
 			return json(JSON.stringify({
-				configured: true, implied: "smoke", ambiguous: false,
-				profiles: [{ name: "smoke", directory: "/smoke/profile", kind: "install", scaffold: false,
+				configured: !smokeSetup, implied: smokeSetup ? null : "smoke", ambiguous: false,
+				profiles: smokeSetup ? [] : [{ name: "smoke", directory: "/smoke/profile", kind: "install", scaffold: false,
 					files: ["targeting.yaml", "constraints.yaml", "resume.yaml"] }],
 				roots: { search: ["/smoke/profiles"], write: "/smoke/profiles" },
 				view: { kind: view, path: "/smoke/view.db" },
 			}));
 		}
 		// Never the real Keychain: the settings read answers "no key" for every pass.
-		if (method === "GET" && path === "/api/onboarding/settings") return json(SETTINGS);
+		if (method === "GET" && path === "/api/onboarding/settings") return json(smokeProfile ? '{"runtime":"codex","jevKeyPresent":true}' : SETTINGS);
+		if (method === "GET" && path === "/api/onboarding/existing-profile") return json(JSON.stringify({ documents: EXAMPLE_PROFILE, form: formOf(EXAMPLE_PROFILE) }));
 		if (method === "GET" && /^\/api\/applications\/[^/]+$/u.test(path)) return json('{"prepared":false}');
 		if (method === "GET" && path === "/api/runs/current") return json('{"run":null}');
 		if (method === "GET" && path === "/api/runs/recent") return json('{"runs":[]}');
@@ -944,6 +1030,7 @@ async function checkUpdating(renderer: RouteRenderer): Promise<void> {
 async function checkJevPlanWords(renderer: RouteRenderer): Promise<void> {
 	checked += 1;
 	judge(JEV_PLAN_CHECK, await renderer.render(JEV_PLAN_CHECK.hash));
+	await checkJevReady(renderer);
 }
 
 /** One runtime, in the shape `venator.llm.probe` reports it. */

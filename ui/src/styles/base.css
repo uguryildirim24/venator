@@ -97,12 +97,18 @@ ol {
 	font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Reduce Motion: everything that would move is simply there. Delays go too, or a sidebar that
+ * folds away instantly would still wait its slide's length before it stopped taking focus.
+ */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
 		animation-duration: 0.01ms !important;
+		animation-delay: 0s !important;
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
+		transition-delay: 0s !important;
 	}
 }

@@ -85,17 +85,23 @@ has **Skip for Now**.
    employer's name, and add the boards it found. **Find Jobs** saves your Profile and
    starts the first fetch.
 
-You can come back to setup any time from **Profile** in the sidebar. If you skipped
-the employers, the empty list offers **Add Employers…**. If you skipped the Jev key,
-**Awaiting Jev** offers **Add Key…**.
+After setup, **Profile** in the sidebar opens a form for editing the Profile you
+already saved: contact and résumé facts, target jobs, filters, employers and settings.
+Save checks your changes before writing and keeps Profile fields the form does not
+show. If you skipped the employers, the empty list offers **Add Employers…**. If
+you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
 
 ## Everyday use
 
 - **Refresh** fetches your boards again, runs the Hard Filters and rebuilds the
   lists. New Postings that pass wait in **Awaiting Jev**.
-- **Jev it** sends the waiting Postings to Jev, with a $10 limit per press. If Jev
-  stops (no key, no credit, the service is down, or the limit is reached), earlier
-  results are kept and the rest wait for the next press.
+- **Jev it** lives at the bottom of the sidebar, apart from Refresh. It sends
+  waiting Postings to Jev, with a $10 limit per press. If it stops (no key, no
+  credit, a connection problem, or the limit), earlier results stay and the rest
+  wait for the next press. The run shows what is waiting and when the view is ready.
+- The location choice above a list narrows the visible Postings and counts to a
+  place, Remote, or Postings without a location. It doesn't change the Profile or
+  rerun Hard Filters.
 - **For you** is what Jev says to look at first. **Explore** is what it says to
   review. **Excluded** holds Hard Filter kills and Jev exclusions. **Applications**,
   **Saved** and **Dismissed** hold what you've acted on.

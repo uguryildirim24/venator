@@ -17,10 +17,12 @@ Node side.
 
 **Why a subprocess and not a check in TypeScript.** A second YAML reader in a
 second language would be a second opinion, and the whole defect this file was
-written for is what happens when the two opinions differ: the emitter believed
-``JSON.stringify`` produced a scalar YAML reads back character for character, and
-for U+0085 — which PyYAML treats as a line break — it does not. The emitter is
-fixed. This exists so that the next thing the emitter's author did not think of
+written for is what happens when the two opinions differ. (The Profile screen's
+``profile-form.ts`` does read YAML, to show a Profile as fields and patch what
+changed; it decides nothing, and every save it makes ends here.) The defect: the
+emitter believed ``JSON.stringify`` produced a scalar YAML reads back character
+for character, and for U+0085 — which PyYAML treats as a line break — it does
+not. The emitter is fixed. This exists so that the next thing the emitter's author did not think of
 is caught by the loader itself rather than by a person whose Profile stopped
 loading.
 
