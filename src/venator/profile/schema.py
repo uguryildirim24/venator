@@ -541,6 +541,8 @@ class FilterPolicy:
     search: SearchTargeting = field(default_factory=SearchTargeting)
     jev: JevPolicy | None = None
     shift_preference: str = "no_preference"
+    employer_exclude: tuple[str, ...] = ()
+    employer_names: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

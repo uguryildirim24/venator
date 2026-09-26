@@ -209,6 +209,8 @@ export type JobAssessment = {
 	readonly status: "suitable" | "needs_review" | "not_suitable" | "unassessed";
 	readonly summary: string;
 	readonly evidence: readonly { readonly requirement: string; readonly candidateEvidence: string; readonly source: string; readonly basis?: "related_skill" }[];
+	/** Total requirement clauses read, when the assessment reports it. */
+	readonly requirementsRead?: number;
 	readonly assessedBy: "deterministic" | "jev";
 	readonly assessedAsOf: string | null;
 	readonly conflicts: readonly string[];

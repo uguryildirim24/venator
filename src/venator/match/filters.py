@@ -1587,6 +1587,16 @@ def apply_filters(
             facts = {**facts, **_jev_reserved(jev)}
         return Decision("pass", None, reason, facts)
 
+    # Employer exclusion is operational: it runs before Jev and before every
+    # description-dependent rule, including on stored Postings during replay.
+    board = str(posting.get("board") or "").strip()
+    company = str(posting.get("company") or "").strip()
+    resolved = policy.employer_names.get(board, "")
+    for excluded in policy.employer_exclude:
+        if excluded.casefold() in {board.casefold(), company.casefold(), resolved.casefold()}:
+            label = resolved or company or excluded
+            return finish_kill(f"employer_excluded:{label}", f"Employer excluded: {label}")
+
     facts: dict[str, str] = {}
     if delegate:
         for rule in DESCRIPTION_ONLY_RULES:

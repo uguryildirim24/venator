@@ -401,6 +401,41 @@ def test_materialize_placeholder_when_no_jev_rows() -> None:
     assert len(rows) == 2
     assert {row[1] for row in rows} == {"promoted", "shadow"}
     assert all(row[2] == "unavailable" and row[3] == "unassessed" and row[4] is None for row in rows)
+    assert all(row[-1] is None for row in rows)  # No first look is not a failed Jev result.
+
+
+def test_materialize_current_failure_is_distinct_from_waiting() -> None:
+    posting = {"key": "greenhouse:x:1"}
+    failure = {
+        "schema": JEV_SCHEMA, "qualifier_kind": JEV_KIND,
+        "posting_key": posting["key"], "profile_id": "p", "mode": "shadow",
+        "decision": "unassessed", "reason": "response_invalid",
+        "qualifier_version": "jev:abc", "input_version": "input",
+        "as_of_month": "2026-09", "posting_revision": "rev",
+    }
+    rows = materialize_triage(
+        [posting], [failure], profile_id="p", as_of_month="2026-09",
+        posting_revisions={posting["key"]: "rev"}, promoted_qualifier=None,
+        shadow_qualifier="jev:abc", input_versions={posting["key"]: "input"},
+    )
+    assert {row[1]: row[-1] for row in rows} == {
+        "shadow": "response_invalid", "promoted": None,
+    }
+    changed = materialize_triage(
+        [posting], [failure], profile_id="p", as_of_month="2026-09",
+        posting_revisions={posting["key"]: "new-revision"}, promoted_qualifier=None,
+        shadow_qualifier="jev:abc", input_versions={posting["key"]: "new-input"},
+    )
+    assert {row[1]: row[2] for row in changed} == {
+        "shadow": "stale", "promoted": "unavailable",
+    }
+    no_key = materialize_triage(
+        [posting], [dict(failure, reason="credentials_missing")], profile_id="p",
+        as_of_month="2026-09", posting_revisions={posting["key"]: "new-revision"},
+        promoted_qualifier=None, shadow_qualifier="jev:abc",
+        input_versions={posting["key"]: "new-input"},
+    )
+    assert all(row[-1] is None for row in no_key)
 
 
 def test_materialize_ignores_a_result_from_another_profile() -> None:

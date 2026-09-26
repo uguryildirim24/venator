@@ -6,7 +6,7 @@ import { applicationFileUrl, type ApplicationManifest, type ApplicationProvider 
 import { preparation, type ApplicationControl } from "../application.ts";
 import { formatDay, formatMoment, hostOf } from "../format.ts";
 import { assessmentNoteLabel, decisionTitle, employerLabel, ruleLabel, sourceLabel, statusLabel, trackEventLabel } from "../labels.ts";
-import { buildMargin, segments, type MarginNote, type MarkedBlock } from "../margin.ts";
+import { buildMargin, segments, type Margin, type MarginNote, type MarkedBlock } from "../margin.ts";
 import { ExternalLink } from "./external-link.tsx";
 import { Sheet } from "./sheet.tsx";
 
@@ -62,7 +62,7 @@ function BlockText({ block }: { readonly block: MarkedBlock }) {
 	);
 }
 
-function Block({ block, onOpen }: { readonly block: MarkedBlock; readonly onOpen: () => void }) {
+function Block({ block, onOpen, anchor }: { readonly block: MarkedBlock; readonly onOpen: () => void; readonly anchor: boolean }) {
 	const text =
 		block.kind === "heading" ? (
 			<h2 className="page-heading">
@@ -75,7 +75,7 @@ function Block({ block, onOpen }: { readonly block: MarkedBlock; readonly onOpen
 		);
 	return (
 		<div className="page-block" data-kind={block.kind} role={block.kind === "item" ? "listitem" : undefined}>
-			<div className="page-cell">{text}</div>
+			<div id={anchor ? "posting-requirements" : undefined} className="page-cell">{text}</div>
 			<div className="margin-cell">
 				<Notes notes={block.notes} count={block.count} onOpen={onOpen} />
 			</div>
@@ -84,7 +84,8 @@ function Block({ block, onOpen }: { readonly block: MarkedBlock; readonly onOpen
 }
 
 /** Consecutive list items, as one list. The list and its items lay out as the grid's own rows. */
-function PageBlocks({ blocks, onOpen }: { readonly blocks: readonly MarkedBlock[]; readonly onOpen: () => void }) {
+function PageBlocks({ blocks, requirementsAt, onOpen }: { readonly blocks: readonly MarkedBlock[]; readonly requirementsAt: number | null; readonly onOpen: () => void }) {
+	let offset = 0;
 	const runs: MarkedBlock[][] = [];
 	for (const block of blocks) {
 		const last = runs.at(-1);
@@ -93,17 +94,19 @@ function PageBlocks({ blocks, onOpen }: { readonly blocks: readonly MarkedBlock[
 	}
 	return (
 		<>
-			{runs.map((run, index) =>
-				run[0]?.kind === "item" ? (
+			{runs.map((run, index) => {
+				const start = offset;
+				offset += run.length;
+				return run[0]?.kind === "item" ? (
 					<div key={index} className="page-list" role="list">
 						{run.map((block, item) => (
-							<Block key={item} block={block} onOpen={onOpen} />
+							<Block key={item} block={block} onOpen={onOpen} anchor={start + item === requirementsAt} />
 						))}
 					</div>
 				) : (
-					run.map((block) => <Block key={index} block={block} onOpen={onOpen} />)
-				),
-			)}
+					run.map((block) => <Block key={index} block={block} onOpen={onOpen} anchor={start === requirementsAt} />)
+				);
+			})}
 		</>
 	);
 }
@@ -296,11 +299,13 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 	const [prepareOpen, setPrepareOpen] = useState(false);
 	const state = detail.application?.state ?? null;
 	const since = detail.application?.since ?? null;
-	const { allowed, note } = preparation(detail);
+	const { allowed } = preparation(detail);
 	const manifest = control.manifest.status === "ready" ? control.manifest.value : null;
 
 	let body: ReactNode;
-	if (control.busy === "prepare") {
+	if (!allowed && state !== "submitted" && state !== "concluded") {
+		body = <ExternalLink className="button" size="large" href={detail.posting.url} title={detail.posting.url}>Open Listing</ExternalLink>;
+	} else if (control.busy === "prepare") {
 		body = (
 			<div className="resume-state">
 				<Loader aria-hidden="true" className="glyph spinner" />
@@ -352,9 +357,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 					<button type="button" className="button" onClick={() => setQuickLook(true)}>
 						Quick Look
 					</button>
-					<button type="button" className="button" disabled={control.busy !== null} onClick={() => control.run("applied")}>
-						{control.busy === "applied" ? "Saving…" : "I Applied"}
-					</button>
+					{control.busy === null ? <button type="button" className="button" onClick={() => control.run("applied")}>I Applied</button> : <span className="resume-state">Saving…</span>}
 				</div>
 				<button type="button" className="note-action" onClick={() => setPrepareOpen(true)} disabled={!allowed}>
 					Prepare again…
@@ -372,11 +375,8 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 					</div>
 				) : null}
 				<div className="margin-buttons">
-					<button type="button" className="button" disabled={!allowed || control.busy !== null} onClick={() => setPrepareOpen(true)}>
-						Prepare Application…
-					</button>
+					{control.busy === null ? <button type="button" className="button" onClick={() => setPrepareOpen(true)}>Prepare Application…</button> : <span className="resume-state">Saving…</span>}
 				</div>
-				{!allowed ? <div className="note"><span className="note-subtitle">{note}</span></div> : null}
 			</>
 		);
 	}
@@ -384,39 +384,48 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 	return (
 		<div className="margin-application">
 			{body}
-			{control.manifest.status === "error" ? (
+			{allowed && control.manifest.status === "error" ? (
 				<div className="note">
 					<span className="note-title">Documents could not be read</span>
 					<span className="note-subtitle">{control.manifest.message}</span>
 				</div>
 			) : null}
-			{control.error === null ? null : (
+			{!allowed || control.error === null ? null : (
 				<div className="note" role="alert">
 					<span className="note-title">That did not go through</span>
 					<span className="note-subtitle">{control.error}</span>
 				</div>
 			)}
-			{control.notice === null ? null : (
+			{!allowed || control.notice === null ? null : (
 				<p className="note-subtitle" role="status">
 					{control.notice}
 				</p>
 			)}
-			{control.warnings.map((warning) => (
+			{allowed ? control.warnings.map((warning) => (
 				<div key={warning} className="note">
 					<span className="note-subtitle">{warning}</span>
 				</div>
-			))}
-			<PrepareSheet key={detail.posting.key} detail={detail} control={control} open={prepareOpen} onOpenChange={setPrepareOpen} />
+			)) : null}
+			{allowed ? <PrepareSheet key={detail.posting.key} detail={detail} control={control} open={prepareOpen} onOpenChange={setPrepareOpen} /> : null}
 		</div>
 	);
 }
 
 /* ----------------------------------------------------------------- the page */
 
+function FitLedger({ fit, requirementsAt, onOpen }: { readonly fit: Margin["fit"]; readonly requirementsAt: number | null; readonly onOpen: () => void }) {
+	if (fit === null) return null;
+	return <div className="fit-ledger">
+		{fit.count === null ? null : <span className="fit-count">{fit.count}</span>}
+		{fit.tally.length ? <div className="fit-tally" aria-hidden="true">{fit.tally.map((tone, index) => <span key={index} data-tone={tone} />)}</div> : null}
+		{fit.notes.map((note) => <Note key={note.key} note={note} onOpen={onOpen} />)}
+		{requirementsAt === null ? null : <button type="button" className="fit-jump" onClick={() => document.getElementById("posting-requirements")?.scrollIntoView({ block: "start" })}>Requirements ↓</button>}
+	</div>;
+}
+
 type PostingPageProps = {
 	readonly detail: PostingDetail;
 	readonly control: ApplicationControl;
-	/** Early review leads the margin with Jev's review flags. */
 };
 
 /**
@@ -519,6 +528,7 @@ export function PostingPage({ detail, control }: PostingPageProps) {
 				</header>
 				<div className="margin-cell">
 					<div className="margin-stack">
+						<FitLedger fit={margin.fit} requirementsAt={margin.requirementsAt} onOpen={openRequirements} />
 						{excluded ? null : <ApplicationMargin detail={detail} control={control} onHistory={() => setSheet("history")} />}
 						{margin.header.map((note) => (
 							<Note key={note.key} note={note} onOpen={openRequirements} />
@@ -535,7 +545,7 @@ export function PostingPage({ detail, control }: PostingPageProps) {
 					<div className="margin-cell" />
 				</div>
 			) : (
-				<PageBlocks blocks={margin.blocks} onOpen={openRequirements} />
+				<PageBlocks blocks={margin.blocks} requirementsAt={margin.requirementsAt} onOpen={openRequirements} />
 			)}
 
 			<div className="page-block" data-kind="foot">
@@ -545,14 +555,12 @@ export function PostingPage({ detail, control }: PostingPageProps) {
 							<ExternalLink className="button" href={posting.url} title={posting.url}>
 								Open the employer's listing
 							</ExternalLink>
-							<span className="note-text">Opens in your browser</span>
 						</>
 					) : (
 						<>
 							<button type="button" className="button" onClick={() => setSheet("description")}>
 								Read Full Description
 							</button>
-							<span className="note-text">Opens the employer's page, sandboxed</span>
 						</>
 					)}
 				</div>

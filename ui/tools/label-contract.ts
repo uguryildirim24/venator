@@ -127,7 +127,7 @@ export function checkLabelContract(): readonly string[] {
 	}
 
 	const jevLabels = [
-		[jevDecisionLabel("prioritize"), "Priority for review"],
+		[jevDecisionLabel("prioritize"), "Look first"],
 		[jevDecisionLabel("review"), "Review"],
 		[jevDecisionLabel("exclude"), "Skip"],
 		[jevDecisionLabel("unassessed"), "Unavailable"],

@@ -142,6 +142,7 @@ def collect_command(target: Path, *, neutralise_addopts: bool = True) -> list[st
         "--collect-only",
         "-q",
         "--no-header",
+        "--noconftest",  # collect independently of the gate's isolation fixture
         *(ADDOPTS_NEUTRALISER if neutralise_addopts else ()),
     ]
 
@@ -299,59 +300,15 @@ def test_the_reconciliation_is_independent_of_an_injected_pytest_addopts(tmp_pat
     ], neutralised
 
 
-def test_no_conftest_can_deselect_the_directory_out_from_under_both_legs() -> None:
-    """A ``conftest.py`` is the third road to the same place, and neither flag shuts it.
+def test_a_conftest_cannot_deselect_the_directory_out_from_under_both_legs() -> None:
+    """Collection ignores conftests so a hook cannot shrink both legs.
 
-    ``-o addopts=`` overrides ini settings and the explicit environment drops
-    ``PYTEST_ADDOPTS``; a ``pytest_collection_modifyitems`` hook is neither. It
-    is obeyed by the gating run and by this reconciliation's collection alike,
-    so a hook that deselects browser tests would shrink both legs at once and
-    the pair would prove nothing.
-
-    pytest loads a ``conftest.py`` from two sets of directories, not one: the
-    ancestors of the rootdir-relative path it is handed — here the repository
-    root and ``tests/`` — *and* every directory it descends into while
-    collecting, at any depth under the argument. A hook in either kind is given
-    the whole item list, so ``tests/browser/fixtures/conftest.py`` — a
-    directory that already exists — deselects exactly as well as one at the
-    root: measured on this repository, ``pytest tests/browser --collect-only -q
-    -o addopts=`` reports 7 of 8, and the whole-tree collection the gating run
-    performs reports 1173 of 1174. The set checked here is therefore those two
-    parents plus every ``conftest.py`` anywhere under ``tests/browser/``.
-
-    A sibling that is on neither path is deliberately not checked, because it
-    is not this road: ``tests/ci/conftest.py`` leaves ``tests/browser``
-    collecting all eight, so it can only shrink the gating run, and the
-    reconciliation above catches that.
-
-    The repository has no ``conftest.py`` at all today, and this pins that:
-    adding one under any of these paths is a deliberate act, and whoever adds
-    it has to come here and re-think what this pair is holding.
-
-    Residue, measured rather than feared: ``PYTEST_PLUGINS`` passes through
-    ``collect_env`` untouched and a module named there can carry a
-    ``pytest_collection_modifyitems`` hook, but it is not a both-legs route as
-    things stand — the gating run's ``uv run pytest`` is a console script with
-    no repository root on ``sys.path`` and dies with ``ImportError: Error
-    importing plugin``, while this reconciliation's ``python -m pytest``
-    imports it and loses the test; making one module work for both would mean
-    putting the hook inside the installed package, which is already inside the
-    residue this pull request names.
+    The test suite needs a top-level conftest for Install isolation. Collecting
+    with --noconftest keeps this reconciliation independent of any hook there
+    (or in the browser test tree).
     """
-    parents = [REPO_ROOT / "conftest.py", REPO_ROOT / "tests" / "conftest.py"]
-    descended_into = sorted(BROWSER_TESTS.rglob("conftest.py"))
-    present = [str(path) for path in [*parents, *descended_into] if path.exists()]
-    assert present == [], (
-        f"{present} exists, and pytest loads it when collecting tests/browser/. A "
-        "pytest_collection_modifyitems hook there can deselect browser tests from the "
-        "gating run and from this reconciliation at the same time, which is the one "
-        "edit moving both legs that this pair exists to rule out — and neither "
-        "-o addopts= nor the cleared PYTEST_ADDOPTS stops it. If a conftest.py is "
-        "genuinely wanted here, that is a deliberate act: re-think this check rather "
-        "than deleting this assertion — the alternative that keeps the legs "
-        "independent is to stop this reconciliation's collection from obeying "
-        "conftests at all, by adding --noconftest to collect_command."
-    )
+    assert "--noconftest" in collect_command(BROWSER_TESTS)
+    assert set(collect_ids(BROWSER_TESTS, cwd=REPO_ROOT)) == set(EXPECTED_IDS)
 
 
 # --- the passing case -------------------------------------------------------

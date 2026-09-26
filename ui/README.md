@@ -70,7 +70,7 @@ allowlist refuse a page from some other site.
 | `/api/summary` | list counts, source health, and which database is open |
 | `/api/postings?q=&status=&application=&rule=&sort=&limit=&offset=` | Postings with their latest decision per stage, and whether each is new since the last check |
 | `/api/postings/:key` | one Posting: the reading page (sanitised text), the employer HTML for the sandboxed frame, the full decision history including replays, and its TrackEvents |
-| `/api/jev-triage?decision=&q=&limit=&offset=` | stale and unavailable Jev results for the selected release, most recently verified first. No probability or score leaves the server |
+| `/api/jev-triage?decision=&q=&limit=&offset=` | eligible Postings with failed or stale Jev results for the selected release, most recently verified first. No probability or score leaves the server |
 | `/api/onboarding/state` | whether this Install has a Profile yet, and which one is in use |
 
 `GET /api/locations` returns available location choices and the saved selection.
@@ -131,7 +131,7 @@ only ever written to `<data directory>/profiles`.
 | `#/queue?list=applied` | **Applications**: prepared, handed off, applied, and what came back |
 | `#/queue?list=saved`, `?list=dismissed` | **Saved** and **Dismissed** |
 | `#/queue?list=filtered` | **Excluded**: Hard Filter kills and Jev exclusions, with the reason |
-| `#/triage` | **Jev diagnostics**: stale and unavailable Jev results; those Postings stay in Awaiting Jev |
+| `#/triage` | **Jev Diagnostics**, under **View**: eligible Postings with failed or stale Jev results |
 | `#/postings/<url-encoded key>?from=` | the same window with one Posting open |
 | `#/inspector` | filter inspector: every Posting and its Filter Decision, as a table |
 | `#/inspector?status=hard-killed&rule=education_fit` | everything one rule excluded |
@@ -141,18 +141,20 @@ only ever written to `<data directory>/profiles`.
 | `#/onboarding?step=targeting` | setup step 3: job titles, level, places, remote, employers; **Find Jobs** saves the Profile and starts a fetch |
 | `#/profile` | edit the saved Profile's contact, résumé, targets, filters and employers in a form |
 
-The sidebar groups these lists in rounded cards. Its larger rows put a symbol beside
-each name and a count at the right; the selected row has a quiet grey background.
-The sidebar is 216px wide; its off-white cards have no bottom card. The space
-below them stays open, with Refresh and Jev it at the foot. The last-checked line
-shows the latest Discover board check, including one run from the command line.
-It says **Not checked yet** if no check has been recorded.
+The sidebar groups the lists, actions and Employers in rounded cards. Its larger
+rows put a symbol beside each name and a count at the right; the selected row has a
+quiet grey background. The sidebar is 224px wide; its off-white cards have no bottom
+card. The last-checked caption and Refresh sit below Employers, including checks run
+from the command line. It says **Not checked yet** if no check has been recorded.
+Jev it sits above the Profile account row at the bottom; the row shows the active
+Profile's name. Jev Diagnostics is in the View menu, not the sidebar.
 
 The main screen keeps two columns even at the smallest opening window size.
 The desktop window opens at 1440×900. Lists sort by when a Posting was last
-verified, never by a score. The Posting page's margin shows facts from the résumé
-assessment and Hard Filters beside the relevant text, without explainer lines or
-a Jev disclaimer.
+verified, never by a score. The Posting page's margin starts with **Meets N of M**
+and a requirements tally, then shows facts from the résumé assessment and Hard
+Filters beside the relevant text. **Open Listing** appears there when Venator can't
+prepare an application. It has no explainer lines.
 
 Setup takes over the whole window, with no sidebar. Each step has **Skip for Now**,
 and the step lives in the URL so Back works. When the app opens with no route and no
@@ -161,7 +163,7 @@ Profile's form instead. Changes are checked before Save; fields the form doesn't
 show remain in the Profile. The location choice above the lists filters visible
 Postings, page counts and pagination without changing the view database.
 
-Jev it is a separate press in the sidebar footer. Its waiting, running and paused
+Jev it is a separate press above the Profile account row. Its waiting, running and paused
 states stay visible while Refresh remains a fetch-and-filter action. Lists and the
 inspector use lighter transitions, with reduced motion respected.
 

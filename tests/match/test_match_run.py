@@ -71,6 +71,31 @@ def test_run_decides_every_posting_once_per_constraints_version(tmp_path: Path) 
     assert all("score" not in json.loads(line) for line in lines)
 
 
+def test_employer_exclusion_replays_and_undo_restores_stored_postings(tmp_path: Path) -> None:
+    postings = tmp_path / "postings"
+    decisions = tmp_path / "decisions"
+    write_jsonl(postings / "2026-08-18.jsonl", [
+        {"key": "greenhouse:cvs:1", "board": "cvs", "title": "Intern"},
+        {"key": "greenhouse:other:2", "board": "other", "title": "Intern"},
+    ])
+    directory = tmp_path / "profiles" / "local"
+    base = "sources:\n  names:\n    cvs: CVS Health\n    other: Other\n  boards:\n    greenhouse: [cvs, other]\n"
+    profile = profile_at(directory, base)
+    first = run(postings, decisions, profile=profile)
+    assert first["pass"] == 2
+    profile = profile_at(directory, base + "filters:\n  employer:\n    exclude: [CVS Health]\n")
+    excluded = run(postings, decisions, profile=profile)
+    assert excluded["kill"] == 1 and excluded["pass"] == 1
+    profile = profile_at(directory, base)
+    restored = run(postings, decisions, profile=profile)
+    assert restored["pass"] == 2 and restored["kill"] == 0
+    assert restored["filters_version"] == first["filters_version"]
+    rows = [json.loads(line) for path in decisions.glob("*.jsonl") for line in path.read_text().splitlines()]
+    assert [(row["posting_key"], row["verdict"]) for row in rows[-2:]] == [
+        ("greenhouse:cvs:1", "pass"), ("greenhouse:other:2", "pass")
+    ]
+
+
 def profile_at(directory: Path, targeting: str = "") -> Profile:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "targeting.yaml").write_text(targeting, encoding="utf-8")

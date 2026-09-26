@@ -266,6 +266,7 @@ def run(
     already_decided = {
         key for key in hard_decision_keys(decisions_dir, version)
         if latest.get((key, "hard_filter"), {}).get("posting_version") == revisions.get(key)
+        and latest.get((key, "hard_filter"), {}).get("filters_version") == version
     }
     if jev_mode:
         trusted: set[str] = set()

@@ -10,8 +10,8 @@
  * measured reason: a second copy of a pipeline rule in TypeScript drifts, and this repository
  * has already paid for one.
  *
- * Asking costs nothing. `plan.py` writes no file, creates no store, starts no stage and makes
- * no request — so unlike the runtime probe this is safe to call from a screen a person opened.
+ * Asking makes no request and starts no stage. The only write is a disposable Jev plan
+ * cache, never a Posting or qualification store.
  *
  * A shape this module does not recognise is reported as a mismatch rather than guessed at,
  * on `readProbeDocument`'s own principle: naming the drift beats rendering something wrong.

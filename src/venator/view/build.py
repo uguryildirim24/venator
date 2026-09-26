@@ -859,6 +859,15 @@ def main() -> None:
     print(
         f"built {stores['database_path']}: {postings} Postings, {decisions} Filter Decisions"
     )
+    # View is the last stage of both Refresh and Jev it. Prime the disposable
+    # plan after the stores settle so the next dashboard launch reads metadata.
+    if (profile is not None and profile.filters.qualification_mode == "jev"
+            and all(getattr(args, name) is None for name in
+                    ("postings_dir", "decisions_dir", "database", "qualifications_dir"))):
+        from types import SimpleNamespace
+        from venator.qualify.plan_cache import jev_plan
+
+        jev_plan(profile, SimpleNamespace(**stores), today, refresh=True)
 
 
 if __name__ == "__main__":

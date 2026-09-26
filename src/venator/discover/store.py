@@ -14,9 +14,12 @@ import os
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import orjson
 
 OBSERVATION_TIMES = frozenset(
     {
@@ -74,7 +77,7 @@ def _read_rows(postings_dir: Path) -> Iterable[dict]:
                 if not line.strip():
                     continue
                 try:
-                    value = json.loads(line)
+                    value = orjson.loads(line)
                 except json.JSONDecodeError as error:
                     raise ValueError(f"invalid JSON in {path}:{line_number}: {error.msg}") from error
                 if not isinstance(value, dict):
@@ -751,6 +754,11 @@ def update_source_health(
     return entry
 
 
+@lru_cache(maxsize=4096)
+def _revision_key(key: str) -> str:
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).casefold()
+
+
 def posting_revision(posting: Mapping[str, Any]) -> str:
     """Hash meaningful job content, eligibility, and lifecycle state.
 
@@ -760,13 +768,8 @@ def posting_revision(posting: Mapping[str, Any]) -> str:
     in the hash because each can change what a person should see or apply to.
     """
 
-    def canonical_key(key: object) -> str:
-        value = str(key)
-        value = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value)
-        return value.casefold()
-
     def exclude(key: object) -> bool:
-        normalized = canonical_key(key)
+        normalized = _revision_key(str(key))
         if normalized in OBSERVATION_TIMES or normalized in VERIFICATION_BOOKKEEPING:
             return True
         # Preserve source timestamps such as ``updatedAt`` because they are

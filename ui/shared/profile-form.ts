@@ -124,6 +124,7 @@ export type TargetingForm = {
 	readonly employers: readonly EmployerForm[];
 	readonly filters: {
 		readonly enabled: readonly string[];
+		readonly employer_exclude?: readonly string[];
 		/** Which rule blocks the file writes, read from it and never edited. */
 		readonly configured: readonly string[];
 		readonly role_target: {
@@ -214,6 +215,11 @@ export function validateProfileForm(form: ProfileForm): readonly FormIssue[] {
 	const { filters, employers } = targeting;
 	for (const rule of filters.enabled) {
 		if (!isHardFilterRule(rule)) issues.push({ field: "targeting.filters.enabled", message: "That is not a Hard Filter this pipeline knows." });
+	}
+	for (const excluded of filters.employer_exclude ?? []) {
+		if (!employers.some((employer) => employer.board === excluded || employer.name.toLowerCase() === excluded.toLowerCase())) {
+			issues.push({ field: "targeting.filters.employer_exclude", message: "Choose a registered employer." });
+		}
 	}
 	const fit = filters.education_fit;
 	const configured = new Set(filters.configured);

@@ -416,7 +416,15 @@ export type JevTriageQuery = {
 };
 
 const JEV_TRIAGE_FILTER = `
-  WHERE t.mode = $mode AND t.state <> 'current'
+  JOIN hard_filter_latest hl ON hl.posting_key = p.key
+  JOIN decisions hf ON hf.id = hl.decision_id AND hf.verdict = 'pass'
+  JOIN assessments a ON a.posting_key = p.key AND a.listing_status = 'open'
+    AND a.description_kind = 'full'
+  LEFT JOIN jev_skip s ON s.posting_key = p.key
+  LEFT JOIN application_states aps ON aps.posting_key = p.key
+  WHERE t.mode = $mode AND (t.state = 'stale' OR (t.state = 'unavailable' AND t.reason IS NOT NULL AND t.reason <> 'credentials_missing'))
+    AND s.posting_key IS NULL
+    AND (aps.state IS NULL OR NOT (${APP_PROGRESS}))
     AND ($locationKeys IS NULL OR p.key IN (SELECT value FROM json_each($locationKeys)))
     AND ($decision IS NULL OR t.decision = $decision)
     AND ($pattern IS NULL OR (
@@ -443,7 +451,7 @@ function preferredJevTriageMode(database: DatabaseSync): JevTriageMode {
 	return memberColumn(row, "mode", ["shadow", "promoted"] as const);
 }
 
-/** Older views have no `jev_triage` table; that is an empty Early review list, not a schema error. */
+/** Older views have no `jev_triage` table; that is an empty diagnostics list. */
 export function readJevTriageEntries(database: DatabaseSync, query: JevTriageQuery): readonly JevTriageEntry[] {
 	if (!tableExists(database, "jev_triage")) return [];
 	const mode = preferredJevTriageMode(database);
@@ -460,7 +468,6 @@ export function readJevTriageEntries(database: DatabaseSync, query: JevTriageQue
 			        t.as_of_month AS as_of_month, t.decided_at AS decided_at, t.reason AS reason
 			 FROM jev_triage t
 			 JOIN postings p ON p.key = t.posting_key
-			 LEFT JOIN assessments a ON a.posting_key = t.posting_key
 			 ${JEV_TRIAGE_FILTER}
 			 ORDER BY ${JEV_TRIAGE_ORDER}
 			 LIMIT $limit OFFSET $offset`,

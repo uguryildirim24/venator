@@ -399,10 +399,10 @@ def _success_row(
 
 
 def _input_version_for(posting: Mapping[str, Any], profile_hash: str, policy_hash: str,
-                       month: str, release: JevRelease) -> str:
+                       month: str, release: JevRelease, *, revision: str | None = None) -> str:
     return jev_input_version(
         posting_key=str(posting["key"]),
-        posting_revision=posting_revision(posting),
+        posting_revision=revision if revision is not None else posting_revision(posting),
         profile_hash_value=profile_hash,
         policy_hash_value=policy_hash,
         as_of_month=month,
@@ -443,10 +443,12 @@ def raise_open_file_limit() -> tuple[int, int, int, int, bool]:
 
 
 def _current_keys(qualifications_dir: Path, profile_id: str, mode: str,
-                  qualifier_version: str, input_versions: Mapping[str, str]) -> set[str]:
+                  qualifier_version: str, input_versions: Mapping[str, str],
+                  *, verified: bool = False) -> set[str]:
     if not qualifications_dir.exists():
         return set()
-    verify_store(qualifications_dir, profile_id)
+    if not verified:
+        verify_store(qualifications_dir, profile_id)
     rows = qualification_rows(qualifications_dir)
     effective = effective_rows(
         rows, profile_id=profile_id, mode=mode, qualifier_version=qualifier_version,
@@ -493,25 +495,36 @@ def hard_filter_passes(
     qualifications_dir: Path,
     *,
     latest_decisions: Mapping[tuple[str, str], Mapping[str, Any]] | None = None,
+    revisions: dict[str, str] | None = None,
+    qualifications_verified: bool = False,
 ) -> list[Mapping[str, Any]]:
     """Postings whose current passing Filter Decision could need Jev."""
     if decisions_dir.exists() and latest_decisions is None:
         verify_decisions_dir(decisions_dir, profile.identifier)
     latest = latest_decisions if latest_decisions is not None else load_latest_decisions(decisions_dir)
     jev_mode = profile.filters.qualification_mode == "jev"
-    if qualifications_dir.exists():
+    if qualifications_dir.exists() and not qualifications_verified:
         verify_store(qualifications_dir, profile.identifier)
     promotion = (
         jev_promotion_state(promotion_events(qualifications_dir), profile.identifier)
         if jev_mode else None
     )
     version = current_filter_version(profile, promotion, JEV_RELEASE if jev_mode else None)
+    checked_revisions: dict[str, str] = {}
     candidates = [
         posting for posting in postings
         if (decision := latest.get((str(posting.get("key") or ""), "hard_filter"))) is not None
         and decision.get("verdict") == "pass"
         and decision.get("filters_version") == version
-        and decision.get("posting_version") == posting_revision(posting)
+        # A promoted pass is already assessed. Check its binding before
+        # hashing the (often large) Posting body; only fallback passes need Jev.
+        and (not jev_mode or (
+            isinstance(decision.get("facts"), dict)
+            and decision["facts"].get("jev") == "fallback"
+        ))
+        and decision.get("posting_version") == (
+            checked_revisions.setdefault(str(posting["key"]), posting_revision(posting))
+        )
     ]
     if not jev_mode:
         return candidates
@@ -525,15 +538,16 @@ def hard_filter_passes(
         raise ValueError("filters.jev is required for Jev")
     profile_hash = compile_profile(profile, as_of_month=month).profile_hash
     policy_hash = jev_policy_hash(policy)
-    return [
+    passing = [
         posting for posting in candidates
-        if (facts := latest[(str(posting["key"]), "hard_filter")].get("facts")) is not None
-        and isinstance(facts, dict)
-        and facts.get("jev") == "fallback"
-        and facts.get("jev_input") == _input_version_for(
-            posting, profile_hash, policy_hash, month, JEV_RELEASE,
-        )
+        if latest[(str(posting["key"]), "hard_filter")]["facts"].get("jev_input")
+        == _input_version_for(posting, profile_hash, policy_hash, month, JEV_RELEASE,
+                              revision=checked_revisions[str(posting["key"])])
     ]
+    if revisions is not None:
+        revisions.update((str(posting["key"]), checked_revisions[str(posting["key"])])
+                         for posting in passing)
+    return passing
 
 
 @dataclass
@@ -556,6 +570,8 @@ def select_work(
     release: JevRelease,
     decided_at: str,
     bindings_only: bool = False,
+    posting_revisions: Mapping[str, str] | None = None,
+    qualifications_verified: bool = False,
 ) -> SelectedWork:
     """Select full cases for execution, or only their input bindings for a plan."""
     if bindings_only and named_keys:
@@ -577,11 +593,13 @@ def select_work(
     else:
         wanted = [str(item["key"]) for item in postings if item.get("key")]
     input_versions = {
-        key: _input_version_for(by_key[key], profile_hash, policy_digest, month, release)
+        key: _input_version_for(by_key[key], profile_hash, policy_digest, month, release,
+                                revision=(posting_revisions or {}).get(key))
         for key in wanted if key in by_key
     }
     current = _current_keys(
         qualifications_dir, profile.identifier, mode, release.qualifier_version, input_versions,
+        verified=qualifications_verified,
     )
     prepared: list[PreparedJevCase] = []
     selection: list[tuple[str, str]] = []
@@ -606,7 +624,10 @@ def select_work(
                 reason = "no_profile"
             else:
                 try:
-                    canonical = canonical_posting(posting, group_index, include_spans=False)
+                    canonical = canonical_posting(
+                        posting, group_index, include_spans=False,
+                        revision=(posting_revisions or {}).get(key),
+                    )
                 except (TypeError, ValueError):
                     reason = "missing"
                 else:
@@ -982,9 +1003,11 @@ def _print_report(report: ExecutionReport, stream: TextIO | None = None) -> None
 def passing_postings(
     postings_dir: Path, decisions_dir: Path, qualifications_dir: Path,
     profile: Profile, month: str, named_keys: Sequence[str] = (),
+    *, eligible_only: bool = False, revisions: dict[str, str] | None = None,
+    decisions_verified: bool = False, qualifications_verified: bool = False,
 ) -> list[Mapping[str, Any]]:
-    """Read the same current Hard Filter passes for a plan and an execution."""
-    if decisions_dir.exists():
+    """Read current Hard Filter passes; the plan can omit ineligible bodies."""
+    if decisions_dir.exists() and not decisions_verified:
         verify_decisions_dir(decisions_dir, profile.identifier)
     latest = load_latest_decisions(decisions_dir)
     keys = {
@@ -994,9 +1017,17 @@ def passing_postings(
     if named_keys:
         keys.intersection_update(named_keys)
     postings = list(latest_postings(postings_dir, keys=keys).values())
+    if eligible_only:
+        # select_work rejects these before preparing any case. Keep the
+        # effective observation merge above so removed/updated descriptions
+        # and lifecycle changes retain their ordinary semantics.
+        postings = [posting for posting in postings
+                    if posting.get("description_kind") == "full"
+                    and posting.get("listing_status") != "closed"]
     return hard_filter_passes(
         postings, decisions_dir, profile, month, qualifications_dir,
-        latest_decisions=latest,
+        latest_decisions=latest, revisions=revisions,
+        qualifications_verified=qualifications_verified,
     )
 
 

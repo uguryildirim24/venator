@@ -353,7 +353,7 @@ def _group(key: str, group_index: Mapping[str, object]) -> str:
 
 def canonical_posting(
     posting: Mapping[str, object], group_index: Mapping[str, object], *,
-    include_spans: bool = True,
+    include_spans: bool = True, revision: str | None = None,
 ) -> CanonicalPosting:
     """Normalize one Posting; omit spans only for read-only binding selection.
 
@@ -374,7 +374,8 @@ def canonical_posting(
     description = "\n".join(" ".join(line.split()) for line in normalized.splitlines() if line.strip())
     spans = _spans(description, frozenset(parser.headings)) if include_spans else ()
     kind = str(posting.get("description_kind") or ("full" if description else "missing"))
-    return CanonicalPosting(key, _group(key, group_index), posting_revision(posting),
+    return CanonicalPosting(key, _group(key, group_index),
+                            revision if revision is not None else posting_revision(posting),
                             str(posting.get("title") or ""), description, spans,
                             len(description) > POSTING_CHAR_CAP,
                             len(spans) > 40 or sum(len(span.atoms) for span in spans) > 100,

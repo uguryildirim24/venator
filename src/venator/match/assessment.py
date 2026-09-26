@@ -37,6 +37,16 @@ _STOPWORDS = frozenset(
     "a an and as at be by for from in of on or the to with degree degrees field fields".split()
 )
 _DEGREE_WORDS = frozenset({"associate", "bachelor", "master", "phd", "doctor", "doctorate"})
+_POST_SECONDARY = re.compile(
+    r"\b(?:associate(?:'s)?|bachelor(?:'s)?|master(?:'s)?|doctorate|doctoral|"
+    r"ph\.?d\.?|college|university|undergraduate|post.secondary)\b", re.I,
+)
+_POST_SECONDARY_ABBREVIATION = re.compile(r"\b(?:AAS|AA|AS|BA|BS|BSc|MA|MS|MSc|MBA|MPH|PhD)\b")
+_SECONDARY_CLAUSE = re.compile(
+    r"(?:minimum\s+)?(?:a\s+|an\s+)?(?:high school (?:diploma|degree|graduation)|GED)"
+    r"(?:\s+or\s+(?:GED|(?:high school )?(?:diploma|equivalent)))?"
+    r"(?:\s+(?:is\s+)?required)?\.?", re.I,
+)
 _DEGREE_RE = re.compile(
     r"\b(?:ph\.?d\.?|doctorate|doctor|master(?:'s)?|m\.?s\.?|"
     r"bachelor(?:'s)?|b\.?s\.?|associate(?:'s)?|a\.?s\.?)\b",
@@ -520,6 +530,18 @@ def _decision_rows(decision: Mapping[str, object] | None) -> tuple[list[dict[str
     return evidence, conflicts, unknowns, False
 
 
+def _secondary_evidence(clause: str, facts: list[_Fact]) -> _Fact | None:
+    """A confirmed post-secondary education entry meets a standalone secondary bar.
+
+    This does not establish an awarded college degree or cover other requirements
+    in the same sentence.
+    """
+    if not _SECONDARY_CLAUSE.fullmatch(clause.strip()):
+        return None
+    return next((fact for fact in facts if fact.kind == "degree" and
+                 (_POST_SECONDARY.search(fact.value) or _POST_SECONDARY_ABBREVIATION.search(fact.value))), None)
+
+
 def _unmatched_clauses(context: str, facts: list[_Fact]) -> list[str]:
     """Keep independent conjunctions unknown unless each has resume overlap.
 
@@ -541,7 +563,7 @@ def _unmatched_clauses(context: str, facts: list[_Fact]) -> list[str]:
         clause = context[start:end].strip()
         if not clause:
             continue
-        covered = any(
+        covered = _secondary_evidence(clause, facts) is not None or any(
             _assertive_fact_match(fact, variant) and _match(clause, variant)
             for fact, variant in variants
         ) or any(
@@ -620,6 +642,15 @@ def assess_posting(posting: dict, profile: Profile | None, decision: dict | None
                 if not context_source.endswith(".preferred"):
                     requirement_evidence = True
     requirement_contexts = [context for context in contexts if context[1] != "posting.title" and not context[1].endswith(".preferred")]
+    for context, _ in contexts:
+        for clause in re.split(r"\s+(?:and|as well as)\s+|;\s*|,\s+(?:and\s+)?", context, flags=re.I):
+            fact = _secondary_evidence(clause, facts)
+            if fact is not None:
+                row = {"requirement": clause.strip().rstrip("."), "candidate_evidence": fact.value, "source": fact.source}
+                marker = (_normalize(row["requirement"]), row["candidate_evidence"], row["source"])
+                if marker not in seen:
+                    seen.add(marker)
+                    evidence.append(row)
     for row in _degree_evidence(requirement_contexts, facts):
         # A shared degree level alone says nothing about the work's relevance.
         marker = (_normalize(row["requirement"]), row["candidate_evidence"], row["source"])

@@ -52,6 +52,21 @@ test("the example Profile reads as fields, with the flags and policy the form do
 	assert.deepEqual(validateProfileForm(form), []);
 });
 
+test("excluded employers round-trip without removing registered boards or changing Jev policy", () => {
+	const original = example();
+	const form = formOf(original);
+	assert.deepEqual(form.targeting.filters.employer_exclude, []);
+	const excluded = { ...form, targeting: { ...form.targeting, filters: { ...form.targeting.filters, employer_exclude: ["Cloudflare"] } } };
+	const patched = patchProfileDocuments(original, excluded);
+	assert.deepEqual(formOf(patched).targeting.filters.employer_exclude, ["Cloudflare"]);
+	assert.match(patched["targeting.yaml"], /cloudflare: Cloudflare/u);
+	assert.match(patched["targeting.yaml"], /policy_version: example-shadow-1/u);
+	assert.deepEqual(profileFormFromBody(JSON.parse(JSON.stringify(formOf(patched)))).targeting.filters.employer_exclude, ["Cloudflare"]);
+	const restored = patchProfileDocuments(patched, { ...formOf(patched), targeting: { ...formOf(patched).targeting, filters: { ...formOf(patched).targeting.filters, employer_exclude: [] } } });
+	assert.deepEqual(formOf(restored).targeting.filters.employer_exclude, []);
+	assert.doesNotMatch(restored["targeting.yaml"], /^  employer:/mu);
+});
+
 test("a form nobody changed writes nothing: every file comes back byte for byte", () => {
 	const original = example();
 	assert.deepEqual(patchProfileDocuments(original, formOf(original)), original);

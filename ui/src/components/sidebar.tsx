@@ -1,10 +1,10 @@
-import { Ban, Binoculars, Bookmark, Clock3, Building2, CircleUser, Compass, Crosshair, EyeOff, PanelLeft, Send, type LucideIcon } from "lucide-react";
+import { Ban, Bookmark, Clock3, Building2, CircleUser, Compass, Crosshair, EyeOff, PanelLeft, Send, type LucideIcon } from "lucide-react";
 import { Fragment } from "react";
 
 import type { DatabaseInfo, Funnel } from "../../shared/contracts.ts";
-import { earlyReviewLabel, homeListLabel, SAMPLE_DATA_DETAIL, SAMPLE_DATA_STAMP } from "../labels.ts";
-import { employersHash, profileHash, queueHash, triageHash, type HomeList, type Route } from "../router.ts";
-import { RunStatus } from "../runs/status.tsx";
+import { homeListLabel, SAMPLE_DATA_DETAIL, SAMPLE_DATA_STAMP } from "../labels.ts";
+import { employersHash, profileHash, queueHash, type HomeList, type Route } from "../router.ts";
+import { FetchStatus, JevStatus } from "../runs/status.tsx";
 
 type Row = {
 	readonly id: string;
@@ -21,7 +21,6 @@ function listRow(list: HomeList, icon: LucideIcon, count: number | null): Row {
 /** Which sidebar row the route belongs to. A Posting belongs to the list it was opened from. */
 function activeRow(route: Route): string | null {
 	if (route.name === "queue") return route.list;
-	if (route.name === "triage") return "triage";
 	if (route.name === "employers") return "employers";
 	if (route.name === "profile") return "profile";
 	if (route.name === "posting") {
@@ -39,25 +38,24 @@ type SidebarProps = {
 	readonly boards: number;
 	/** Whether a run can be offered: an Install with a Profile. */
 	readonly configured: boolean;
-	/** Nothing discovered yet: no Jev diagnostics to show and nothing for Jev it to run on. */
+	/** Display name from the active Profile's resume.yaml. */
+	readonly profileName: string | null;
+	/** Nothing discovered yet: nothing for Jev it to run on. */
 	readonly firstRun: boolean;
-	/** The job list is being rebuilt, and the footer says so instead of the last fetch. */
+	/** The job list is being rebuilt, and the check caption shows that state. */
 	readonly updating: boolean;
 	readonly onToggle: () => void;
 	readonly onReload: () => void;
 };
 
 /**
- * The source list: three sections of the kit's Large rows, each in a group card, and the run
- * controls at the foot.
- *
- * A section is its header, when it has one, and then one card holding its rows; the space
- * under the last card stays open. The selected row is a neutral pill; the symbols
+ * Three sections of Large rows in group cards, with Refresh beneath Employers and
+ * Jev it above the Profile account row. The selected row is a neutral pill; the symbols
  * are ember. Counts are the funnel's, so they agree with every list they name. Applications,
  * Saved and Dismissed are disjoint — the application states `approved` and `rejected` are
  * their own rows — so the three add up to the Postings with application progress.
  */
-export function Sidebar({ route, funnel, database, boards, configured, firstRun, updating, onToggle, onReload }: SidebarProps) {
+export function Sidebar({ route, funnel, database, boards, configured, profileName, firstRun, updating, onToggle, onReload }: SidebarProps) {
 	const active = activeRow(route);
 	const sections: readonly { readonly heading: string | null; readonly rows: readonly Row[] }[] = [
 		{
@@ -66,7 +64,6 @@ export function Sidebar({ route, funnel, database, boards, configured, firstRun,
 				listRow("queued", Crosshair, funnel?.queued ?? null),
 				listRow("needs-review", Compass, funnel?.needsReview ?? null),
 				listRow("unscored", Clock3, funnel?.unscored ?? null),
-				...(firstRun ? [] : [{ id: "triage", label: earlyReviewLabel(), icon: Binoculars, hash: triageHash(), count: null }]),
 			],
 		},
 		{
@@ -80,10 +77,7 @@ export function Sidebar({ route, funnel, database, boards, configured, firstRun,
 		},
 		{
 			heading: "Sources",
-			rows: [
-				{ id: "employers", label: "Employers", icon: Building2, hash: employersHash(), count: boards },
-				{ id: "profile", label: "Profile", icon: CircleUser, hash: profileHash(), count: null },
-			],
+			rows: [{ id: "employers", label: "Employers", icon: Building2, hash: employersHash(), count: boards }],
 		},
 	];
 
@@ -107,6 +101,9 @@ export function Sidebar({ route, funnel, database, boards, configured, firstRun,
 								</a>
 							))}
 						</div>
+						{section.heading === "Sources" && configured ? (
+							<FetchStatus lastFetchAt={database?.lastFetchAt ?? null} updating={updating} onSettled={onReload} />
+						) : null}
 					</Fragment>
 				))}
 			</nav>
@@ -116,14 +113,13 @@ export function Sidebar({ route, funnel, database, boards, configured, firstRun,
 				</p>
 			) : null}
 			{configured ? (
-				<RunStatus
-					boards={boards}
-					lastFetchAt={database?.lastFetchAt ?? null}
-					jevPause={database?.jevPause ?? null}
-					jevIt={!firstRun}
-					updating={updating}
-					onSettled={onReload}
-				/>
+				<div className="sidebar-footer">
+					{!firstRun && !updating ? <JevStatus jevPause={database?.jevPause ?? null} onSettled={onReload} /> : null}
+					<a className="sidebar-row sidebar-account" href={profileHash()} aria-current={active === "profile" ? "page" : undefined}>
+						<CircleUser aria-hidden="true" className="icon" />
+						<span>{profileName ?? "Profile"}</span>
+					</a>
+				</div>
 			) : null}
 		</aside>
 	);

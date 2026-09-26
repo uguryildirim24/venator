@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from venator.match.assessment import assess_posting
 from venator.profile import Profile
 
@@ -408,6 +410,59 @@ def test_explicitly_withheld_facts_never_establish_relevance(tmp_path: Path) -> 
             {"skills": ["Python"], **marker},
         ):
             assert not any("Python" in fact.value for fact in _resume_facts(resume))
+
+
+@pytest.mark.parametrize("requirement", [
+    "High school diploma required.", "GED required.",
+    "High school diploma or GED required.", "High school diploma or equivalent required.",
+])
+@pytest.mark.parametrize("degree,date", [
+    ("Associate of Science", "May 2027 (Expected)"),
+    ("Bachelor of Science", "May 2027 (Expected)"),
+    ("Bachelor of Science", "May 2024"),
+])
+def test_post_secondary_education_meets_secondary_requirement(
+    tmp_path: Path, requirement: str, degree: str, date: str,
+) -> None:
+    result = assess_posting(
+        posting(description_html=f"<h2>Requirements</h2><p>{requirement}</p>"),
+        profile(tmp_path, {"education": [{"degree": degree, "date": date}]}),
+        passing_decision(),
+    )
+    assert any(row["requirement"] == requirement.rstrip(".") and
+               row["source"] == "profile.resume.education[0].degree" for row in result["evidence"])
+    assert not any("Qualification not established" in text for text in result["unknowns"])
+
+
+@pytest.mark.parametrize("degree,requirement", [
+    ("High School Diploma", "High school diploma required."),
+    ("GED", "GED required."),
+])
+def test_explicit_secondary_education_still_matches(
+    tmp_path: Path, degree: str, requirement: str,
+) -> None:
+    result = assess_posting(posting(description_html=f"<h2>Requirements</h2><p>{requirement}</p>"),
+                            profile(tmp_path, {"education": [{"degree": degree}]}), passing_decision())
+    assert any(row["source"] == "profile.resume.education[0].degree" for row in result["evidence"])
+    assert not any("Qualification not established" in text for text in result["unknowns"])
+
+
+@pytest.mark.parametrize("education", [[], [{"degree": "Bachelor of Science", "confirmed": False}]])
+def test_no_confirmed_education_does_not_meet_secondary_requirement(tmp_path: Path, education: list[dict]) -> None:
+    result = assess_posting(posting(description_html="<h2>Requirements</h2><p>GED required.</p>"),
+                            profile(tmp_path, {"education": education}), passing_decision())
+    assert not any(row["requirement"] == "GED required" for row in result["evidence"])
+    assert any("Qualification not established: GED required" in text for text in result["unknowns"])
+
+
+def test_secondary_rule_does_not_cover_college_degree_or_other_requirements(tmp_path: Path) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    college = assess_posting(posting(description_html="<h2>Requirements</h2><p>Completed bachelor's degree required.</p>"),
+                             candidate, passing_decision())
+    assert not any("bachelor" in row["requirement"].casefold() for row in college["evidence"])
+    combined = assess_posting(posting(description_html="<h2>Requirements</h2><p>GED and Python required.</p>"),
+                              candidate, passing_decision())
+    assert any("Python required" in text for text in combined["unknowns"])
 
 
 def test_in_progress_degree_evidence_keeps_the_expected_date(tmp_path: Path) -> None:

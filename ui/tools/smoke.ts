@@ -294,17 +294,17 @@ const CHECKS: readonly RouteCheck[] = [
 		hash: "#/queue",
 		label: "For you: the sidebar, the list, and the selected Posting as a page with its margin",
 		expected: [
-			// The sidebar's three sections, the sample-data stamp, and the footer's two run controls.
+			// Three cards, Refresh beneath Sources, Jev it above the Profile account row.
 			"For you",
 			"Explore",
 			"Awaiting Jev",
-			"Jev diagnostics",
 			"Applications",
 			"Saved",
 			"Dismissed",
 			"Excluded",
 			"Employers",
-			"Profile",
+			'class="sidebar-row sidebar-account"',
+			'>Avery Example</span>',
 			SAMPLE_DATA_STAMP,
 			'aria-label="Refresh jobs"',
 			">Jev it<",
@@ -314,14 +314,14 @@ const CHECKS: readonly RouteCheck[] = [
 			'aria-selected="true"',
 			"Summer 2027 Intern, Automation &amp; Lab Informatics",
 			"Jev: look first",
-			"Jev: priority for review",
+			"Jev: look first",
 			// The page, and Venator's notes in the margin beside it.
 			"Verified open",
 			"Prepare Application…",
 			"Read Full Description",
 		],
 		// A browser tab draws its own window; only the desktop host is native.
-		absent: ["app-native", "Match strength", "Priority rank", "An estimate, not a verdict", "Hard Filters passed"],
+		absent: ["Jev diagnostics", "app-native", "Match strength", "Priority rank", "An estimate, not a verdict", "Hard Filters passed"],
 	},
 	{
 		hash: "#/queue?page=1",
@@ -380,9 +380,8 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: [
 			"Jev diagnostics",
 			"2 Postings",
-			"Unavailable",
 			"Out of date",
-			"Jev unavailable",
+			"Jev failed",
 			"Intern, Gene Writing Analytics",
 		],
 		absent: ["Match strength", "Priority rank"],

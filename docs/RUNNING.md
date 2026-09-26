@@ -85,7 +85,10 @@ prints the two lines to add.
 
 A board needs both its token under `sources.boards` and the employer's display name
 under `sources.names`. The name is used for Dedup, so it counts toward
-`filters_version`. The list of boards to poll does not.
+`filters_version`. The list of boards to poll does not. Add a display name from
+`sources.names` or a board token to `filters.employer.exclude` in `targeting.yaml` to
+stop fetching that employer and exclude its stored Postings on the next Hard Filter
+run. Each stored Posting still gets a Filter Decision.
 
 ### 2. Hard Filters
 
