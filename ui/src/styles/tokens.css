@@ -54,7 +54,7 @@
 	--mark-offset: 4px;
 
 	/* The window, measured at the 1440×900 reference. */
-	--sidebar-width: 216px;
+	--sidebar-width: 224px;
 	/* The sidebar slot: cards fill it, inset 14 from each edge (ui/DESIGN.md, "Sidebar"). */
 	--sidebar-inset: 14px;
 	/* The kit's Large section header: 43 tall, its title resting 8 above the bottom. */

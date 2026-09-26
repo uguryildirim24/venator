@@ -11,7 +11,18 @@ import { emptyViewDatabase } from "../fixtures/make-fixture.ts";
 import { decodeJevTriage } from "../server/jev.ts";
 import { countJevTriageEntries, readJevTriageEntries } from "../server/queries.ts";
 
-test("an empty view with jev_triage has no Early review rows", () => {
+function eligible(database: DatabaseSync, keys: readonly string[]): void {
+	const decision = database.prepare(`INSERT INTO decisions (posting_key, stage, verdict, decided_at)
+		VALUES (?, 'hard_filter', 'pass', '2026-09-01')`);
+	const assessment = database.prepare(`INSERT INTO assessments (posting_key, listing_status, description_kind, last_verified_at)
+		VALUES (?, 'open', 'full', '2026-09-01')`);
+	for (const key of keys) {
+		decision.run(key);
+		assessment.run(key);
+	}
+}
+
+test("an empty view with jev_triage has no diagnostics rows", () => {
 	const database = emptyViewDatabase();
 	try {
 		assert.equal(countJevTriageEntries(database, { decision: null, search: null, limit: 50, offset: 0 }), 0);
@@ -56,6 +67,7 @@ test("current decisions belong in the main lists, not diagnostics", () => {
 		insertPosting.run("greenhouse:acme:review", "Review role", "2026-01-03");
 		insertPosting.run("greenhouse:acme:priority", "Priority role", "2026-01-02");
 		insertPosting.run("greenhouse:acme:none", "Fallback role", "2026-01-01");
+		eligible(database, ["greenhouse:acme:exclude", "greenhouse:acme:review", "greenhouse:acme:priority", "greenhouse:acme:none"]);
 		database.exec(`
 			INSERT INTO jev_triage (
 			  posting_key, mode, state, decision, fit_probability, fit_score, primary_rule,
@@ -97,6 +109,7 @@ test("stale rows remain in verification order, never score order", () => {
 		insertPosting.run("greenhouse:acme:stale-high", "Stale high", "2026-01-03");
 		insertPosting.run("greenhouse:acme:stale-low", "Stale low", "2026-01-01");
 		insertPosting.run("greenhouse:acme:current", "Current", "2026-01-04");
+		eligible(database, ["greenhouse:acme:stale-high", "greenhouse:acme:stale-low", "greenhouse:acme:current"]);
 		database.exec(`
 			INSERT INTO jev_triage (
 			  posting_key, mode, state, decision, fit_probability, fit_score, primary_rule,
@@ -144,8 +157,63 @@ test("diagnostics omits current shadow rows before promotion", () => {
 			('greenhouse:acme:shadow', 'shadow', 'current', 'prioritize', 0.8, 0.9, NULL,
 			 '[]', '[]', '[]', 'jev-1', 'ak', 'in-1', 'ph', NULL, '2026-09', '2026-09-01', NULL);
 		`);
+		eligible(database, ["greenhouse:acme:shadow"]);
 		const entries = readJevTriageEntries(database, { decision: null, search: null, limit: 50, offset: 0 });
 		assert.equal(entries.length, 0);
+	} finally {
+		database.close();
+	}
+});
+
+test("diagnostics admits only failed or stale eligible Postings across the funnel", () => {
+	const database = emptyViewDatabase();
+	try {
+		const cases = [
+			["failed", "unavailable", "response_invalid", "open", "full", "pass", null, null],
+			["stale", "stale", null, "open", "full", "pass", null, null],
+			["waiting", "unavailable", null, "open", "full", "pass", null, null],
+			["no-key", "unavailable", "credentials_missing", "open", "full", "pass", null, null],
+			["hard-killed", "stale", null, "open", "full", "kill", null, null],
+			["closed", "stale", null, "closed", "full", "pass", null, null],
+			["no-text", "stale", null, "open", "missing", "pass", null, "missing"],
+			["protected", "stale", null, "open", "full", "pass", null, "protected"],
+			["applied", "stale", null, "open", "full", "pass", "submitted", null],
+			["queued", "current", null, "open", "full", "pass", null, null],
+			["needs-review", "current", null, "open", "full", "pass", null, null],
+			["excluded", "current", null, "open", "full", "pass", null, null],
+			["not-filtered", "stale", null, "open", "full", null, null, null],
+			["snippet", "stale", null, "open", "snippet", "pass", null, "snippet"],
+			["too-long", "stale", null, "open", "full", "pass", null, "too_long"],
+			["unknown", "stale", null, "unknown", "full", "pass", null, null],
+		] as const;
+		const posting = database.prepare(`INSERT INTO postings (key, source, board, title, url, discovered_at)
+			VALUES (?, 'greenhouse', 'acme', ?, 'https://example.test/job', '2026-09-01')`);
+		const assessment = database.prepare(`INSERT INTO assessments (posting_key, listing_status, description_kind, last_verified_at)
+			VALUES (?, ?, ?, ?)`);
+		const decision = database.prepare(`INSERT INTO decisions (posting_key, stage, verdict, decided_at)
+			VALUES (?, 'hard_filter', ?, '2026-09-01')`);
+		const triage = database.prepare(`INSERT INTO jev_triage (posting_key, mode, state, decision,
+			fit_probability, fit_score, assessment_key, qualifier_version, input_version,
+			exclusions, review_flags, diagnostic_flags, as_of_month, reason)
+			VALUES (?, 'shadow', ?, ?, ?, ?, ?, ?, ?, '[]', '[]', '[]', '2026-09', ?)`);
+		const skip = database.prepare("INSERT INTO jev_skip (posting_key, reason) VALUES (?, ?)");
+		const progress = database.prepare("INSERT INTO application_states (posting_key, state) VALUES (?, ?)");
+		for (const [name, state, reason, listing, kind, verdict, app, skipped] of cases) {
+			const key = `greenhouse:acme:${name}`;
+			posting.run(key, name);
+			assessment.run(key, listing, kind, name === "stale" ? "2026-09-03" : "2026-09-02");
+			if (verdict !== null) decision.run(key, verdict);
+			if (app !== null) progress.run(key, app);
+			if (skipped !== null) skip.run(key, skipped);
+			triage.run(key, state, state === "current" ? name === "queued" ? "prioritize" : name === "needs-review" ? "review" : "exclude" : "unassessed",
+				state === "current" ? 0.5 : null, state === "current" ? 0.5 : null,
+				state === "current" ? "assessment" : null, state === "current" ? "jev-1" : null,
+				state === "current" ? "input" : null, reason);
+		}
+		const query = { decision: null, search: null, limit: 50, offset: 0 };
+		assert.equal(countJevTriageEntries(database, query), 2);
+		assert.deepEqual(readJevTriageEntries(database, query).map(({ posting: p }) => p.key),
+			["greenhouse:acme:stale", "greenhouse:acme:failed"]);
 	} finally {
 		database.close();
 	}

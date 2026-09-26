@@ -49,7 +49,7 @@ export function preparation(detail: PostingDetail): Preparation {
 	const assessment = detail.assessment;
 	const refreshable = REFRESHABLE_SOURCES.has(detail.posting.source.trim().toLowerCase().split(":", 1)[0] ?? "");
 	if (!refreshable) {
-		return { allowed: false, note: "This source cannot be rechecked automatically. Open the employer's listing and apply there." };
+		return { allowed: false, note: "" };
 	}
 	if (assessment?.listingStatus === "closed") return { allowed: false, note: "This listing is closed, so nothing can be prepared for it." };
 	if ((assessment?.conflicts.length ?? 0) > 0) return { allowed: false, note: "Preparation waits while a hard conflict is recorded." };

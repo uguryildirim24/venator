@@ -95,7 +95,8 @@ you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
 
 - **Refresh** fetches your boards again, runs the Hard Filters and rebuilds the
   lists. New Postings that pass wait in **Awaiting Jev**.
-- **Jev it** lives at the bottom of the sidebar, apart from Refresh. It sends
+- **Jev it** sits above your Profile name at the bottom of the sidebar. Refresh
+  sits below Employers. Jev it sends
   waiting Postings to Jev, with a $10 limit per press. If it stops (no key, no
   credit, a connection problem, or the limit), earlier results stay and the rest
   wait for the next press. The run shows what is waiting and when the view is ready.
@@ -106,16 +107,20 @@ you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
   one Remote choice. Several locations, No location and Other places have their
   own choices. A Posting with several listed places appears in each one. This
   doesn't change the Profile or rerun Hard Filters.
-- The sidebar's last-checked line shows when Discover last checked your boards,
+- The last-checked line below Employers shows when Discover last checked your boards,
   including checks run from the command line. It says **Not checked yet** until
   a board check has been recorded.
 - **For you** is what Jev says to look at first. **Explore** is what it says to
   review. **Excluded** holds Hard Filter kills and Jev exclusions. **Applications**,
   **Saved** and **Dismissed** hold what you've acted on.
-- On a Posting, **Save** and **Dismiss** record your choice, and **Restore** undoes
-  it. **Prepare Application** drafts a résumé (and a cover letter if you want one)
-  from confirmed facts only. **Open Application** hands the prepared files to a
-  browser window. **I Applied** records that you applied.
+- A Posting's margin starts with **Meets N of M** and a tally of the requirements
+  Venator can check against your résumé. **Open Listing** goes to the employer's page
+  when Venator can't prepare an application. **Save** and **Dismiss** record your
+  choice, and **Restore** undoes it. **Prepare Application** drafts a résumé (and a
+  cover letter if you want one) from confirmed facts only. **Open Application** hands
+  the prepared files to a browser window. **I Applied** records that you applied.
+- **Jev Diagnostics** is under **View**. It shows eligible Postings with failed or
+  stale Jev results, not current results.
 
 Nothing is scheduled. Venator only fetches when you press Refresh, unless you set up
 the optional timer in [ops/README.md](ops/README.md).
@@ -149,7 +154,9 @@ board, search term and constraint. Delete `scaffold: true`, set the name, and ru
 stage with `--profile <name>`. The name is a name, never a path.
 
 Each board needs its token under `sources.boards` and the employer's name under
-`sources.names`. Screening answers start empty. Fill in only what's true. The example
+`sources.names`. To stop fetching an employer and exclude its stored Postings, add
+its display name (or board token) to `filters.employer.exclude` in `targeting.yaml`.
+Screening answers start empty. Fill in only what's true. The example
 files explain every field in comments, and [docs/RUNNING.md](docs/RUNNING.md) covers
 registering boards.
 

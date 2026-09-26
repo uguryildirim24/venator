@@ -674,12 +674,18 @@ def run(
 
     if not profile.sources.configured:
         print(f"{profile.name}: no board is registered — add sources.boards to {profile.targeting_path}")
-    board_total = sum(len(boards or []) for boards in profile.sources.boards.values())
+    excluded = {name.casefold() for name in profile.filters.employer_exclude}
+    def included(board: str) -> bool:
+        return board.casefold() not in excluded and profile.sources.names.get(board, "").casefold() not in excluded
+
+    board_total = sum(sum(included(board) for board in boards or ()) for boards in profile.sources.boards.values())
     board_index = 0
-    workday_boards = list(profile.sources.boards.get("workday", ()))
+    workday_boards = [board for board in profile.sources.boards.get("workday", ()) if included(board)]
     retryable_failures: set[tuple[str, str]] = set()
     for source, boards in profile.sources.boards.items():
         for board in boards or []:
+            if not included(board):
+                continue
             board_index += 1
             name = profile.sources.names.get(board, board)
             # Fixed progress marker consumed by the dashboard; board names are

@@ -8,6 +8,7 @@ import { Sidebar } from "./components/sidebar.tsx";
 import { useDelayed } from "./delayed.ts";
 import { useKeyBindings, type KeyBinding } from "./keys.ts";
 import { nativeClasses } from "./platform.ts";
+import { readProfileForm } from "./onboarding/api.ts";
 import {
 	EMPTY_FILTERS,
 	inspectorHash,
@@ -110,6 +111,18 @@ export function App() {
 	const updating = useDelayed(summary.status === "loading");
 	const firstRun = summary.status === "ready" && summary.value.unfilteredDiscovered === 0;
 	const implied = impliedProfile(installState);
+	const activeProfile = implied?.kind === "install" ? implied.name : selectedProfile;
+	const [profileName, setProfileName] = useState<string | null>(null);
+	useEffect(() => {
+		let active = true;
+		setProfileName(null);
+		if (activeProfile !== null) {
+			readProfileForm(activeProfile)
+				.then(({ form }) => { if (active) setProfileName(form.resume.name); })
+				.catch(() => { if (active) setProfileName(null); });
+		}
+		return () => { active = false; };
+	}, [activeProfile, reloadToken]);
 	const help = <HelpSheet shortcuts={SHORTCUTS} open={helpOpen} onOpenChange={setHelpOpen} />;
 	/** What a Profile write said worth reading, once setup hands over to the window. */
 	const savedSheet = (
@@ -172,6 +185,7 @@ export function App() {
 				database={database}
 				boards={boards}
 				configured={installState?.configured === true}
+				profileName={profileName}
 				firstRun={firstRun}
 				updating={updating}
 				onToggle={hideSidebar}

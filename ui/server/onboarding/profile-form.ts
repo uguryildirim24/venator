@@ -246,6 +246,7 @@ function targetingFormOf(document: ParsedDocument): TargetingForm {
 		filters: {
 			enabled: stringsAt(filters, "enabled"),
 			configured: HARD_FILTER_RULES.filter((rule) => configuredAt(filters, rule)),
+			employer_exclude: stringsAt(mapAt(filters, "employer"), "exclude"),
 			role_target: {
 				levels: entriesAt(roleTarget, "levels", (item) => textAt(item, "name")).filter((name) => name !== ""),
 				accept: stringsAt(roleTarget, "accept"),
@@ -580,6 +581,14 @@ function patchTargeting(document: ParsedDocument, baseline: TargetingForm, form:
 	if (patchEmployers(document, baseline.employers, form.employers)) changed = true;
 	const filters = baseline.filters;
 	strings(["filters", "enabled"], filters.enabled, form.filters.enabled);
+	if (!sameStrings(filters.employer_exclude ?? [], form.filters.employer_exclude ?? [])) {
+		changed = true;
+		if ((form.filters.employer_exclude ?? []).length > 0) setStrings(document, ["filters", "employer", "exclude"], form.filters.employer_exclude ?? []);
+		else {
+			deleteKey(document, ["filters", "employer", "exclude"]);
+			if (mapAt(mapAt(rootOf(document), "filters"), "employer")?.items.length === 0) deleteKey(document, ["filters", "employer"]);
+		}
+	}
 	strings(["filters", "role_target", "accept"], filters.role_target.accept, form.filters.role_target.accept);
 	strings(["filters", "role_target", "exclude", "terms"], filters.role_target.exclude_terms, form.filters.role_target.exclude_terms);
 	const fit = form.filters.education_fit;
@@ -785,6 +794,7 @@ function targetingFromBody(body: JsonMapping): TargetingForm {
 		filters: {
 			enabled: stringsField(filters, "enabled", "targeting.filters.enabled"),
 			configured: stringsField(filters, "configured", "targeting.filters.configured"),
+			employer_exclude: at(filters, "employer_exclude") === undefined ? [] : stringsField(filters, "employer_exclude", "targeting.filters.employer_exclude"),
 			role_target: {
 				levels: stringsField(roleTarget, "levels", "targeting.filters.role_target.levels"),
 				accept: stringsField(roleTarget, "accept", "targeting.filters.role_target.accept"),

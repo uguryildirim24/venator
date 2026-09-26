@@ -71,6 +71,7 @@ function nameCase(value: string): string {
 
 /** Which Hard Filter fired, in English. */
 export function ruleLabel(rule: string): string {
+	if (rule.startsWith("employer_excluded:")) return `Employer excluded: ${rule.slice("employer_excluded:".length)}`;
 	return RULES.get(rule) ?? sentenceCase(rule);
 }
 
@@ -499,9 +500,7 @@ export function assessmentNoteLabel(text: string): string {
 		return `${sentenceCase(rule)}: ${HARD_FILTER_VALUES.get(value) ?? sentenceCase(value).toLowerCase()}`;
 	}
 	const field = /^(?:[a-z]+ )?(application_deadline|workplace_type|opportunity_type|listing_status|last_verified_at)\b/u.exec(text)?.[1];
-	if (field === "application_deadline") return "No application deadline listed";
 	if (field === "workplace_type") return "Work arrangement not stated";
-	if (field === "opportunity_type") return "Not clear it is a specific opening";
 	if (field === "listing_status") return "Not verified open";
 	if (field === "last_verified_at") return "Never verified";
 	if (text.startsWith("the full job description is missing")) return "The full description is missing";
@@ -509,8 +508,6 @@ export function assessmentNoteLabel(text: string): string {
 	if (text.startsWith("the posting does not state a location")) return "No location stated";
 	if (text.startsWith("no established resume evidence")) return "No résumé evidence for the core work yet";
 	if (text.startsWith("no established overlap")) return "No overlap with confirmed résumé facts yet";
-	if (text.startsWith("this is a program")) return "A program, not a specific opening";
-	if (text.startsWith("this is a talent pool")) return "A talent pool, not a specific opening";
 	const readable = text
 		.replaceAll(/\s*\(hard_filter decision\)/gu, "")
 		.replaceAll(/^hard filter:\s*/giu, "")
@@ -519,7 +516,7 @@ export function assessmentNoteLabel(text: string): string {
 }
 
 const JEV_DECISIONS = {
-	prioritize: "Priority for review",
+	prioritize: "Look first",
 	review: "Review",
 	exclude: "Skip",
 	unassessed: "Unavailable",
@@ -548,7 +545,7 @@ export function jevDecisionLabel(decision: JevTriageDecision): string {
 const JEV_STATES = {
 	current: "Current",
 	stale: "Out of date",
-	unavailable: "Jev unavailable",
+	unavailable: "Jev failed",
 } satisfies Record<JevTriageState, string>;
 
 export function jevStateLabel(state: JevTriageState): string {
@@ -564,15 +561,8 @@ export function earlyReviewLabel(): string {
 	return "Jev diagnostics";
 }
 
-/** What early review is, said every time it is shown. */
-export const EARLY_REVIEW_CAVEAT = "Unavailable and out-of-date Jev results. These Postings remain in Awaiting Jev.";
-
 export function jevSkipLabel(): string {
 	return "Jev: skip";
-}
-
-export function jevListLabel(decision: "prioritize" | "review"): string {
-	return decision === "prioritize" ? "Jev: look first" : "Jev: review";
 }
 
 /**

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import orjson
+
 from venator.profile.claim import claim_store, report_stray_rows, rows_from_other_profiles, store_owner
 from venator.qualify.versions import (
     event_id,
@@ -55,7 +57,7 @@ def _read(path: Path) -> list[dict[str, Any]]:
             if not line.strip():
                 continue
             try:
-                row = json.loads(line)
+                row = orjson.loads(line)
             except json.JSONDecodeError as error:
                 raise ValueError(f"invalid JSON in {path}:{line_number}") from error
             if not isinstance(row, dict):

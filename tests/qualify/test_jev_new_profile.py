@@ -8,10 +8,10 @@ from pathlib import Path
 from venator.llm.system_one import SystemOneHttpResult
 from venator.profile.loader import load_profile
 from venator.qualify.compile import compile_profile
-from venator.qualify.jev import current_mode, execute_prepared_cases, select_work
+from venator.qualify.jev import _unassessed_row, current_mode, execute_prepared_cases, select_work
 from venator.qualify.jev_policy import prepare_jev_case
 from venator.qualify.jev_release import JEV_RELEASE
-from venator.qualify.store import qualification_rows
+from venator.qualify.store import append_rows, qualification_rows
 from venator.qualify.versions import jev_accepted_profile_hash, jev_policy_hash
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,3 +64,25 @@ def test_copied_example_jev_it_uses_its_own_shadow_binding(tmp_path: Path) -> No
     assert not again.prepared
     assert again.report.current_assessments == 1
     assert current_mode(profile, "2026-09", store) == "shadow"
+
+    # A changed Posting and a failed current attempt both remain Jev it work.
+    changed = {**posting, "title": posting["title"] + " (updated)"}
+    stale = select_work([changed], profile=profile, month="2026-09", mode="shadow",
+                        qualifications_dir=store, named_keys=None, release=JEV_RELEASE,
+                        decided_at="2026-09-18T00:00:00+00:00")
+    assert len(stale.prepared) == 1
+    bindings = stale.prepared[0].bindings
+    failed = _unassessed_row(
+        posting_key=bindings.posting_key, profile_id=profile.identifier,
+        posting_revision=bindings.posting_revision, profile_hash=rows[0]["profile_hash"],
+        policy_hash=rows[0]["policy_hash"], as_of_month_value="2026-09",
+        qualifier_version=JEV_RELEASE.qualifier_version,
+        qualifier_identity=JEV_RELEASE.qualifier_identity,
+        input_version_value=bindings.input_version, mode="shadow",
+        reason="response_invalid", decided_at="2026-09-18T01:00:00+00:00",
+    )
+    append_rows(store, profile.identifier, [failed], day="2026-09-18")
+    retry = select_work([changed], profile=profile, month="2026-09", mode="shadow",
+                        qualifications_dir=store, named_keys=None, release=JEV_RELEASE,
+                        decided_at="2026-09-18T00:00:00+00:00")
+    assert len(retry.prepared) == 1

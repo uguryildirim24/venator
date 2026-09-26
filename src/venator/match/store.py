@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
+import orjson
 import yaml
 
 from venator.profile.claim import (
@@ -32,7 +33,7 @@ def iter_jsonl(directory: Path) -> Iterable[dict]:
                 if not line.strip():
                     continue
                 try:
-                    value = json.loads(line)
+                    value = orjson.loads(line)
                 except json.JSONDecodeError as error:
                     raise ValueError(f"invalid JSON in {path}:{line_number}: {error.msg}") from error
                 if not isinstance(value, dict):
@@ -85,7 +86,10 @@ def append_decisions(decisions_dir: Path, decisions: Iterable[dict], *, day: dat
 #
 # 20 removes the retired trained qualification-model delegation path.
 # 21 adds the SmartRecruiters Source; 22 removes the location Hard Filter.
-FILTERS_REVISION = b"22-smartrecruiters-no-location-filter"
+# 23 adds employer exclusion; the pre-exclusion revision remains for Profiles
+# without the new field so their existing decisions keep their version.
+FILTERS_REVISION = b"23-employer-exclusion"
+_PRE_EXCLUSION_REVISION = b"22-smartrecruiters-no-location-filter"
 
 #: Blocks that live in a hashed Profile file but reach no decision, keyed by
 #: **which positional argument** of ``filters_version`` the file is — not by its
@@ -219,7 +223,20 @@ def filters_version(*paths: Path, promotion_state_revision: str = "", jev_releas
     all stored Hard Filter Decisions to produce byte-identical verdicts. The test for whether something belongs here
     is not "does the code touch it" but "can it change a verdict".
     """
-    digest = hashlib.sha256(FILTERS_REVISION)
+    # Old Profiles must keep their existing decisions and Jev binding. Only a
+    # configured exclusion introduces new verdicts and needs a replay.
+    excluded_employers = False
+    if len(paths) > 1 and paths[1].exists():
+        try:
+            targeting = yaml.safe_load(paths[1].read_text(encoding="utf-8"))
+            if isinstance(targeting, dict):
+                filters = targeting.get("filters") or {}
+                if isinstance(filters, dict):
+                    employer = filters.get("employer") or {}
+                    excluded_employers = isinstance(employer, dict) and bool(employer.get("exclude"))
+        except (UnicodeDecodeError, yaml.YAMLError):
+            pass
+    digest = hashlib.sha256(FILTERS_REVISION if excluded_employers else _PRE_EXCLUSION_REVISION)
     if promotion_state_revision:
         digest.update(b"\0promotion_state_revision\0" + promotion_state_revision.encode("ascii"))
     if jev_release_hash:

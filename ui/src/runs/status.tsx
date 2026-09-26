@@ -159,40 +159,32 @@ function RunRow({ kind, control, idle, idleTitle, off, note, press, updating = f
 }
 
 type FetchRowProps = {
-	/** How many boards the last fetch checked: one source-health row each. */
-	readonly boards: number;
 	/** When boards were last checked, including a CLI Discover, or null when none has. */
 	readonly lastFetchAt: string | null;
 	readonly onSettled: () => void;
-	readonly jevPause?: { readonly reason: string; readonly waiting: number } | null;
 	readonly updating: boolean;
 };
 
-/** The last fetch in two lines, and the glyph that starts the next. */
-function FetchRow({ boards, lastFetchAt, onSettled, updating }: FetchRowProps) {
+/** The one-line check under Employers, with its Refresh press. */
+export function FetchStatus({ lastFetchAt, onSettled, updating }: FetchRowProps) {
 	const kind: RunKind = "fetch-and-filter";
 	const control = useRunControl(kind, 0, onSettled);
 	const { plan, planError } = control;
-	const note =
-		planError !== null
-			? planError.message
-			: plan !== null && !plan.startable
-				? (plan.notes[0]?.message ?? "There is nothing for a run to fetch yet.")
-				: null;
-	const idle: readonly string[] =
-		lastFetchAt === null
-			? ["Not checked yet", "Refresh fetches your boards"]
-			: [`Checked ${boards.toLocaleString("en-US")} ${boards === 1 ? "board" : "boards"}`, formatMoment(lastFetchAt)];
+	const note = planError?.message ?? null;
+	const moment = lastFetchAt === null ? null : formatMoment(lastFetchAt);
+	const idle = [moment === null ? "Not checked yet" : `Checked ${moment.charAt(0).toLowerCase()}${moment.slice(1)}`];
 	return (
-		<RunRow
-			kind={kind}
-			control={control}
-			idle={idle}
-			off={plan === null || !plan.startable}
-			note={note}
-			press={{ kind: "glyph", label: runKindLabel(kind), icon: RotateCw }}
-			updating={updating}
-		/>
+		<div className="sidebar-check">
+			<RunRow
+				kind={kind}
+				control={control}
+				idle={idle}
+				off={plan === null || !plan.startable}
+				note={note}
+				press={{ kind: "glyph", label: runKindLabel(kind), icon: RotateCw }}
+				updating={updating}
+			/>
+		</div>
 	);
 }
 
@@ -256,23 +248,6 @@ function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
 	);
 }
 
-type RunStatusProps = FetchRowProps & {
-	/** Whether Jev it is offered. Not before anything has been discovered. */
-	readonly jevIt: boolean;
-};
-
-/**
- * The sidebar's footer: the fetch, and Jev it beneath it.
- *
- * Refresh stays the borderless glyph the mock draws; Jev it is the footer's one prominent
- * press, ember once there is something to sort and a key to sort it with (ui/DESIGN.md,
- * principle 2).
- */
-export function RunStatus({ boards, lastFetchAt, onSettled, jevPause, jevIt, updating }: RunStatusProps) {
-	return (
-		<div className="sidebar-footer" aria-label="Runs">
-			<FetchRow boards={boards} lastFetchAt={lastFetchAt} onSettled={onSettled} updating={updating} />
-			{jevIt && !updating ? <JevItRow kind={JEV_IT_KIND} jevPause={jevPause ?? null} onSettled={onSettled} /> : null}
-		</div>
-	);
+export function JevStatus({ jevPause, onSettled }: { readonly jevPause: JevItRowProps["jevPause"]; readonly onSettled: () => void }) {
+	return <JevItRow kind={JEV_IT_KIND} jevPause={jevPause} onSettled={onSettled} />;
 }

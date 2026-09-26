@@ -404,6 +404,23 @@ export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSideb
 					</section>
 
 					<EmployerPicker boards={boards} onChange={setBoards} />
+					<section className="setup-section" aria-label={PROFILE.excludedEmployers}>
+						<h2 className="group-header">{PROFILE.excludedEmployers}</h2>
+						<div className="setup-group">
+							{(targeting.filters.employer_exclude ?? []).map((excluded) => (
+								<div className="setup-row" key={excluded}>
+									<span className="setup-row-label">{excluded}</span>
+									<button type="button" className="icon-button" aria-label={`${PROFILE.removeExcludedEmployer} ${excluded}`} onClick={() => edit(withFilters(form, { employer_exclude: (targeting.filters.employer_exclude ?? []).filter((value) => value !== excluded) }))}><Minus aria-hidden="true" className="icon" /></button>
+								</div>
+							))}
+							<Popup label={PROFILE.addExcludedEmployer} value="" onChange={(name) => {
+								if (name) edit(withFilters(form, { employer_exclude: [...(targeting.filters.employer_exclude ?? []), name] }));
+							}}>
+								<option value="">{PROFILE.addExcludedEmployer}</option>
+								{[...new Set(targeting.employers.map((employer) => employer.name || employer.board))].filter((name) => !(targeting.filters.employer_exclude ?? []).includes(name)).map((name) => <option key={name} value={name}>{name}</option>)}
+							</Popup>
+						</div>
+					</section>
 					{issue("targeting.employers") === null ? null : <p className="field-issue" role="alert">{issue("targeting.employers")}</p>}
 
 					<section className="setup-section" aria-label={PROFILE.filters}>

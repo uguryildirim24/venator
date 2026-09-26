@@ -135,6 +135,11 @@ filters:
       - computational_life_sciences
       - regulatory_science
 
+  # To stop fetching an employer and exclude its stored Postings, add:
+  # employer:
+  #   exclude: ["CVS Health"]  # display name in sources.names, or a board token
+  # This operational Hard Filter does not change Jev's Profile or policy hash.
+
   # Which Hard Filters run, in order. Remove one and it stops running — it
   # does not silently pass; it is simply not part of the policy.
   enabled:

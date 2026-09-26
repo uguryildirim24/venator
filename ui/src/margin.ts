@@ -13,12 +13,10 @@
  *   underline. A span is never guessed.
  * - A requirement sentence the assessment quoted (`Qualification not established: …`) is
  *   looked for the same way, as a whole clause ending on a word boundary. Required and not on
- *   the résumé is ember; every other kind is dotted. One that is not on the page is counted
- *   into a single note beside the requirements heading rather than quoted: employer words do
- *   not go in the margin.
- * - Every other sentence is about the whole Posting, its requirements, or a Hard Filter fact,
- *   and sits beside the header or requirements heading. Hard Filter facts remain visible even
- *   when all configured Hard Filters pass.
+ *   the résumé is ember; every other kind is dotted. The header ledger quotes short requirement
+ *   clauses; marks and their anchored notes remain beside the requirement blocks.
+ * - Other findings sit beside the header or requirements heading. A passed Hard Filter adds
+ *   no note; a failed one carries its rule and reason.
  */
 
 import type { FilterDecision, JevTriage, JobAssessment, ReaderBlock } from "../shared/contracts.ts";
@@ -27,7 +25,6 @@ import {
 	assessmentNotePlace,
 	evidenceSourceLabel,
 	jevDecisionLabel,
-	jevRuleLabel,
 	requirementFinding,
 	ruleLabel,
 } from "./labels.ts";
@@ -66,7 +63,8 @@ export type MarkedBlock = ReaderBlock & {
 };
 
 export type Margin = {
-	/** Notes beside the header, after the application. */
+	readonly fit: { readonly count: string | null; readonly tally: readonly NoteTone[]; readonly notes: readonly MarginNote[] } | null;
+	readonly requirementsAt: number | null;
 	readonly header: readonly MarginNote[];
 	readonly blocks: readonly MarkedBlock[];
 	/** The requirement clauses that were not found on the page, for the Requirements sheet. */
@@ -185,9 +183,7 @@ function earlyReviewNote(triage: JevTriage): MarginNote | null {
 		key: "early-review",
 		tone: "neutral",
 		title: `Jev: ${label.charAt(0).toLowerCase()}${label.slice(1)}`,
-		subtitle: triage.primaryRule !== null ? jevRuleLabel(triage.primaryRule)
-			: triage.reviewFlags[0] !== undefined ? jevRuleLabel(triage.reviewFlags[0])
-			: triage.reason,
+		subtitle: null,
 	};
 }
 
@@ -214,10 +210,13 @@ export function buildMargin(input: MarginInput): Margin {
 	const evidence = (assessment?.evidence ?? []).filter((entry) => entry.source !== HARD_FILTER_EVIDENCE);
 	const seenRequirements = new Set<string>();
 	const unplacedEvidence: MarginNote[] = [];
+	const met: string[] = [];
+	const gaps: MarginNote[] = [];
 	for (const entry of evidence) {
 		const needle = foldNeedle(entry.requirement);
 		if (needle === "" || seenRequirements.has(needle)) continue;
 		seenRequirements.add(needle);
+		met.push(entry.requirement.trim());
 		const section = evidenceSourceLabel(entry.source);
 		const related = entry.basis === "related_skill";
 		const note: MarginNote = {
@@ -262,6 +261,9 @@ export function buildMargin(input: MarginInput): Margin {
 				title: finding.title,
 				subtitle: finding.subtitle,
 			};
+			if (!seenRequirements.has(needle) && !gaps.some((gap) => foldNeedle(gap.title) === needle)) {
+				gaps.push({ ...note, title: finding.clause.trim(), subtitle: finding.required ? "Required · not on your résumé" : "Not on your résumé" });
+			}
 			const at = page.findIndex((block, index) => {
 				const found = locate(folded[index] ?? fold(""), block.text, needle);
 				if (found === null) return false;
@@ -275,6 +277,8 @@ export function buildMargin(input: MarginInput): Margin {
 			}
 			continue;
 		}
+		// Unknown metadata is not a fit finding.
+		if (/^(?:[a-z]+ )?(?:application_deadline|opportunity_type)\b/u.test(text)) continue;
 		// A conflict that restates the Hard Filter decision is already the Hard Filters note.
 		if (conflict && hardFilterReason !== null && text.includes(hardFilterReason)) continue;
 		const note: MarginNote = { key: `sentence:${position}`, tone: "neutral", title: assessmentNoteLabel(text), subtitle: null };
@@ -289,7 +293,7 @@ export function buildMargin(input: MarginInput): Margin {
 			key: "unplaced",
 			tone: "neutral",
 			title: `${unplaced.length} more ${unplaced.length === 1 ? "requirement" : "requirements"} to check`,
-			subtitle: "Not found word for word on this page",
+			subtitle: null,
 			opens: "requirements",
 		});
 	}
@@ -312,13 +316,25 @@ export function buildMargin(input: MarginInput): Margin {
 	if (filter !== null) sectionNotes.push(filter);
 	sectionNotes.push(...filterNotes);
 	const jev = input.jevTriage === undefined ? null : earlyReviewNote(input.jevTriage);
-	if (jev !== null) sectionNotes.push(jev);
-
-	const count = evidence.length === 0 ? null : `${seenRequirements.size} on your résumé`;
+	const read = assessment?.requirementsRead;
+	const validRead = read !== undefined && Number.isSafeInteger(read) && read >= met.length + gaps.length ? read : null;
+	const fit = met.length + gaps.length === 0 && jev === null ? null : {
+		count: assessment === undefined || assessment.status === "unassessed" ? null
+			: validRead === null ? `${met.length} on your résumé` : `Meets ${met.length} of ${validRead}`,
+		tally: [...met.map(() => "green" as const), ...gaps.map((gap) => gap.tone),
+			...Array.from({ length: (validRead ?? 0) - met.length - gaps.length }, () => "neutral" as const)],
+		notes: [
+			...gaps,
+			...(met.length ? [{ key: "fit-met", tone: "green" as const, title: "On your résumé", subtitle: met.join(", ") }] : []),
+			...(jev === null ? [] : [jev]),
+		],
+	};
 
 	if (firstSection === null) {
 		// No page: everything sits beside the header, the application first.
 		return {
+			fit,
+			requirementsAt,
 			header: unique([...header, ...sectionNotes, ...requirementNotes]),
 			blocks: [],
 			unplaced,
@@ -333,11 +349,11 @@ export function buildMargin(input: MarginInput): Margin {
 		return {
 			...block,
 			marks: [...(marks[index] ?? [])].sort((left, right) => left.start - right.start),
-			count: index === requirementsAt ? count : null,
+			count: null,
 			notes: unique([...lead, ...(notes[index] ?? [])]),
 		};
 	});
-	return { header: unique(header), blocks, unplaced };
+	return { fit, requirementsAt, header: unique(header), blocks, unplaced };
 }
 
 /** A block's text cut at its marks, for rendering: plain runs and marked runs, in order. */

@@ -17,9 +17,8 @@ normalisation on the Node side.
 
 Three properties are deliberate:
 
-* **It writes nothing and starts nothing.** No store is created, no directory is
-  stamped, no stage is run, and no request leaves this machine. Answering "what
-  would a run do" must not itself be a run.
+* **It starts nothing.** Only the disposable Jev plan cache may be written;
+  no store is created, no stage is run, and no request leaves this machine.
 * **A refusal is data.** A Profile that cannot be chosen, or a store this
   Profile may not read, comes back as a ``failure`` object with the pipeline's
   own sentence in it — exit 0 — so the dashboard can put that sentence next to a
@@ -37,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import hashlib
 import json
 import sys
 from datetime import date
@@ -52,9 +50,7 @@ try:
     from venator.match.store import verify_decisions_dir
     from venator.paths import StoreRootError, install_stores
     from venator.profile import ProfileError, resolve_profile
-    from venator.qualify.jev import current_mode, passing_postings, select_work
-    from venator.qualify.jev_release import JEV_RELEASE
-    from venator.qualify.store import as_of_month
+    from venator.qualify.plan_cache import jev_plan
 except Exception as err:  # pragma: no cover - exercised by an Install without the pipeline
     print(f"plan: the pipeline could not be imported: {err}", file=sys.stderr)
     raise SystemExit(3) from err
@@ -65,36 +61,7 @@ def _failure(kind: str, message: str | None) -> dict:
 
 
 def _jev_plan(profile, stores, as_of: str) -> dict:
-    month = as_of_month(as_of)
-    mode = current_mode(profile, month, stores.qualifications_dir, JEV_RELEASE)
-    postings = passing_postings(
-        stores.postings_dir, stores.decisions_dir, stores.qualifications_dir, profile, month,
-    )
-    work = select_work(
-        postings,
-        profile=profile,
-        month=month,
-        mode=mode,
-        qualifications_dir=stores.qualifications_dir,
-        named_keys=None,
-        release=JEV_RELEASE,
-        decided_at=f"{as_of}T00:00:00+00:00",
-        bindings_only=True,
-    )
-    count = work.report.selected
-    # The count and rounded allowance alone do not identify the work. A Profile
-    # edit or a different set of Postings can leave both unchanged.
-    selection_hash = hashlib.sha256(json.dumps(sorted(
-        work.selection
-    ), separators=(",", ":")).encode("utf-8")).hexdigest()
-    maximum_usd = 10.0 if count else 0.0
-    return {
-        "asOf": as_of,
-        "mode": mode,
-        "postingCount": count,
-        "maximumUsd": maximum_usd,
-        "selectionHash": selection_hash,
-    }
+    return jev_plan(profile, stores, as_of)
 
 
 def _document(profile, stores, as_of: str, kind: str) -> dict:
@@ -146,7 +113,7 @@ def main(argv: list[str]) -> int:
                     # claimed by another Profile is refused here, before
                     # Discover has appended anything, rather than partway
                     # through a run — `data/` is append-only.
-                    if stores.decisions_dir.exists():
+                    if args.kind != "jev-it" and stores.decisions_dir.exists():
                         verify_decisions_dir(stores.decisions_dir, profile.identifier)
                     payload = _document(profile, stores, date.today().isoformat(), args.kind)
                 except (OSError, ValueError) as err:

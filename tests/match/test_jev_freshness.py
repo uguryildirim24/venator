@@ -151,7 +151,7 @@ def test_empty_jev_release_hash_matches_legacy_callers(tmp_path: Path) -> None:
     baseline = filters_version(constraints, targeting)
     assert baseline == filters_version(constraints, targeting, jev_release_hash="")
     assert baseline != filters_version(constraints, targeting, jev_release_hash="changed")
-    assert FILTERS_REVISION == b"22-smartrecruiters-no-location-filter"
+    assert FILTERS_REVISION == b"23-employer-exclusion"
 
 
 def test_current_filter_version_adds_release_only_in_jev_mode(tmp_path: Path) -> None:

@@ -13,10 +13,9 @@ import { dayKey, formatDay, formatDayHeader, formatMoment, formatTime } from "..
 import { useKeyBindings, type KeyBinding } from "../keys.ts";
 import {
 	applicationStateLabel,
-	EARLY_REVIEW_CAVEAT,
 	earlyReviewLabel,
 	homeListLabel,
-	jevListLabel,
+	jevDecisionLabel,
 	jevSkipLabel,
 	jevStateLabel,
 	originLabel,
@@ -85,7 +84,7 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	} else if (state === "prepared") {
 		status = { text: "Documents ready", glyph: "ready" };
 	} else if (entry.jev?.decision === "prioritize" || entry.jev?.decision === "review") {
-		status = { text: jevListLabel(entry.jev.decision), glyph: "info" };
+		status = { text: `Jev: ${jevDecisionLabel(entry.jev.decision).toLowerCase()}`, glyph: "info" };
 	}
 	return {
 		key: posting.key,
@@ -277,7 +276,6 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 						) : (
 							<>
 								{/* Early review always says what it is; a toolbar subtitle is too narrow to hold it whole. */}
-								{source.kind === "triage" ? <p className="list-caption">{EARLY_REVIEW_CAVEAT}</p> : null}
 								<CellList label={title} groups={groups} selectedKey={selectedKey} onSelect={select} keyboardMoves={keyboardMoves} />
 							</>
 						)}

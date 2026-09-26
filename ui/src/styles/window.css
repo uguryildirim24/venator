@@ -177,8 +177,7 @@
 /*
  * The source list is board A + C of the design book: the kit's Large rows, each section's rows
  * in a rounded card on the sidebar ground, and the section headers between the cards. The
- * slot is the space between the top strip and the footer; the cards fill its width, and what
- * is left under the last card stays open.
+ * slot is the space between the top strip and the footer; the check caption sits under Sources.
  */
 .sidebar-nav {
 	flex: 1;
@@ -213,7 +212,7 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	gap: var(--space-2);
+	gap: var(--space-1-5);
 	height: var(--row-height);
 	padding: 0 var(--space-2);
 	border-radius: var(--radius-row);
@@ -223,6 +222,7 @@
 	text-align: left;
 	color: var(--label-primary);
 	text-decoration: none;
+	white-space: nowrap;
 	cursor: default;
 }
 
@@ -271,22 +271,39 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/*
- * The run controls: the last fetch with its borderless refresh glyph, as the mock draws them,
- * and Jev it beneath as the large capsule a first-run press is — ember while there is
- * something to sort and a key to sort it with, plain otherwise. Each row is its lines beside
- * its press, and a note under both when there is one.
- */
-.sidebar-footer {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-3);
-	flex-shrink: 0;
-	padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4-5);
+/* Refresh is a single caption, below the Employers card and inside the 14px inset. */
+.sidebar-check {
+	padding: var(--space-2) var(--space-1-5) var(--space-1) 0;
 	font-size: var(--size-subheadline);
 	line-height: var(--leading-subheadline);
 	color: var(--label-secondary);
 }
+.sidebar-check .run-status { gap: 0; }
+.sidebar-check .run-status-lines {
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
+	white-space: nowrap;
+}
+.sidebar-check .run-status-lines > span:first-child { color: var(--label-secondary); }
+.sidebar-check .icon-button { width: var(--space-5); height: var(--space-5); }
+.sidebar-check .icon { width: var(--space-3); height: var(--space-3); }
+.sidebar-check .run-note { font-size: var(--size-subheadline); }
+
+/* Jev it and the Profile account row share the sidebar ground. */
+.sidebar-footer {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	flex-shrink: 0;
+	padding: var(--space-3) var(--sidebar-inset) var(--space-4);
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
+	color: var(--label-secondary);
+}
+
+.sidebar-account { padding-left: var(--space-3); min-width: 0; }
+.sidebar-account > span { white-space: nowrap; }
+.sidebar-footer .run-status-lines { white-space: nowrap; }
 
 .run-row {
 	display: flex;
@@ -1273,6 +1290,48 @@
 }
 
 /* ------------------------------------------------------------------ the margin */
+
+.fit-ledger {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.fit-count {
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+	font-weight: var(--weight-semibold);
+	color: var(--label-primary);
+}
+
+.fit-tally {
+	display: flex;
+	gap: var(--space-0-5);
+	height: var(--space-1);
+}
+
+.fit-tally > span {
+	flex: 1;
+	border-radius: var(--space-0-5);
+	background: var(--label-faint-bar);
+}
+
+.fit-tally > span[data-tone="green"] { background: var(--green-mark); }
+.fit-tally > span[data-tone="ember"] { background: var(--ember-vibrant); }
+
+.fit-jump {
+	align-self: flex-start;
+	text-align: left;
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
+	font-weight: var(--weight-semibold);
+	color: var(--label-primary);
+	text-decoration: none;
+}
+
+.fit-jump:hover { text-decoration: underline; }
+.fit-ledger + .margin-application { margin-top: var(--space-1-5); }
+.margin-application > .button { width: 100%; justify-content: center; }
 
 .margin-stack {
 	display: flex;

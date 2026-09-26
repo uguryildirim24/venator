@@ -464,6 +464,8 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
     jev = _jev_policy(config.get("jev"), at.child("jev"))
     if qualification_mode == "jev" and jev is None:
         raise at.child("jev").reject("is required when qualification_mode is jev")
+    employer = _mapping(config.get("employer"), at.child("employer"))
+    employer_exclude = _strings(employer.get("exclude"), at.child("employer").child("exclude"))
     shift_preference = config.get("shift_preference", "no_preference")
     if shift_preference not in SHIFT_PREFERENCES:
         raise at.child("shift_preference").reject(
@@ -487,6 +489,7 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
         search=search or SearchTargeting(),
         jev=jev,
         shift_preference=shift_preference,
+        employer_exclude=employer_exclude,
     )
 
 
@@ -769,6 +772,8 @@ def load_profile(directory: Path) -> Profile:
     # targeting file listed only the original four rules.
     if search.eligibility_configured and "eligibility" not in filters.enabled:
         filters = replace(filters, enabled=(*filters.enabled, "eligibility"))
+    sources = _board_registry(targeting.get("sources"), at.child("sources"))
+    filters = replace(filters, employer_names=dict(sources.names))
     return Profile(
         name=_text(identity.get("name"), at.child("profile").child("name"), directory.name),
         directory=directory,
@@ -778,6 +783,6 @@ def load_profile(directory: Path) -> Profile:
         constraints=constraints,
         targeting=targeting,
         search=search,
-        sources=_board_registry(targeting.get("sources"), at.child("sources")),
+        sources=sources,
         filters=filters,
     )

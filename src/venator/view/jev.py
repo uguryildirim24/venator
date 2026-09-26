@@ -267,10 +267,10 @@ def materialize_triage(
     input_versions: Mapping[str, str] | None = None,
     current_check: Callable[..., bool] | None = None,
 ) -> list[tuple[object, ...]]:
-    """One triage row per Posting per mode: current success, else stale, else unavailable.
+    """One triage row per Posting per mode: current success, failure, stale, or waiting.
 
-    A current failure is shown as unavailable with its reason. An older success is
-    never relabelled current in that case. Historical scores are marked stale.
+    A current failure is shown as unavailable with its reason. An older result is
+    never relabelled current in that case. Historical Jev results are marked stale.
     Current success is a store identity match: the active Jev qualifier from
     ``PromotionState.current(..., qualifier_kind='typesafe_jev')``.
     """
@@ -325,15 +325,12 @@ def materialize_triage(
                 reason = str(current_failure.get("reason") or "Jev assessment is unavailable")
                 materialized.append(_placeholder(key, mode, as_of_month, reason))
                 continue
-            stale = None
-            for row in reversed(history):
-                if is_success(row):
-                    stale = row
-                    break
+            stale = next((row for row in reversed(history)
+                          if row.get("reason") != "credentials_missing"), None)
             if stale is not None:
                 materialized.append(_tuple_from_row(stale, state="stale"))
                 continue
             materialized.append(
-                _placeholder(key, mode, as_of_month, "Jev assessment is unavailable")
+                _placeholder(key, mode, as_of_month, None)
             )
     return materialized

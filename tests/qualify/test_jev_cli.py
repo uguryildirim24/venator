@@ -272,11 +272,15 @@ def test_selective_store_read_keeps_selection_and_payloads(
     closed = {**_posting(), "key": "fixture:closed", "listing_status": "closed"}
     snippet = {**_posting(), "key": "fixture:snippet", "description_kind": "snippet"}
     assessed = {**_posting(), "key": "fixture:assessed"}
-    _write_postings(tmp_path / "postings", passed, killed, stale, closed, snippet, assessed)
+    blank = {**_posting(), "key": "fixture:blank", "description_html": "<div>  </div>"}
+    removed = {**_posting(), "key": "fixture:removed"}
+    _write_postings(tmp_path / "postings", passed, killed, stale, closed, snippet, assessed, blank, removed)
     # A compact observation changes the effective Posting without replacing
     # its description. The version must compare against that merged row.
     with (tmp_path / "postings" / "2026-09-18.jsonl").open("a") as output:
         output.write(json.dumps({"key": passed["key"], "_observation": {"title": "Updated intern"}}) + "\n")
+        output.write(json.dumps({"key": removed["key"], "_observation": {},
+                                 "_remove": ["description_html", "description_kind"]}) + "\n")
     effective = load_postings(tmp_path / "postings")
     version = current_filter_version(
         profile, jev_promotion_state([], profile.identifier), JEV_RELEASE,
@@ -327,6 +331,7 @@ def test_selective_store_read_keeps_selection_and_payloads(
         for case in expected.prepared
     ]
     assert planned["postingCount"] == len(expected_bindings)
+    assert {key for key, _ in expected_bindings} == {passed["key"]}
     assert planned["selectionHash"] == hashlib.sha256(json.dumps(
         sorted(expected_bindings), separators=(",", ":"),
     ).encode()).hexdigest()
