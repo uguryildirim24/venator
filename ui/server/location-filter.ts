@@ -6,11 +6,13 @@ import type { DatabaseSync } from "node:sqlite";
 import { applicationDataDirectory, systemContext, type LocationContext } from "./locations.ts";
 import { asList, asText, parseJson } from "./onboarding/json.ts";
 import { optionalTextColumn, textColumn, type SqlRow } from "./rows.ts";
+import { US_CITIES } from "./us-city-table.ts";
 
 const STATES = {
 	AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
 } satisfies Record<string, string>;
 const STATE_NAMES = new Map(Object.entries(STATES));
+const usCities: ReadonlyMap<string, readonly string[]> = new Map(Object.entries(US_CITIES));
 const STATE_CODE = new Map(Object.entries(STATES).flatMap(([code, name]) => [[code.toLowerCase(), code], [name.toLowerCase(), code]]));
 
 export type LocationChoice = { readonly key: string; readonly label: string; readonly count: number; readonly parent?: string };
@@ -31,33 +33,59 @@ const country = (text: string): string | undefined => {
 };
 const title = (text: string): string => text.toLocaleLowerCase("en-US").replace(/(^|[\s-])\p{L}/gu, (part) => part.toLocaleUpperCase("en-US"));
 const several = (text: string): boolean => /^\d+\s+locations?$/iu.test(text);
+const remoteOnly = (text: string): boolean => /^\(?remote\b/iu.test(text) || /^remote_/iu.test(text) ||
+	/^option to work remote\b/iu.test(text) || /^(?:US|USA)\s*:\s*USA\s+remote$/iu.test(text) ||
+	/^(?:US|USA|United States|[A-Z]{2,3})(?:\s*[-–,: ]\s*[A-Z]{2})?\s*[-–,: ]\s*remote\b/iu.test(text) ||
+	/^(?:United States|United Kingdom|India|China|Japan|Germany|Canada)\s*[-–]\s*remote\b/iu.test(text);
+const cityName = (text: string): string => text.replace(/\s+(?:job posting location|posting location|job location)$/iu, "")
+	.replace(/\s*\([^)]*(?:campus|site|office|location)[^)]*\)$/iu, "")
+	.replace(/\s+(?:university|memorial|main|medical|north|south|west|east)\s+campus$/iu, "")
+	.replace(/\s+(?:campus|site)$/iu, "").trim();
 
 /** A read-side identity; no approximate geocoding or network lookups. */
 export function locationChoices(raw: string | null, sourcePlaces: readonly string[] = []): readonly Place[] {
-	const display = (raw ?? "").split(";").map((part) => part.trim()).filter(Boolean);
-	const locations = display.some(several) && sourcePlaces.length ? sourcePlaces : display;
+	const display = (raw ?? "").split(/[;|/]/u).map((part) => part.trim()).filter(Boolean);
+	const locations = (display.some(several) && sourcePlaces.length ? sourcePlaces : display)
+		.flatMap((part) => part.split(/[;|/]/u).map((piece) => piece.trim()).filter(Boolean));
 	if (!locations.length) return [{ key: "none", label: "No location" }];
 	const choices = new Map<string, Place>();
 	const add = (choice: Place) => choices.set(choice.key, choice);
 	for (const value of locations) {
 		if (several(value)) continue;
 		const location = value.trim().replaceAll(/\s+/gu, " ");
-		if (/\bremote\b/iu.test(location)) add({ key: "remote", label: "Remote" });
-		let local = location.replace(/\s*\(remote\)/giu, "").replace(/^remote\s*[-–,/(]?\s*(?:US|USA|United States)?\)?$/iu, "")
+		const hasRemote = /(?:^|[^\p{L}])remote(?:\b|_)/iu.test(location);
+		if (hasRemote) add({ key: "remote", label: "Remote" });
+		if (remoteOnly(location)) continue;
+		let local = location.replace(/\s*\(remote\)/giu, "").replace(/\s+or\s+remote(?:\s+U\.?S\.?)?$/iu, "")
+			.replace(/^remote\s+location\s*[-–]\s*/iu, "").replace(/^remote\s*[-–,/(]?\s*(?:US|USA|United States)?\)?$/iu, "")
 			.replace(/\s*[-–,/]\s*remote(?:\s*[-–,(]?\s*(?:US|USA|United States)\)?)?$/iu, "")
 			.replace(/\s*[-–/,]\s*$/u, "").trim();
 		if (!local) continue;
 		// Workday and Peopleclick use country-state-city paths; other boards use city-state or city, state.
-		local = local.replace(/^(?:US|USA|United States)\s*[-–—]\s*/iu, "").replace(/\s+\d{5}(?:-\d{4})?$/u, "");
+		local = local.replace(/^(?:US|USA|United States)\s*[-–—,]\s*/iu, "").replace(/\s+\d{5}(?:-\d{4})?$/u, "")
+			.replace(/\s*[-–—]\s*(?:US|USA|United States)$/iu, "");
+		const statePath = /^(.+?)\s*[-–—]\s*(.+)$/u.exec(local);
+		if (statePath && STATE_CODE.has(statePath[1]!.toLowerCase())) local = `${statePath[2]}, ${STATE_CODE.get(statePath[1]!.toLowerCase())}`;
+		local = local
+			.replace(/\s*,\s*(?:United States(?: of America)?|USA|US)$/iu, "")
+			.replace(/\s+\(?USA\)?$/iu, "");
 		const path = /^([A-Z]{2})\s*[-–—]\s*(.+)$/u.exec(local);
 		if (path && STATE_NAMES.has(path[1]!)) local = `${path[2]}, ${path[1]}`;
 		const hyphen = /^(.+?)\s*[-–—]\s*([A-Z]{2})$/u.exec(local);
 		if (hyphen && STATE_NAMES.has(hyphen[2]!)) local = `${hyphen[1]}, ${hyphen[2]}`;
 		const parts = local.split(/\s*,\s*/u).filter(Boolean);
+		parts[0] = cityName(parts[0] ?? "");
+		if (hasRemote && /\bremote\b/iu.test(parts[0]!)) continue;
+		if (parts[1]) parts[1] = parts[1].replace(/\s*\([^)]*(?:campus|site|office)[^)]*\)$/iu, "")
+			.replace(/\s+(?:university|memorial|main|medical|north|south|west|east)\s+campus$/iu, "").trim();
 		let state = STATE_CODE.get((parts[1] ?? "").toLowerCase()) ?? STATE_CODE.get(local.toLowerCase());
 		if (!state && parts.length === 1) {
-			const suffix = /^(.+?)\s+([A-Z]{2})$/u.exec(local);
-			if (suffix && STATE_NAMES.has(suffix[2]!)) { state = suffix[2]; parts.splice(0, 1, suffix[1]!); }
+			const suffix = /^(.+?)\s+([A-Z]{2})$/iu.exec(local);
+			if (suffix && STATE_NAMES.has(suffix[2]!.toUpperCase())) { state = suffix[2]!.toUpperCase(); parts.splice(0, 1, cityName(suffix[1]!)); }
+		}
+		if (!state && parts.length === 1) {
+			const known = usCities.get(parts[0]!.toLocaleLowerCase("en-US"));
+			if (known?.length === 1) state = known[0];
 		}
 		if (state) {
 			const parent = `state:${state}`;
@@ -80,7 +108,7 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 				const name = title(city);
 				add({ key: `city:${name.toLocaleLowerCase("en-US")},${nation.toLowerCase()}`, label: name, parent });
 			}
-		} else {
+		} else if (!hasRemote) {
 			const parent = "other";
 			add({ key: parent, label: "Other places" });
 			add({ key: `place:${local.toLocaleLowerCase("en-US")}`, label: title(local), parent });

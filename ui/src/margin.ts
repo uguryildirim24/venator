@@ -2,9 +2,8 @@
  * What Venator writes in the margin of a Posting, and where on the page each note sits.
  *
  * Pure: it takes the Posting's detail and returns, for every block of the reader page, the
- * underlines to draw in that block and the notes to set level with it. No layout is measured.
- * The page grid puts a block and its notes in the same row, so placing a note here is placing
- * it on screen (ui/DESIGN.md, "The Posting page and its margin").
+ * underlines to draw in that block and the notes to anchor to it. This module does not measure
+ * layout; the Posting page flows anchored notes past each other (ui/DESIGN.md, "The Posting page and its margin").
  *
  * The rules, in the order they are applied:
  *
@@ -18,18 +17,17 @@
  *   into a single note beside the requirements heading rather than quoted: employer words do
  *   not go in the margin.
  * - Every other sentence is about the whole Posting, its requirements, or a Hard Filter fact,
- *   and sits beside the header, the requirements heading, or the Hard Filters note.
+ *   and sits beside the header or requirements heading. Hard Filter facts remain visible even
+ *   when all configured Hard Filters pass.
  */
 
 import type { FilterDecision, JevTriage, JobAssessment, ReaderBlock } from "../shared/contracts.ts";
 import {
 	assessmentNoteLabel,
 	assessmentNotePlace,
-	EARLY_REVIEW_CAVEAT,
 	evidenceSourceLabel,
 	jevDecisionLabel,
 	jevRuleLabel,
-	jevStateLabel,
 	requirementFinding,
 	ruleLabel,
 } from "./labels.ts";
@@ -161,17 +159,9 @@ function sectionStart(blocks: readonly ReaderBlock[], index: number): number {
 
 /* --------------------------------------------------------------- notes */
 
-function hardFilterNote(decisions: readonly FilterDecision[], rulesChecked: number): MarginNote {
+function hardFilterNote(decisions: readonly FilterDecision[]): MarginNote | null {
 	const decision = decisions.findLast((candidate) => candidate.stage === "hard_filter" && candidate.latest) ?? null;
-	if (decision === null) {
-		return {
-			key: "hard-filter",
-			tone: "neutral",
-			title: "Not checked by the Hard Filters yet",
-			subtitle: "The next run decides it",
-		};
-	}
-	if (decision.verdict === "kill") {
+	if (decision?.verdict === "kill") {
 		const reason = decision.reason === null ? "No reason was recorded" : assessmentNoteLabel(decision.reason);
 		return {
 			key: "hard-filter",
@@ -185,29 +175,19 @@ function hardFilterNote(decisions: readonly FilterDecision[], rulesChecked: numb
 					: { label: "Everything this rule excluded", hash: inspectorHash({ status: "hard-killed", rule: decision.rule, search: "" }) },
 		};
 	}
-	return {
-		key: "hard-filter",
-		tone: "neutral",
-		title: "Hard Filters passed",
-		subtitle: rulesChecked > 0 ? `All ${rulesChecked} of your rules` : null,
-	};
+	return null;
 }
 
-function earlyReviewNote(triage: JevTriage): MarginNote {
+function earlyReviewNote(triage: JevTriage): MarginNote | null {
+	if (triage.state !== "current" || triage.decision === "unassessed") return null;
 	const label = jevDecisionLabel(triage.decision);
 	return {
 		key: "early-review",
 		tone: "neutral",
-		title: triage.state === "current"
-			? `Jev: ${label.charAt(0).toLowerCase()}${label.slice(1)}`
-			: triage.state === "unavailable"
-				? jevStateLabel(triage.state)
-				: `Jev: ${jevStateLabel(triage.state).toLowerCase()}`,
-		subtitle: triage.mode === "shadow"
-			? "An estimate, not a verdict"
-			: triage.state === "current" ? null : EARLY_REVIEW_CAVEAT,
-		detail: triage.state === "current" && triage.decision === "exclude" && triage.primaryRule !== null
-			? jevRuleLabel(triage.primaryRule) : null,
+		title: `Jev: ${label.charAt(0).toLowerCase()}${label.slice(1)}`,
+		subtitle: triage.primaryRule !== null ? jevRuleLabel(triage.primaryRule)
+			: triage.reviewFlags[0] !== undefined ? jevRuleLabel(triage.reviewFlags[0])
+			: triage.reason,
 	};
 }
 
@@ -327,10 +307,12 @@ export function buildMargin(input: MarginInput): Margin {
 					? namedHeading
 					: firstSection;
 
-	const rulesChecked = (assessment?.evidence ?? []).filter((entry) => entry.source === HARD_FILTER_EVIDENCE).length;
 	const sectionNotes: MarginNote[] = [];
-	sectionNotes.push(hardFilterNote(input.decisions, rulesChecked), ...filterNotes);
-	if (input.jevTriage !== undefined) sectionNotes.push(earlyReviewNote(input.jevTriage));
+	const filter = hardFilterNote(input.decisions);
+	if (filter !== null) sectionNotes.push(filter);
+	sectionNotes.push(...filterNotes);
+	const jev = input.jevTriage === undefined ? null : earlyReviewNote(input.jevTriage);
+	if (jev !== null) sectionNotes.push(jev);
 
 	const count = evidence.length === 0 ? null : `${seenRequirements.size} on your résumé`;
 

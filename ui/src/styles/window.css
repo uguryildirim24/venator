@@ -260,11 +260,13 @@
 .sidebar-row .icon {
 	width: var(--icon-size-large);
 	height: var(--icon-size-large);
+	flex-shrink: 0;
 	color: var(--ember-vibrant);
 }
 
 .sidebar-count {
 	margin-left: auto;
+	white-space: nowrap;
 	color: var(--label-secondary);
 	font-variant-numeric: tabular-nums;
 }
@@ -280,7 +282,7 @@
 	flex-direction: column;
 	gap: var(--space-3);
 	flex-shrink: 0;
-	padding: var(--space-3) var(--space-4) var(--space-4) var(--space-5);
+	padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4-5);
 	font-size: var(--size-subheadline);
 	line-height: var(--leading-subheadline);
 	color: var(--label-secondary);
@@ -308,6 +310,15 @@
 	flex-direction: column;
 	flex: 1;
 	min-width: 0;
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
+}
+
+.run-status-lines > span:first-child { color: var(--label-primary); }
+.run-status-lines > span + span:not(.run-progress) {
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
+	color: var(--label-secondary);
 }
 
 .run-note {
@@ -522,7 +533,7 @@
 	align-items: center;
 	gap: var(--space-3);
 	min-width: 0;
-	padding: 0 var(--space-2-5) 0 var(--space-4);
+	padding: 0 var(--space-2-5) 0 var(--space-4-5);
 }
 
 .toolbar-list[data-lights="reserved"] {
@@ -608,8 +619,8 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--space-8);
-	height: var(--space-8);
+	width: var(--space-7);
+	height: var(--space-7);
 	border-radius: var(--radius-capsule);
 	color: var(--label-primary);
 }
@@ -1071,10 +1082,28 @@
 /* ------------------------------------------------------------------ the Posting page */
 
 .posting {
+	--page-inset: clamp(var(--space-6), calc(var(--space-6) + (100cqw - var(--page-fold)) * 0.081081), var(--space-9));
+	--page-measure: clamp(var(--page-min-width), calc(var(--page-min-width) + (100cqw - var(--page-fold)) * 0.216216), var(--page-width));
+	--page-gutter: var(--page-inset);
+	position: relative;
 	display: grid;
-	grid-template-columns: var(--page-width) minmax(0, 1fr);
-	column-gap: var(--page-gap);
-	padding: var(--space-7) var(--space-9) var(--space-6);
+	grid-template-columns: var(--page-measure) minmax(0, 1fr);
+	column-gap: var(--page-gutter);
+	width: calc(100% - 2 * var(--page-inset));
+	max-width: var(--page-block-width);
+	margin-inline: auto;
+	padding-block: var(--space-7) var(--space-6);
+}
+
+/* One continuous rule; notes float independently of the employer's page rhythm. */
+.posting::before {
+	content: "";
+	position: absolute;
+	top: var(--space-7);
+	bottom: var(--space-6);
+	left: calc(var(--page-measure) + var(--page-gutter));
+	width: var(--hairline-width);
+	background: var(--label-quinary);
 }
 
 .page-block {
@@ -1089,35 +1118,33 @@
 .margin-cell {
 	grid-column: 2;
 	min-width: 0;
+	height: 0;
 	padding-left: var(--space-4);
-	border-left: var(--hairline-width) solid var(--label-quinary);
 }
 
 /* Only the note rows need a height cap: the header holds application actions,
    and the foot holds the history links. Neither belongs in a scroll box. */
-.page-block[data-kind="heading"] .margin-cell,
-.page-block[data-kind="paragraph"] .margin-cell,
-.page-block[data-kind="item"] .margin-cell {
-	max-height: calc(2 * var(--space-16));
-	overflow-y: auto;
-	overscroll-behavior: contain;
-}
+
 
 .page-block[data-kind="header"] .page-cell {
-	padding-bottom: var(--space-12);
+	padding-bottom: var(--space-6-5);
 }
 
 .page-block[data-kind="header"] .margin-cell {
-	padding-bottom: var(--space-8);
+	padding-top: 0;
 }
 
 .page-block[data-kind="heading"] .page-cell {
 	padding-top: var(--space-4);
-	padding-bottom: var(--space-2);
+	padding-bottom: var(--space-1);
 }
 
+.page-block[data-kind="heading"] .margin-cell { padding-top: calc(var(--space-4) + 5px); }
+.page-block[data-kind="paragraph"] .margin-cell,
+.page-block[data-kind="item"] .margin-cell { padding-top: var(--space-1-5); }
+
 .page-block[data-kind="paragraph"] .page-cell {
-	padding-bottom: var(--space-4);
+	padding-bottom: var(--space-5-5);
 }
 
 .page-block[data-kind="item"] .page-cell {
@@ -1126,7 +1153,7 @@
 
 .page-block[data-kind="foot"] .page-cell,
 .page-block[data-kind="foot"] .margin-cell {
-	padding-top: var(--space-6);
+	padding-top: var(--space-3);
 }
 
 /* What changed and History: small links, one per line, each with its count and a chevron. */
@@ -1151,7 +1178,7 @@
 }
 
 .page-title {
-	margin-top: var(--space-2);
+	margin-top: var(--space-2-5);
 	font-family: var(--font-page);
 	font-size: var(--size-page-title);
 	line-height: var(--leading-page-title);
@@ -1165,7 +1192,7 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--space-1-5);
-	margin-top: var(--space-3);
+	margin-top: var(--space-2-5);
 	font-size: var(--size-subheadline);
 	line-height: var(--leading-subheadline);
 	color: var(--label-secondary);
@@ -1395,12 +1422,14 @@
 	}
 }
 
-/* Below about 720px of detail width the margin folds under each block, keeping its bars. */
-@container (max-width: 720px) {
+/* Below 680px of detail width, notes return to the page's normal flow. */
+@container (max-width: 679px) {
 	.posting {
 		grid-template-columns: minmax(0, 1fr);
-		padding-inline: var(--space-6);
+		width: calc(100% - 2 * var(--space-6));
 	}
+
+	.posting::before { content: none; }
 
 	.page-cell,
 	.margin-cell {
@@ -1408,8 +1437,9 @@
 	}
 
 	.margin-cell {
-		padding-left: 0;
-		border-left: 0;
+		height: auto;
+		padding: 0;
+		translate: none !important;
 	}
 
 	.margin-cell:not(:empty) {

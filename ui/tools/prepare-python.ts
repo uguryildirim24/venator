@@ -56,6 +56,7 @@ import {
 import {
 	assertStagedForTarget,
 	megabytes,
+	removeBytecode,
 	stageInterpreter,
 	stagePipeline,
 	stageWheels,
@@ -157,8 +158,9 @@ async function main(): Promise<void> {
 					rmSync(resolve(site, entry), { recursive: true });
 				}
 			}
+			removeBytecode(scratch);
 			const interpreter = resolve(scratch, "python/bin/python3.13");
-			const result = execFileSync(interpreter, ["-c", "import venator, playwright, pdfplumber, yaml; print(venator.__file__)"], {
+			const result = execFileSync(interpreter, ["-B", "-c", "import venator, playwright, pdfplumber, yaml; print(venator.__file__)"], {
 				encoding: "utf8", env: { ...process.env, PYTHONNOUSERSITE: "1" },
 			});
 			say("import ok", result.trim());
@@ -167,6 +169,7 @@ async function main(): Promise<void> {
 			stageWheels(scratch, target, CHECKOUT_ROOT, CACHE, say);
 			stagePipeline(scratch, CHECKOUT_ROOT, say);
 			writePathConfiguration(scratch, target, say);
+			removeBytecode(scratch);
 			const checked = assertStagedForTarget(scratch, target);
 			say("headers ok", `${checked} native files read back, all Windows PE for ${target.arch}`);
 		}

@@ -106,6 +106,22 @@ export function walk(root: string, prefix = ""): readonly string[] {
 	return found;
 }
 
+/** Precompiled caches from an archive or wheel cost bundle space and must not be shipped. */
+export function removeBytecode(root: string): void {
+	function visit(directory: string): void {
+		for (const entry of readdirSync(directory, { withFileTypes: true })) {
+			const path = join(directory, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name === "__pycache__") rmSync(path, { recursive: true });
+				else visit(path);
+			} else if (entry.name.endsWith(".pyc")) {
+				rmSync(path);
+			}
+		}
+	}
+	visit(root);
+}
+
 /** The bytes at `url`, or an explanation of what a build host needs to reach it. */
 export async function downloadBytes(url: string): Promise<Uint8Array> {
 	const response = await fetch(url).catch((cause: Error) => {

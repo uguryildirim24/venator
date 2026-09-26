@@ -143,11 +143,11 @@ export type LocationSelection = {
 };
 
 export function useLocations(reloadToken: number): RequestState<LocationSelection> {
-	return useApi<LocationSelection>("/locations/", reloadToken);
+	return useApi<LocationSelection>("/locations", reloadToken);
 }
 
 export async function saveLocations(selected: readonly string[]): Promise<void> {
-	const response = await fetch(`${API_BASE_URL}/locations/`, {
+	const response = await fetch(`${API_BASE_URL}/locations`, {
 		method: "POST", headers: { "content-type": "application/json", "X-Venator-Location": "1" }, body: JSON.stringify({ selected }),
 	});
 	if (!response.ok) throw new Error("The location choice could not be saved.");

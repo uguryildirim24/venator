@@ -50,6 +50,35 @@ test("source ATS variants collapse to one city and multi-place Postings count on
 	} finally { db.close(); }
 });
 
+test("site suffixes, boilerplate, case and punctuation resolve to the same city", () => {
+	for (const label of ["bOsToN, Ma (Main Campus)", "Boston MA", "Boston Job Posting Location", "Boston, MA University Campus", "Boston, MA (West Site)"]) {
+		assert.ok(locationChoices(label).some(({ key }) => key === "city:boston,MA"), label);
+	}
+	assert.ok(locationChoices("Worcester, MA Memorial Campus").some(({ key }) => key === "city:worcester,MA"));
+	assert.ok(locationChoices("Cambridge Posting Location").some(({ key }) => key === "city:cambridge,MA"));
+	assert.ok(locationChoices("Boston, Ma (main Campus)").some(({ key }) => key === "city:boston,MA"));
+	for (const path of ["US, Indianapolis IN", "USA - New Jersey - Rahway", "US - California - Thousand Oaks", "Princeton - NJ - US"]) {
+		assert.equal(locationChoices(path).some(({ key }) => key === "other"), false, path);
+	}
+});
+
+test("joined places split, but ambiguous cities and unnamed campuses are not guessed", () => {
+	const keys = locationChoices("Boston, MA | Springfield, IL; Seattle, WA / Boston Job Posting Location").map(({ key }) => key);
+	assert.deepEqual(keys, ["state:MA", "city:boston,MA", "state:IL", "city:springfield,IL", "state:WA", "city:seattle,WA"]);
+	assert.ok(locationChoices("Springfield").some(({ key }) => key === "other"));
+	assert.ok(locationChoices("Springfield, MA").some(({ key }) => key === "city:springfield,MA"));
+	assert.ok(locationChoices("University Medical Campus").some(({ key }) => key === "other"));
+});
+
+test("standalone Remote variants have no bogus children, including sourced lists", () => {
+	for (const label of ["Remote, North Carolina, USA", "United States - Remote", "USA-NC-Remote", "Remote Position (USA)", "Remote-Friendly (Travel Required)", "US: USA Remote", "Remote_United States", "(Remote US)", "Option to work remote in Canada"]) {
+		assert.deepEqual(locationChoices(label), [{ key: "remote", label: "Remote" }], label);
+	}
+	assert.deepEqual(locationChoices("2 Locations", ["Remote, USA", "Boston, MA"]).map(({ key }) => key), ["remote", "state:MA", "city:boston,MA"]);
+	assert.deepEqual(locationChoices("Boston, MA or Remote").map(({ key }) => key), ["remote", "state:MA", "city:boston,MA"]);
+	assert.deepEqual(locationChoices("Spain - Remote Location-Madrid"), [{ key: "remote", label: "Remote" }]);
+});
+
 test("a cross-origin simple POST cannot change the Install's location choice", async () => {
 	const routes = createLocationRoutes();
 	for (const headers of [{ "content-type": "text/plain", origin: "https://boards.example.com" }, { "content-type": "text/plain" }]) {

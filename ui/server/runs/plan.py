@@ -49,10 +49,10 @@ from pathlib import Path
 _STDOUT = sys.stdout
 
 try:
-    from venator.match.store import load_postings, verify_decisions_dir
+    from venator.match.store import verify_decisions_dir
     from venator.paths import StoreRootError, install_stores
     from venator.profile import ProfileError, resolve_profile
-    from venator.qualify.jev import current_mode, hard_filter_passes, select_work
+    from venator.qualify.jev import current_mode, passing_postings, select_work
     from venator.qualify.jev_release import JEV_RELEASE
     from venator.qualify.store import as_of_month
 except Exception as err:  # pragma: no cover - exercised by an Install without the pipeline
@@ -67,9 +67,8 @@ def _failure(kind: str, message: str | None) -> dict:
 def _jev_plan(profile, stores, as_of: str) -> dict:
     month = as_of_month(as_of)
     mode = current_mode(profile, month, stores.qualifications_dir, JEV_RELEASE)
-    postings = hard_filter_passes(
-        load_postings(stores.postings_dir), stores.decisions_dir, profile, month,
-        stores.qualifications_dir,
+    postings = passing_postings(
+        stores.postings_dir, stores.decisions_dir, stores.qualifications_dir, profile, month,
     )
     work = select_work(
         postings,
@@ -80,13 +79,13 @@ def _jev_plan(profile, stores, as_of: str) -> dict:
         named_keys=None,
         release=JEV_RELEASE,
         decided_at=f"{as_of}T00:00:00+00:00",
+        bindings_only=True,
     )
     count = work.report.selected
     # The count and rounded allowance alone do not identify the work. A Profile
     # edit or a different set of Postings can leave both unchanged.
     selection_hash = hashlib.sha256(json.dumps(sorted(
-        (case.bindings.posting_key, case.bindings.input_version)
-        for case in work.prepared
+        work.selection
     ), separators=(",", ":")).encode("utf-8")).hexdigest()
     maximum_usd = 10.0 if count else 0.0
     return {

@@ -144,7 +144,7 @@ print("SYSPATH=" + json.dumps(sys.path))
 '@ | Set-Content -LiteralPath $program -Encoding utf8
 
 try {
-    $lines = & $pythonFull $program
+    $lines = & $pythonFull -B $program
     $status = $LASTEXITCODE
 } finally {
     Remove-Item -LiteralPath $program -Force -ErrorAction SilentlyContinue
@@ -204,7 +204,7 @@ Write-Host "`nWhat the dashboard asks it"
 # to the probe's default, so the answer can be checked against the question. Exit 0 whenever the
 # probe ran, including when the lane is unavailable — which is what a runner with no LLM runtime
 # installed produces.
-$probe = & $pythonFull -m venator.llm.probe --lane $Lane --json
+$probe = & $pythonFull -B -m venator.llm.probe --lane $Lane --json
 $probeStatus = $LASTEXITCODE
 if ($probeStatus -ne 0) {
     Stop-With "``python -m venator.llm.probe --lane $Lane --json`` exited $probeStatus on the staged runtime; the dashboard's runtime step cannot be answered by this bundle"

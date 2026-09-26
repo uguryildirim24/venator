@@ -18,7 +18,6 @@ import type {
 	DecisionStage,
 	DecisionVerdict,
 	JevTriageDecision,
-	JevTriageMode,
 	JevTriageState,
 	Posting,
 	PostingStatus,
@@ -568,13 +567,12 @@ export function earlyReviewLabel(): string {
 /** What early review is, said every time it is shown. */
 export const EARLY_REVIEW_CAVEAT = "Unavailable and out-of-date Jev results. These Postings remain in Awaiting Jev.";
 
-export function jevSkipLabel(mode: JevTriageMode): string {
-	return mode === "shadow" ? "Jev: skip — An estimate, not a verdict" : "Jev: skip";
+export function jevSkipLabel(): string {
+	return "Jev: skip";
 }
 
-export function jevListLabel(decision: "prioritize" | "review", mode: JevTriageMode): string {
-	const label = decision === "prioritize" ? "Jev: look first" : "Jev: review";
-	return mode === "shadow" ? `${label} — An estimate, not a verdict` : label;
+export function jevListLabel(decision: "prioritize" | "review"): string {
+	return decision === "prioritize" ? "Jev: look first" : "Jev: review";
 }
 
 /**

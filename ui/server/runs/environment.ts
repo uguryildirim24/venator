@@ -76,15 +76,19 @@ export type ChildEnvironment = Record<string, string>;
 
 export const TYPESAFE_API_KEY_ENVIRONMENT = "TYPESAFE_API_KEY";
 
+// Every Python adapter and pipeline child uses one of the environments below. In a desktop
+// Install its interpreter lives inside the signed app bundle; imports must never write there.
+export const NO_BYTECODE_ENVIRONMENT = "PYTHONDONTWRITEBYTECODE";
+
 /** Keep onboarding's inherited tools, but never give them the Jev credential. */
 export function nonJevInheritedEnvironment(context: LocationContext = systemContext()): NodeJS.ProcessEnv {
-	const environment: NodeJS.ProcessEnv = { ...process.env, VENATOR_LLM_RUNTIME: documentRuntime(context) };
+	const environment: NodeJS.ProcessEnv = { ...process.env, VENATOR_LLM_RUNTIME: documentRuntime(context), [NO_BYTECODE_ENVIRONMENT]: "1" };
 	delete environment[TYPESAFE_API_KEY_ENVIRONMENT];
 	return environment;
 }
 
 export function runEnvironment(context: LocationContext): ChildEnvironment {
-	const named: [string, string][] = [["PYTHONUNBUFFERED", "1"]];
+	const named: [string, string][] = [["PYTHONUNBUFFERED", "1"], [NO_BYTECODE_ENVIRONMENT, "1"]];
 	for (const name of FORWARDED) {
 		const value = context.environment(name);
 		if (value !== undefined) named.push([name, value]);
