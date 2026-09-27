@@ -1105,6 +1105,26 @@
 	}
 }
 
+/* Eight lines of the reader page, fading into its own ground. The expanded rows
+   join the parent grid so their notes still align with the employer's words. */
+.description-blocks[data-expanded="true"] { display: contents; }
+.description-blocks:not([data-expanded="true"]) {
+	grid-column: 1;
+	position: relative;
+	height: calc(8 * var(--leading-page-text));
+	overflow: hidden;
+}
+.description-blocks:not([data-expanded="true"])::after {
+	content: "";
+	position: absolute;
+	inset: auto 0 0;
+	height: calc(2 * var(--leading-page-text));
+	background: linear-gradient(to bottom, transparent, var(--window));
+	pointer-events: none;
+}
+.description-blocks:not([data-expanded="true"]) .page-block { display: block; }
+.description-blocks:not([data-expanded="true"]) .margin-cell { display: none; }
+
 /* One continuous rule; notes float independently of the employer's page rhythm. */
 .posting::before {
 	content: "";
@@ -1312,17 +1332,19 @@
 .fit-tally > span[data-tone="green"] { background: var(--green-mark); }
 .fit-tally > span[data-tone="ember"] { background: var(--ember-vibrant); }
 
-.fit-jump {
-	align-self: flex-start;
+.fit-group {
+	width: 100%;
+	min-width: 0;
 	text-align: left;
-	font-size: var(--size-subheadline);
-	line-height: var(--leading-subheadline);
-	font-weight: var(--weight-semibold);
-	color: var(--label-primary);
-	text-decoration: none;
+	cursor: pointer;
 }
-
-.fit-jump:hover { text-decoration: underline; }
+.fit-group > span {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+.fit-group:hover .note-title { text-decoration: underline; }
 .fit-ledger + .margin-application { margin-top: var(--space-1-5); }
 .margin-application > .button { width: 100%; justify-content: center; }
 
@@ -1358,6 +1380,14 @@
 .note-subtitle {
 	color: var(--label-secondary);
 	overflow-wrap: anywhere;
+}
+.description-blocks[data-expanded="true"] .margin-cell .note {
+	min-width: 0;
+}
+.description-blocks[data-expanded="true"] .margin-cell .note-title {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .note-action {

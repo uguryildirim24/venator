@@ -47,7 +47,7 @@ function Notes({ notes, count, onOpen }: { readonly notes: readonly MarginNote[]
 
 /* ----------------------------------------------------------------- page */
 
-function Block({ block, onOpen, anchor }: { readonly block: MarkedBlock; readonly onOpen: () => void; readonly anchor: boolean }) {
+function Block({ block, onOpen, index }: { readonly block: MarkedBlock; readonly onOpen: () => void; readonly index: number }) {
 	const text =
 		block.kind === "heading" ? (
 			<h2 className="page-heading">
@@ -60,7 +60,7 @@ function Block({ block, onOpen, anchor }: { readonly block: MarkedBlock; readonl
 		);
 	return (
 		<div className="page-block" data-kind={block.kind} role={block.kind === "item" ? "listitem" : undefined}>
-			<div id={anchor ? "posting-requirements" : undefined} className="page-cell">{text}</div>
+			<div id={`posting-line-${index}`} className="page-cell">{text}</div>
 			<div className="margin-cell">
 				<Notes notes={block.notes} count={block.count} onOpen={onOpen} />
 			</div>
@@ -69,7 +69,7 @@ function Block({ block, onOpen, anchor }: { readonly block: MarkedBlock; readonl
 }
 
 /** Consecutive list items, as one list. The list and its items lay out as the grid's own rows. */
-function PageBlocks({ blocks, requirementsAt, onOpen }: { readonly blocks: readonly MarkedBlock[]; readonly requirementsAt: number | null; readonly onOpen: () => void }) {
+function PageBlocks({ blocks, onOpen }: { readonly blocks: readonly MarkedBlock[]; readonly onOpen: () => void }) {
 	let offset = 0;
 	const runs: MarkedBlock[][] = [];
 	for (const block of blocks) {
@@ -85,11 +85,11 @@ function PageBlocks({ blocks, requirementsAt, onOpen }: { readonly blocks: reado
 				return run[0]?.kind === "item" ? (
 					<div key={index} className="page-list" role="list">
 						{run.map((block, item) => (
-							<Block key={item} block={block} onOpen={onOpen} anchor={start + item === requirementsAt} />
+							<Block key={item} block={block} onOpen={onOpen} index={start + item} />
 						))}
 					</div>
 				) : (
-					run.map((block) => <Block key={index} block={block} onOpen={onOpen} anchor={start === requirementsAt} />)
+					run.map((block) => <Block key={index} block={block} onOpen={onOpen} index={start} />)
 				);
 			})}
 		</>
@@ -102,26 +102,6 @@ function emptyPageReason(detail: PostingDetail): string {
 	if (kind === "snippet") return "Only a snippet of the description was fetched, and it has no text to set here.";
 	if (detail.descriptionHtml.trim() !== "") return "No readable text in this description.";
 	return "The full description has not been fetched yet. It arrives with the next detail check of this listing.";
-}
-
-/* ----------------------------------------------------------------- the employer's page */
-
-/**
- * The employer's HTML, in an opaque frame: `sandbox=""` runs no script and reaches no origin,
- * and the frame's own policy loads nothing but inline style and inline images. Its colours and
- * type are read from the token layer as it stands when the sheet opens, so the frame follows
- * the scheme without a value of its own.
- */
-function frameDocument(html: string): string {
-	const style = getComputedStyle(document.documentElement);
-	const token = (name: string) => style.getPropertyValue(name).trim();
-	const scheme = style.colorScheme === "" ? "light" : style.colorScheme;
-	const css =
-		`:root{color-scheme:${scheme}}` +
-		`body{margin:0;padding:${token("--space-4")};background:transparent;color:${token("--label-primary")};` +
-		`font-family:${token("--font-page")};font-size:${token("--size-page-text")};line-height:${token("--leading-page-text")}}` +
-		"a{color:inherit}img{max-width:100%}";
-	return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><style>${css}</style></head><body>${html}</body></html>`;
 }
 
 /* ----------------------------------------------------------------- history sheets */
@@ -289,7 +269,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 
 	let body: ReactNode;
 	if (!allowed && state !== "submitted" && state !== "concluded") {
-		body = <ExternalLink className="button" size="large" href={detail.posting.url} title={detail.posting.url}>Open Listing</ExternalLink>;
+		body = null;
 	} else if (control.busy === "prepare") {
 		body = (
 			<div className="resume-state">
@@ -368,6 +348,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 
 	return (
 		<div className="margin-application">
+			<ExternalLink className="button" size="large" href={detail.posting.url} title={detail.posting.url}>Open Listing</ExternalLink>
 			{body}
 			{allowed && control.manifest.status === "error" ? (
 				<div className="note">
@@ -398,13 +379,16 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 
 /* ----------------------------------------------------------------- the page */
 
-function FitLedger({ fit, requirementsAt, onOpen }: { readonly fit: Margin["fit"]; readonly requirementsAt: number | null; readonly onOpen: () => void }) {
+function FitLedger({ fit, fallback, onJump }: { readonly fit: Margin["fit"]; readonly fallback: number | null; readonly onJump: (at: number) => void }) {
 	if (fit === null) return null;
 	return <div className="fit-ledger">
 		{fit.count === null ? null : <span className="fit-count">{fit.count}</span>}
 		{fit.tally.length ? <div className="fit-tally" aria-hidden="true">{fit.tally.map((tone, index) => <span key={index} data-tone={tone} />)}</div> : null}
-		{fit.notes.map((note) => <Note key={note.key} note={note} onOpen={onOpen} />)}
-		{requirementsAt === null ? null : <button type="button" className="fit-jump" onClick={() => document.getElementById("posting-requirements")?.scrollIntoView({ block: "start" })}>Requirements ↓</button>}
+		{fit.groups.map((group) => <button key={group.tone} type="button" className="note fit-group" data-tone={group.tone} onClick={() => { const at = group.at ?? fallback; if (at !== null) onJump(at); }}>
+			<span className="note-title">{group.title}</span>
+			{group.clauses.map((clause) => <span key={clause} className="note-subtitle" title={clause}>{clause}</span>)}
+		</button>)}
+		{fit.jev === null ? null : <div className="note"><span className="note-title">{fit.jev.title}</span></div>}
 	</div>;
 }
 
@@ -422,8 +406,21 @@ type PostingPageProps = {
  * employer's words, as plain text from the reader extraction; the margin holds only Venator's.
  */
 export function PostingPage({ detail, control, arriving }: PostingPageProps) {
-	const [sheet, setSheet] = useState<"description" | "changed" | "history" | "requirements" | null>(null);
+	const [sheet, setSheet] = useState<"changed" | "history" | "requirements" | null>(null);
+	const [expanded, setExpanded] = useState(false);
+	const jumpTo = useRef<number | null>(null);
 	const pageRef = useRef<HTMLElement>(null);
+	useLayoutEffect(() => {
+		if (!expanded || jumpTo.current === null) return;
+		const at = jumpTo.current;
+		jumpTo.current = null;
+		const frame = requestAnimationFrame(() => pageRef.current?.querySelector(`#posting-line-${at}`)?.scrollIntoView({ block: "start" }));
+		return () => cancelAnimationFrame(frame);
+	}, [expanded]);
+	const openLine = (at: number) => {
+		if (expanded) pageRef.current?.querySelector(`#posting-line-${at}`)?.scrollIntoView({ block: "start" });
+		else { jumpTo.current = at; setExpanded(true); }
+	};
 
 	// Keep the margin a single flowing column without letting it change the employer's
 	// paragraph heights. Reflow when either column changes size (including loaded documents).
@@ -432,7 +429,8 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 		if (page === null) return;
 		let frame = 0;
 		const layout = () => {
-			const cells = [...page.querySelectorAll<HTMLElement>(".page-block > .margin-cell")];
+			const cells = [...page.querySelectorAll<HTMLElement>(".page-block > .margin-cell")]
+				.filter((cell) => expanded || !cell.closest('.description-blocks:not([data-expanded="true"])'));
 			if ((page.parentElement?.clientWidth ?? 0) < 680) {
 				for (const cell of cells) cell.style.translate = "";
 				page.style.minHeight = "";
@@ -457,7 +455,7 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 		for (const cell of page.querySelectorAll<HTMLElement>(".page-block > .page-cell, .page-block > .margin-cell > *")) observer.observe(cell);
 		schedule();
 		return () => { cancelAnimationFrame(frame); observer.disconnect(); };
-	}, [detail, control.manifest.status, control.prepared]);
+	}, [detail, control.manifest.status, control.prepared, expanded]);
 	const { posting, assessment } = detail;
 	const margin = useMemo(
 		() =>
@@ -514,7 +512,7 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 				</header>
 				<div className="margin-cell">
 					<div className="margin-stack">
-						<FitLedger fit={margin.fit} requirementsAt={margin.requirementsAt} onOpen={openRequirements} />
+						<FitLedger fit={margin.fit} fallback={margin.requirementsAt} onJump={openLine} />
 						{excluded ? null : <ApplicationMargin detail={detail} control={control} onHistory={() => setSheet("history")} />}
 						{margin.header.map((note) => (
 							<Note key={note.key} note={note} onOpen={openRequirements} />
@@ -523,32 +521,18 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 				</div>
 			</div>
 
-			{margin.blocks.length === 0 ? (
-				<div className="page-block" data-kind="paragraph">
-					<div className="page-cell">
-						<p className="page-empty">{emptyPageReason(detail)}</p>
+			<div className="description-blocks" data-expanded={expanded || margin.blocks.length === 0}>
+				{margin.blocks.length === 0 ? (
+					<div className="page-block" data-kind="paragraph">
+						<div className="page-cell"><p className="page-empty">{emptyPageReason(detail)}</p></div>
+						<div className="margin-cell" />
 					</div>
-					<div className="margin-cell" />
-				</div>
-			) : (
-				<PageBlocks blocks={margin.blocks} requirementsAt={margin.requirementsAt} onOpen={openRequirements} />
-			)}
+				) : <PageBlocks blocks={margin.blocks} onOpen={openRequirements} />}
+			</div>
 
 			<div className="page-block" data-kind="foot">
 				<div className="page-cell page-foot">
-					{detail.descriptionHtml.trim() === "" ? (
-						<>
-							<ExternalLink className="button" href={posting.url} title={posting.url}>
-								Open the employer's listing
-							</ExternalLink>
-						</>
-					) : (
-						<>
-							<button type="button" className="button" data-size="large" onClick={() => setSheet("description")}>
-								Read Full Description
-							</button>
-						</>
-					)}
+					{margin.blocks.length === 0 ? null : <button type="button" className="button" data-size="large" onClick={() => setExpanded(!expanded)}>{expanded ? "Read Less" : "Read More"}</button>}
 				</div>
 				<div className="margin-cell">
 					<div className="margin-foot">
@@ -562,9 +546,6 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 				</div>
 			</div>
 
-			<Sheet open={sheet === "description"} onOpenChange={close} title={posting.title} description="The employer's page as they wrote it. Scripts and links in it do not run." size="wide">
-				{sheet === "description" ? <iframe title="The employer's description" sandbox="" srcDoc={frameDocument(detail.descriptionHtml)} className="sheet-frame" /> : null}
-			</Sheet>
 			<Sheet open={sheet === "changed"} onOpenChange={close} title="What changed" description="Every Filter Decision recorded for this Posting, oldest first. Replays stay on record.">
 				<div className="sheet-notes">
 					{detail.decisions.map((decision) => (
