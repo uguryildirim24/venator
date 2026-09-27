@@ -127,7 +127,7 @@ only ever written to `<data directory>/profiles`.
 |---|---|
 | `#/queue` | **For you**: passes Jev says to look at first |
 | `#/queue?list=needs-review` | **Explore**: passes Jev says to review |
-| `#/queue?list=unscored` | **Awaiting Jev**: passes with no current Jev result |
+| `#/queue?list=unscored` | **Awaiting Jev**: current Hard Filter passes selected by the Jev plan, with no current result |
 | `#/queue?list=applied` | **Applications**: prepared, handed off, applied, and what came back |
 | `#/queue?list=saved`, `?list=dismissed` | **Saved** and **Dismissed** |
 | `#/queue?list=filtered` | **Excluded**: Hard Filter kills and Jev exclusions, with the reason |
@@ -141,13 +141,14 @@ only ever written to `<data directory>/profiles`.
 | `#/onboarding?step=targeting` | setup step 3: job titles, level, places, remote, employers; **Find Jobs** saves the Profile and starts a fetch |
 | `#/profile` | edit the saved Profile's contact, résumé, targets, filters and employers in a form |
 
-The sidebar groups the lists, actions and Employers in rounded cards. Its larger
-rows put a symbol beside each name and a count at the right; the selected row has a
-quiet grey background. The sidebar is 224px wide; its off-white cards have no bottom
-card. The last-checked caption and Refresh sit below Employers, including checks run
-from the command line. It says **Not checked yet** if no check has been recorded.
-Jev it sits above the Profile account row at the bottom; the row shows the active
-Profile's name. Jev Diagnostics is in the View menu, not the sidebar.
+The sidebar has plain sections, without group cards. Its 32px rows use 13px text,
+a symbol beside each name and a count at the right. The selected row has a quiet
+grey background. The sidebar is 224px wide. The last-checked caption and Refresh
+sit below Employers, including checks run from the command line. It says **Not
+checked yet** if no check has been recorded. Jev it sits above the Profile account
+row at the bottom; the row shows the active Profile's name. A missing key disables
+Jev it without adding a sentence there. Jev Diagnostics is in the View menu, not
+the sidebar.
 
 The main screen keeps two columns even at the smallest opening window size.
 The desktop window opens at 1440×900. Lists sort by when a Posting was last

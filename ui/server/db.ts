@@ -76,6 +76,7 @@ function assertContractSchema(database: DatabaseSync, path: string): void {
 		database.prepare("SELECT posting_key, status, summary, evidence, conflicts, unknowns, listing_status, last_verified_at, description_kind, apply_url, opportunity_type, input_version, assessed_by, assessed_as_of FROM assessments LIMIT 0");
 		database.prepare("SELECT mode FROM jev_selection LIMIT 0");
 		database.prepare("SELECT posting_key, reason FROM jev_skip LIMIT 0");
+		database.prepare("SELECT posting_key FROM jev_awaiting LIMIT 0");
 		// Coverage was added after the first view release. The base health fields remain
 		// required, while readSourceHealth reports coverage as unmeasured for older views.
 		database.prepare("SELECT source_key, status, last_attempt_at, last_success_at, count, message FROM source_health LIMIT 0");

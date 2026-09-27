@@ -49,8 +49,8 @@ type SidebarProps = {
 };
 
 /**
- * Three sections of Large rows in group cards, with Refresh beneath Employers and
- * Jev it above the Profile account row. The selected row is a neutral pill; the symbols
+ * Three sections of compact rows, with Refresh beneath Sources and Jev it above the
+ * Profile account row. The selected row is a neutral pill; the symbols
  * are ember. Counts are the funnel's, so they agree with every list they name. Applications,
  * Saved and Dismissed are disjoint — the application states `approved` and `rejected` are
  * their own rows — so the three add up to the Postings with application progress.
@@ -95,7 +95,7 @@ export function Sidebar({ route, funnel, database, boards, configured, profileNa
 						<div className="sidebar-card">
 							{section.rows.map((row) => (
 								<a key={row.id} className="sidebar-row" href={row.hash} aria-current={row.id === active ? "page" : undefined}>
-									<row.icon aria-hidden="true" className="icon" />
+									<span className="sidebar-symbol"><row.icon aria-hidden="true" className="icon" /></span>
 									<span>{row.label}</span>
 									{row.count === null || row.count === 0 ? null : <span className="sidebar-count">{row.count.toLocaleString("en-US")}</span>}
 								</a>
@@ -116,7 +116,7 @@ export function Sidebar({ route, funnel, database, boards, configured, profileNa
 				<div className="sidebar-footer">
 					{!firstRun && !updating ? <JevStatus jevPause={database?.jevPause ?? null} onSettled={onReload} /> : null}
 					<a className="sidebar-row sidebar-account" href={profileHash()} aria-current={active === "profile" ? "page" : undefined}>
-						<CircleUser aria-hidden="true" className="icon" />
+						<span className="sidebar-symbol"><CircleUser aria-hidden="true" className="icon" /></span>
 						<span>{profileName ?? "Profile"}</span>
 					</a>
 				</div>

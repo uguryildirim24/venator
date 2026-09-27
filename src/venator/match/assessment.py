@@ -42,10 +42,30 @@ _POST_SECONDARY = re.compile(
     r"ph\.?d\.?|college|university|undergraduate|post.secondary)\b", re.I,
 )
 _POST_SECONDARY_ABBREVIATION = re.compile(r"\b(?:AAS|AA|AS|BA|BS|BSc|MA|MS|MSc|MBA|MPH|PhD)\b")
+# A secondary branch of an OR suffices; an attached mandatory condition does not.
+_SECONDARY_CORE = (
+    r"(?:high[ -]?school|h\.?s\.?|secondary school|secondary education)"
+    r"(?:\s+(?:diploma|degree|graduate|graduation|education|completed))?"
+    r"|g\.?e\.?d\.?|general education(?:al)? (?:development|diploma|degree)"
+)
 _SECONDARY_CLAUSE = re.compile(
-    r"(?:minimum\s+)?(?:a\s+|an\s+)?(?:high school (?:diploma|degree|graduation)|GED)"
-    r"(?:\s+or\s+(?:GED|(?:high school )?(?:diploma|equivalent)))?"
-    r"(?:\s+(?:is\s+)?required)?\.?", re.I,
+    r"(?:[•·●-]\s*|\d+\.\s*)*"
+    r"(?:(?:education(?: required)?|minimum education(?: required)?|min education|degree|required)\s*:\s*|required\s*-\s*|education\s+)?"
+    r"(?:(?:must (?:have|possess|be)|requires?(?: a minimum of)?|the position requires|work requires|"
+    r"minimum(?: of)?|a minimum of|at least)\s+)?"
+    r"(?:a\s+|an\s+|some\s+)?(?:" + _SECONDARY_CORE + r")"
+    r"(?:\s*(?:/|or|;)\s*(?:(?:have\s+)?(?:an?\s+)?(?:" + _SECONDARY_CORE + r")|"
+    r"(?:an?\s+)?(?:(?:local|government recognized)\s+)?(?:equivalent|equivalency)"
+    r"(?:\s+(?:education|qualification|high school certification))?))?"
+    r"(?:\s*\((?:or\s+)?(?:(?:" + _SECONDARY_CORE + r")|equivalent|or higher)\))?"
+    r"(?:\s+(?:or\s+)?(?:local\s+)?(?:equivalent|equivalency)(?:\s+(?:education|qualification|high school certification))?)?"
+    r"(?:\s+(?:minimum\s+)?(?:is\s+)?(?:strongly\s+)?(?:required|preferred|req)|\s+minimum\s+is\s+required)?"
+    r"(?:\s*\((?:required|preferred|or higher)\))?[\s.!:]*", re.I,
+)
+# Independent optional add-ons remain visible as optional margin gaps.
+_PREFERRED_ADDON = re.compile(
+    r";\s*|(?<=[.!])\s+(?=(?:associate|bachelor|master|trade|technical|vocational|college)\b[^.!;]{0,120}\bpreferred\b)|"
+    r"\s+or\s+(?=(?:associate|bachelor|master)\b[^.;]{0,120}\bpreferred\b)", re.I,
 )
 _DEGREE_RE = re.compile(
     r"\b(?:ph\.?d\.?|doctorate|doctor|master(?:'s)?|m\.?s\.?|"
@@ -531,13 +551,22 @@ def _decision_rows(decision: Mapping[str, object] | None) -> tuple[list[dict[str
 
 
 def _secondary_evidence(clause: str, facts: list[_Fact]) -> _Fact | None:
-    """A confirmed post-secondary education entry meets a standalone secondary bar.
-
-    This does not establish an awarded college degree or cover other requirements
-    in the same sentence.
-    """
-    if not _SECONDARY_CLAUSE.fullmatch(clause.strip()):
-        return None
+    """Confirmed post-secondary education meets a secondary OR branch, not an attached bar."""
+    text = clause.strip()
+    if not _SECONDARY_CLAUSE.fullmatch(text):
+        # Try each OR boundary: a greedy secondary pattern may consume
+        # 'or equivalent' before an alternative such as 'equivalent experience'.
+        if not any(
+            _SECONDARY_CLAUSE.fullmatch(text[:boundary.start()])
+            and re.search(r"\S", text[boundary.end():])
+            and not re.search(r"\.\s+\w", text[boundary.end():])
+            and not re.match(
+                r"(?:equivalent|equivalency)\s+(?:in|with|of|high school (?:diploma|certification)\s+with)\b",
+                text[boundary.end():], re.I,
+            )
+            for boundary in re.finditer(r"\s+or\s+", text, re.I)
+        ):
+            return None
     return next((fact for fact in facts if fact.kind == "degree" and
                  (_POST_SECONDARY.search(fact.value) or _POST_SECONDARY_ABBREVIATION.search(fact.value))), None)
 
@@ -555,7 +584,10 @@ def _unmatched_clauses(context: str, facts: list[_Fact]) -> list[str]:
         for fact, variant in variants
         if _assertive_fact_match(fact, variant) and (match := _match(context, variant))
     ]
-    boundaries = list(re.finditer(r"\s+(?:and|as well as)\s+|;\s*|,\s+(?:and\s+)?", context, re.I))
+    boundaries = list(re.finditer(
+        r"\s+(?:(?!and/or\b)and|as well as)\s+|,\s+(?:and\s+)?|" + _PREFERRED_ADDON.pattern,
+        context, re.I,
+    ))
     starts = [0, *(boundary.end() for boundary in boundaries)]
     ends = [*(boundary.start() for boundary in boundaries), len(context)]
     unmatched = []
@@ -643,10 +675,13 @@ def assess_posting(posting: dict, profile: Profile | None, decision: dict | None
                     requirement_evidence = True
     requirement_contexts = [context for context in contexts if context[1] != "posting.title" and not context[1].endswith(".preferred")]
     for context, _ in contexts:
-        for clause in re.split(r"\s+(?:and|as well as)\s+|;\s*|,\s+(?:and\s+)?", context, flags=re.I):
+        for clause in re.split(
+            r"\s+(?:(?!and/or\b)and|as well as)\s+|,\s+(?:and\s+)?|" + _PREFERRED_ADDON.pattern,
+            context, flags=re.I,
+        ):
             fact = _secondary_evidence(clause, facts)
             if fact is not None:
-                row = {"requirement": clause.strip().rstrip("."), "candidate_evidence": fact.value, "source": fact.source}
+                row = {"requirement": clause.strip().rstrip(".").rstrip(), "candidate_evidence": fact.value, "source": fact.source}
                 marker = (_normalize(row["requirement"]), row["candidate_evidence"], row["source"])
                 if marker not in seen:
                     seen.add(marker)
@@ -695,7 +730,9 @@ def assess_posting(posting: dict, profile: Profile | None, decision: dict | None
             blocking.add("credential")
         if missing or unmatched:
             detail = f"No confirmed resume evidence for {', '.join(missing)}" if missing else "Qualification not established"
-            if context_source.endswith(".preferred"):
+            if context_source.endswith(".preferred") or (unmatched and all(
+                _PREFERRED.search(clause) and not _MANDATORY.search(clause) for clause in unmatched
+            )):
                 detail = "Optional qualification gap"
             unresolved = "; ".join(unmatched) if unmatched and not missing else context
             unknowns.append(f"{detail}: {unresolved[:300]}")

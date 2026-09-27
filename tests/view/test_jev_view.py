@@ -7,6 +7,7 @@ import json
 import shutil
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,6 +16,7 @@ from venator.profile.loader import load_profile
 from venator.qualify.compile import compile_profile
 from venator.qualify.jev_effective import current_filter_version, jev_promotion_state
 from venator.qualify.jev_release import JEV_RELEASE
+from venator.qualify.plan_cache import jev_plan
 from venator.qualify.store import (
     JEV_KIND,
     JEV_SCHEMA,
@@ -238,6 +240,40 @@ def test_view_materializes_jev_skip_reasons_from_selection_inputs(tmp_path: Path
         assert closed.execute("SELECT count(*) FROM jev_skip").fetchone()[0] == 0
     finally:
         closed.close()
+
+
+def test_awaiting_jev_uses_the_plan_gate_after_stale_filter_and_jev_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    stale_success, db = _setup(tmp_path, stale_jev=True)
+    db.close()
+    current = dict(stale_success, key="greenhouse:jevlab:current", url="https://example.test/current")
+    stale_filter = dict(stale_success, key="greenhouse:jevlab:old-filter", url="https://example.test/old-filter")
+    stale_input = dict(stale_success, key="greenhouse:jevlab:old-input", url="https://example.test/old-input")
+    with (tmp_path / "postings" / "2026-09-13.jsonl").open("a") as output:
+        for posting in (current, stale_filter, stale_input):
+            output.write(json.dumps(posting) + "\n")
+    profile = load_profile(tmp_path / "profile")
+    compiled = compile_profile(profile, as_of_month="2026-09")
+    _, inputs = jev_view_bindings(profile, compiled, [current, stale_filter, stale_input], "2026-09")
+    original = json.loads((tmp_path / "decisions" / "2026-09-13.jsonl").read_text())
+    with (tmp_path / "decisions" / "2026-09-13.jsonl").open("a") as output:
+        for posting, version in ((current, original["filters_version"]), (stale_filter, "old-filters"),
+                                 (stale_input, original["filters_version"])):
+            row = dict(original, posting_key=posting["key"], posting_version=posting_revision(posting),
+                       filters_version=version,
+                       facts=dict(original["facts"], jev_input=(
+                           "old-input" if posting is stale_input else inputs[posting["key"]]
+                       )))
+            output.write(json.dumps(row) + "\n")
+    build_database(tmp_path / "postings", tmp_path / "decisions", tmp_path / "view.db",
+                   tmp_path / "track", tmp_path / "runs.jsonl", profile=profile,
+                   qualifications_dir=tmp_path / "qualifications", as_of_month="2026-09")
+    with sqlite3.connect(tmp_path / "view.db") as view:
+        awaiting = {key for (key,) in view.execute("SELECT posting_key FROM jev_awaiting")}
+    assert awaiting == {stale_success["key"], current["key"]}
+    monkeypatch.setenv("VENATOR_PLAN_CACHE_DIR", str(tmp_path / "cache"))
+    stores = SimpleNamespace(postings_dir=tmp_path / "postings", decisions_dir=tmp_path / "decisions",
+                             qualifications_dir=tmp_path / "qualifications")
+    assert len(awaiting) == jev_plan(profile, stores, "2026-09-13")["postingCount"]
 
 
 def test_release_selection_does_not_depend_on_current_result_count(tmp_path: Path) -> None:

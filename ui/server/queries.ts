@@ -102,7 +102,7 @@ const STATUS_SQL = `
       WHEN hf.verdict = 'pass' AND s.reason = 'protected' THEN 'protected'
       WHEN hf.verdict = 'pass' AND s.reason = 'too_long' THEN 'too-long'
       WHEN hf.verdict = 'pass' AND s.reason IS NOT NULL THEN 'no-text'
-      WHEN hf.verdict = 'pass' THEN 'unscored'
+      WHEN hf.verdict = 'pass' AND awaiting.posting_key IS NOT NULL THEN 'unscored'
       ELSE 'not-filtered'
     END`;
 
@@ -136,6 +136,7 @@ entries AS (
   LEFT JOIN application_states aps ON aps.posting_key = p.key
   LEFT JOIN assessments a ON a.posting_key = p.key
   LEFT JOIN jev_skip s ON s.posting_key = p.key
+  LEFT JOIN jev_awaiting awaiting ON awaiting.posting_key = p.key
   LEFT JOIN jev_triage t ON t.posting_key = p.key AND t.mode = ${JEV_MODE}
 )`;
 }
