@@ -320,7 +320,7 @@ const CHECKS: readonly RouteCheck[] = [
 			// The page, and Venator's notes in the margin beside it.
 			"Verified open",
 			"Prepare Application…",
-			"Read Full Description",
+			"Read More",
 		],
 		// A browser tab draws its own window; only the desktop host is native.
 		absent: ["Jev diagnostics", "app-native", "Match strength", "Priority rank", "An estimate, not a verdict", "Hard Filters passed"],
@@ -431,9 +431,10 @@ const CHECKS: readonly RouteCheck[] = [
 	},
 	{
 		hash: `#/postings/${DETAIL_KEY}`,
-		label: "Posting: the employer's page stays in an opaque sandbox behind Read Full Description",
-		press: "Read Full Description",
-		expected: ['sandbox=""', "default-src", "The employer's page as they wrote it."],
+		label: "Posting: Read More opens the reader page and leaves Read Less at the foot",
+		press: "Read More",
+		expected: ["Read Less"],
+		absent: ["Read Full Description"],
 	},
 	{
 		hash: `#/postings/${DETAIL_KEY}`,

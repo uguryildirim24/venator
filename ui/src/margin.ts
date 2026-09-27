@@ -63,7 +63,7 @@ export type MarkedBlock = ReaderBlock & {
 };
 
 export type Margin = {
-	readonly fit: { readonly count: string | null; readonly tally: readonly NoteTone[]; readonly notes: readonly MarginNote[] } | null;
+	readonly fit: { readonly count: string | null; readonly tally: readonly NoteTone[]; readonly groups: readonly { readonly tone: NoteTone; readonly title: string; readonly clauses: readonly string[]; readonly at: number | null }[]; readonly jev: MarginNote | null } | null;
 	readonly requirementsAt: number | null;
 	readonly header: readonly MarginNote[];
 	readonly blocks: readonly MarkedBlock[];
@@ -211,7 +211,8 @@ export function buildMargin(input: MarginInput): Margin {
 	const seenRequirements = new Set<string>();
 	const unplacedEvidence: MarginNote[] = [];
 	const met: string[] = [];
-	const gaps: MarginNote[] = [];
+	const metAt: number[] = [];
+	const gaps: { clause: string; tone: NoteTone; at: number | null }[] = [];
 	for (const entry of evidence) {
 		const needle = foldNeedle(entry.requirement);
 		if (needle === "" || seenRequirements.has(needle)) continue;
@@ -219,11 +220,12 @@ export function buildMargin(input: MarginInput): Margin {
 		met.push(entry.requirement.trim());
 		const section = evidenceSourceLabel(entry.source);
 		const related = entry.basis === "related_skill";
+		const resumeEntry = entry.candidateEvidence.replace(/\s*\([^)]*\b(?:19|20)\d{2}\b[^)]*\)/gu, "").trim() || section;
 		const note: MarginNote = {
 			key: `evidence:${needle}`,
 			tone: "green",
-			title: related ? "Related skill on your résumé" : "On your résumé",
-			subtitle: related ? `${entry.candidateEvidence} · ${section}` : section,
+			title: related ? `Related skill · ${resumeEntry}` : resumeEntry,
+			subtitle: null,
 		};
 		const at = page.findIndex((block, index) => {
 			const found = locate(folded[index] ?? fold(""), block.text, needle);
@@ -232,8 +234,9 @@ export function buildMargin(input: MarginInput): Margin {
 			return true;
 		});
 		if (at === -1) {
-			unplacedEvidence.push({ ...note, subtitle: `${entry.requirement} · ${section}` });
+			unplacedEvidence.push(note);
 		} else {
+			metAt.push(at);
 			notes[at]?.push(note);
 			marked.add(at);
 		}
@@ -258,18 +261,18 @@ export function buildMargin(input: MarginInput): Margin {
 			const note: MarginNote = {
 				key: `clause:${position}`,
 				tone: finding.required ? "ember" : "neutral",
-				title: finding.title,
-				subtitle: finding.subtitle,
+				title: finding.required ? "Required · not on your résumé" : "Not on your résumé",
+				subtitle: null,
 			};
-			if (!seenRequirements.has(needle) && !gaps.some((gap) => foldNeedle(gap.title) === needle)) {
-				gaps.push({ ...note, title: finding.clause.trim(), subtitle: finding.required ? "Required · not on your résumé" : "Not on your résumé" });
-			}
 			const at = page.findIndex((block, index) => {
 				const found = locate(folded[index] ?? fold(""), block.text, needle);
 				if (found === null) return false;
 				if (!overlaps(marks[index] ?? [], found.start, found.end)) marks[index]?.push({ ...found, tone });
 				return true;
 			});
+			if (!seenRequirements.has(needle) && !gaps.some((gap) => foldNeedle(gap.clause) === needle)) {
+				gaps.push({ clause: finding.clause.trim(), tone: note.tone, at: at === -1 ? null : at });
+			}
 			if (at === -1) unplaced.push(finding);
 			else {
 				notes[at]?.push(note);
@@ -323,11 +326,15 @@ export function buildMargin(input: MarginInput): Margin {
 			: validRead === null ? `${met.length} on your résumé` : `Meets ${met.length} of ${validRead}`,
 		tally: [...met.map(() => "green" as const), ...gaps.map((gap) => gap.tone),
 			...Array.from({ length: (validRead ?? 0) - met.length - gaps.length }, () => "neutral" as const)],
-		notes: [
-			...gaps,
-			...(met.length ? [{ key: "fit-met", tone: "green" as const, title: "On your résumé", subtitle: met.join(", ") }] : []),
-			...(jev === null ? [] : [jev]),
+		groups: [
+			...(["ember", "neutral"] as const).map((tone) => ({
+				tone, title: tone === "ember" ? "Required · not on your résumé" : "Not on your résumé",
+				clauses: gaps.filter((gap) => gap.tone === tone).map((gap) => gap.clause),
+				at: gaps.find((gap) => gap.tone === tone && gap.at !== null)?.at ?? null,
+			})).filter((group) => group.clauses.length > 0),
+			...(met.length ? [{ tone: "green" as const, title: "On your résumé", clauses: met, at: metAt[0] ?? null }] : []),
 		],
+		jev,
 	};
 
 	if (firstSection === null) {
