@@ -687,9 +687,8 @@
 
 /*
  * A view arriving. The panes, a table and a first-run state rise into place once, when they
- * enter: a list chosen in the sidebar, the inspector, the job list coming back. A Posting
- * taking another's place does not move — that is the j and k of reading a list, and it is
- * instant. After the entry the transform is `none` again, so nothing stays composited.
+ * enter: a list chosen in the sidebar, the inspector, the job list coming back. After
+ * the entry the transform is `none` again, so nothing stays composited.
  */
 .panes,
 .table-view,
@@ -1089,6 +1088,21 @@
 	max-width: var(--page-block-width);
 	margin-inline: auto;
 	padding-block: var(--space-7) var(--space-6);
+}
+
+/* The keyed page enters once. Replacing it cancels the old entry; rapid selections skip it.
+   At rest there is no transform, transition layer hint or running animation. */
+.posting[data-arriving] {
+	opacity: 1;
+	transform: none;
+	transition: opacity var(--motion-base) var(--ease), transform var(--motion-base) var(--ease);
+}
+
+@starting-style {
+	.posting[data-arriving] {
+		opacity: 0;
+		transform: translateY(var(--rise));
+	}
 }
 
 /* One continuous rule; notes float independently of the employer's page rhythm. */

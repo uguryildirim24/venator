@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Hono } from "hono";
-import { createApplicationRoutes } from "../server/applications/routes.ts";
+import { applicationCommand, createApplicationRoutes } from "../server/applications/routes.ts";
 import { applicationAction } from "../src/api.ts";
 
 const profile = () => ["--profile", "candidate"];
@@ -55,6 +58,84 @@ test("two store-writing application operations cannot overlap and failure releas
 	assert.equal((await first).status, 400);
 	assert.equal((await app.request("/", init)).status, 400);
 	assert.equal(calls, 2);
+});
+
+test("status single-flights by Profile and key, without caching a subsequent read", async () => {
+	let calls = 0;
+	let release: () => void = () => {};
+	const blocked = new Promise<void>((resolve) => { release = resolve; });
+	const app = createApplicationRoutes(async () => { calls++; await blocked; return { prepared: false }; }, profile);
+	const first = app.request("/p%3A1");
+	const second = app.request("/p%3A1");
+	await new Promise((resolve) => setTimeout(resolve, 10));
+	assert.equal(calls, 1);
+	release();
+	assert.equal((await first).status, 200);
+	assert.equal((await second).status, 200);
+	assert.equal((await app.request("/p%3A1")).status, 200);
+	assert.equal(calls, 2);
+});
+
+test("aborting the last reader cancels its status child; other readers keep theirs", async () => {
+	let stopped = 0;
+	let ready: () => void = () => {};
+	const started = new Promise<void>((resolve) => { ready = resolve; });
+	const app = createApplicationRoutes((_argv, options) => new Promise((resolve) => {
+		options?.signal?.addEventListener("abort", () => { stopped++; resolve({ prepared: false }); });
+		ready();
+	}), profile);
+	const first = new AbortController();
+	const second = new AbortController();
+	const one = app.request("/p%3A1", { signal: first.signal });
+	await started;
+	const two = app.request("/p%3A1", { signal: second.signal });
+	await new Promise((resolve) => setTimeout(resolve, 10));
+	first.abort();
+	await one;
+	assert.equal(stopped, 0);
+	second.abort();
+	await two;
+	assert.equal(stopped, 1);
+});
+
+test("an aborted status kills the actual child process group", { skip: process.platform === "win32" }, async () => {
+	const directory = mkdtempSync(join(tmpdir(), "venator-status-abort-"));
+	const script = join(directory, "interpreter");
+	const pidFile = join(directory, "pid");
+	writeFileSync(script, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`);
+	chmodSync(script, 0o755);
+	const previous = process.env.VENATOR_PYTHON;
+	process.env.VENATOR_PYTHON = script;
+	const controller = new AbortController();
+	try {
+		const result = applicationCommand(["status", "synthetic"], { signal: controller.signal, timeoutMs: 2_000 });
+		for (let attempt = 0; attempt < 100 && !existsSync(pidFile); attempt++) {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+		assert.equal(existsSync(pidFile), true);
+		const pid = Number(readFileSync(pidFile, "utf8"));
+		controller.abort();
+		await assert.rejects(result);
+		assert.throws(() => process.kill(-pid, 0), { code: "ESRCH" });
+	} finally {
+		controller.abort();
+		if (previous === undefined) delete process.env.VENATOR_PYTHON;
+		else process.env.VENATOR_PYTHON = previous;
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test("status limits simultaneous children to two", async () => {
+	let calls = 0;
+	let release: () => void = () => {};
+	const blocked = new Promise<void>((resolve) => { release = resolve; });
+	const app = createApplicationRoutes(async () => { calls++; await blocked; return { prepared: false }; }, profile);
+	const pending = ["/a", "/b", "/c"].map((key) => app.request(key));
+	await new Promise((resolve) => setTimeout(resolve, 10));
+	assert.equal(calls, 2);
+	release();
+	await Promise.all(pending);
+	assert.equal(calls, 3);
 });
 
 test("document reads are allowlisted and responses are not cached", async () => {

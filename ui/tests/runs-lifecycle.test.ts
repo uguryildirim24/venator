@@ -24,7 +24,7 @@ import { afterEach, test } from "node:test";
 import type { RunPlan } from "../shared/runs.ts";
 import type { LocationContext } from "../server/locations.ts";
 import { RunError } from "../server/runs/errors.ts";
-import { currentRun, recentRuns, resetRunsForTest, shutdownRuns, startRun, stopRun, type SpawnChild } from "../server/runs/runner.ts";
+import { currentRun, queueProfileReplay, recentRuns, resetRunsForTest, shutdownRuns, startRun, stopRun, type SpawnChild } from "../server/runs/runner.ts";
 
 const CONTEXT: LocationContext = {
 	platform: process.platform,
@@ -145,6 +145,37 @@ test("the loop is started with the stages of the run that was asked for, and nev
 	// The whole of what can be asked for: a module, a stage list from a closed set, and a
 	// Profile name. No store path, no argument passthrough, and no `commit`.
 	assert.ok(!started[0]?.argv.includes("commit"));
+});
+
+test("a Profile save replays only Hard Filters and View, queues behind a live run, and reports replay failure separately", async () => {
+	const { spawn: spawnChild, started } = scripted([SUCCEEDS, 'console.log("filters: starting"); process.exit(1);']);
+	startRun(PLAN, CONTEXT, spawnChild);
+	queueProfileReplay("example", CONTEXT, spawnChild);
+	assert.equal(started.length, 1);
+	await until(() => recentRuns(5).length === 2, "both runs to finish");
+	assert.deepEqual(started[1]?.argv, ["-m", "venator.schedule.loop", "--only", "filters,view", "--profile", "example"]);
+	assert.equal(recentRuns(5)[0]?.kind, "profile-replay");
+	assert.equal(recentRuns(5)[0]?.phase, "failed");
+	assert.equal(recentRuns(5)[1]?.phase, "succeeded");
+});
+
+test("Profile replays queued behind a run keep every Profile and coalesce repeated saves", async () => {
+	const { spawn: spawnChild, started } = scripted([SUCCEEDS, SUCCEEDS, SUCCEEDS]);
+	startRun(PLAN, CONTEXT, spawnChild);
+	queueProfileReplay("first", CONTEXT, spawnChild);
+	queueProfileReplay("second", CONTEXT, spawnChild);
+	queueProfileReplay("first", CONTEXT, spawnChild);
+	await until(() => recentRuns(5).length === 3, "both saved Profiles to replay");
+	assert.deepEqual(started.slice(1).map(({ argv }) => argv.at(-1)), ["first", "second"]);
+	assert.deepEqual(recentRuns(5).map(({ kind }) => kind), ["profile-replay", "profile-replay", "fetch-and-filter"]);
+});
+
+test("a Profile replay starts immediately when the runner is idle", async () => {
+	const { spawn: spawnChild, started } = scripted(['console.log("filters: starting"); console.log("filters: ok"); console.log("view: starting"); console.log("view: ok");']);
+	queueProfileReplay("example", CONTEXT, spawnChild);
+	await until(() => currentRun() === null, "the replay to finish");
+	assert.equal(started.length, 1);
+	assert.equal(recentRuns(1)[0]?.phase, "succeeded");
 });
 
 test("the child is given a built environment, not this process's", async () => {

@@ -41,6 +41,7 @@ import { basename, join, resolve } from "node:path";
  */
 export const PIPELINE_ADAPTERS: readonly string[] = [
 	"server/onboarding/parse_resume.py",
+	"server/onboarding/profile_version.py",
 	"server/onboarding/resolve_board.py",
 	"server/onboarding/verify_profile.py",
 	"server/runs/plan.py",

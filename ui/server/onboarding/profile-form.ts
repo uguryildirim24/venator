@@ -824,9 +824,9 @@ export function profileFormFromBody(value: JsonValue | undefined): ProfileForm {
  * the screen holds Save on, and then `editProfileDocuments` does what it always did: refuse
  * a stale `original`, stage, have the loader read it back, and rename or roll back.
  */
-export async function saveProfileForm(name: string, form: ProfileForm, original: ProfileDocuments, context: LocationContext = systemContext()): Promise<void> {
+export async function saveProfileForm(name: string, form: ProfileForm, original: ProfileDocuments, context: LocationContext = systemContext()): Promise<boolean> {
 	const patched = patchProfileDocuments(original, form);
 	const issue = validateProfileForm(formOf(patched))[0];
 	if (issue !== undefined) throw new OnboardingError("invalid_profile", issue.message, null, issue.field);
-	await editProfileDocuments(name, patched, original, context);
+	return editProfileDocuments(name, patched, original, context);
 }

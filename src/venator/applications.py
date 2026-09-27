@@ -6,19 +6,16 @@ import argparse
 import base64
 import hashlib
 import json
+import sqlite3
 import sys
 from collections.abc import Mapping
-from contextlib import redirect_stdout
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 
-from venator.discover.store import posting_revision
-from venator.match.store import filters_version, load_latest_decisions, load_postings, verify_decisions_dir
 from venator.paths import resolve_store_paths
 from venator.profile import add_profile_argument, profile_from_arguments
+from venator.profile.claim import store_owner
 from venator.secrets import scrub
-from venator.track.record import record_event
-from venator.track.store import verify_track_dir
-from venator.view.build import build_database
 
 FILES = frozenset({"resume.pdf", "resume.txt", "letter.txt"})
 ACTIONS = ("status", "file", "prepare", "save", "dismiss", "restore", "applied", "handoff")
@@ -44,7 +41,7 @@ def manifest(directory: Path) -> dict:
 
 
 def document_path(directory: Path, record: dict, name: str) -> Path:
-    from venator.tailor.prepare import PREPARATION_REVISION
+    from venator.tailor.version import PREPARATION_REVISION
 
     if name not in FILES:
         raise ValueError("Choose an application document to download.")
@@ -87,33 +84,74 @@ def _verify_bundle(directory: Path, record: dict) -> Path:
     return resume
 
 
-def _verify_freshness(record: dict, posting: dict, profile) -> None:
-    from venator.tailor.prepare import _input_version
+def _verify_freshness(record: dict, posting: dict | str, profile) -> None:
+    from venator.match.store import filters_version
+    from venator.tailor.version import _input_version
+    if not isinstance(posting, str):
+        from venator.discover.store import posting_revision
+    revision = posting if isinstance(posting, str) else posting_revision(posting)
 
-    if (record.get("posting_version") != posting_revision(posting)
+    if (record.get("posting_version") != revision
             or record.get("profile_version") != filters_version(profile.constraints_path, profile.targeting_path)
             or record.get("input_version") != _input_version(profile, profile.resume)):
         raise ValueError("The job or your profile changed. Prepare fresh documents before using this application.")
 
 
+def _status_revision(stores: dict, key: str) -> str:
+    """Read the indexed, materialized revision; never replay the Posting store."""
+    database_path = stores["database_path"]
+    if not database_path.is_file():
+        raise ValueError("Rebuild the View before checking prepared documents.")
+    # A Discover append may precede its View rebuild. Refuse to call old
+    # documents fresh until the View has caught up with every Posting day file.
+    view_time = database_path.stat().st_mtime_ns
+    if any(path.stat().st_mtime_ns > view_time for path in stores["postings_dir"].glob("*.jsonl")):
+        raise ValueError("The View is older than the Posting store. Rebuild the View.")
+    try:
+        with closing(sqlite3.connect(f"file:{database_path}?mode=ro", uri=True)) as database:
+            row = database.execute("SELECT revision FROM posting_revisions WHERE key = ?", (key,)).fetchone()
+    except sqlite3.DatabaseError as error:
+        raise ValueError("The View cannot check prepared documents. Rebuild the View.") from error
+    if row is None:
+        raise ValueError("This job is no longer in the local board.")
+    if not isinstance(row[0], str):
+        raise ValueError("The View needs a rebuild before checking prepared documents.")
+    return row[0]
+
+
 def perform(args: argparse.Namespace) -> dict:
     profile = profile_from_arguments(args)
-    stores = resolve_store_paths(data_dir=None, postings_dir=None, decisions_dir=None, track_dir=None)
+    stores = resolve_store_paths(data_dir=None, postings_dir=None, decisions_dir=None,
+                                 track_dir=None, database_path=None)
+    if args.action == "status":
+        # The stamps are the ownership lock. Routine reads must not replay all
+        # foreign rows in the Filter Decision store just to check a manifest.
+        for name in ("decisions_dir", "track_dir"):
+            owner = store_owner(stores[name])
+            if owner is not None and owner != profile.identifier:
+                raise ValueError(f"The {name} store belongs to another Profile: {owner!r}.")
+        directory = application_directory(stores, profile.identifier, args.key)
+        try:
+            record = manifest(directory)
+            if record.get("prepared") is True:
+                revision = _status_revision(stores, args.key)
+                _verify_freshness(record, revision, profile)
+                _verify_bundle(directory, record)
+            return record
+        except ValueError as error:
+            return {"prepared": False, "message": str(error)}
+    from venator.discover.store import posting_revision
+    from venator.match.store import filters_version, load_latest_decisions, load_postings, verify_decisions_dir
+    from venator.track.record import record_event
+    from venator.track.store import verify_track_dir
+    from venator.view.build import build_database
+
     verify_decisions_dir(stores["decisions_dir"], profile.identifier)
     verify_track_dir(stores["track_dir"], profile.identifier)
     posting = next((p for p in load_postings(stores["postings_dir"]) if p["key"] == args.key), None)
     if posting is None:
         raise ValueError("This job is no longer in the local board.")
     directory = application_directory(stores, profile.identifier, args.key)
-    if args.action == "status":
-        try:
-            record = manifest(directory)
-            if record.get("prepared") is True:
-                _verify_freshness(record, posting, profile)
-                _verify_bundle(directory, record)
-            return record
-        except ValueError as error:
-            return {"prepared": False, "message": str(error)}
     if args.action == "file":
         record = manifest(directory)
         _verify_freshness(record, posting, profile)

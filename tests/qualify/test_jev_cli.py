@@ -323,7 +323,7 @@ def test_selective_store_read_keeps_selection_and_payloads(
     spec.loader.exec_module(plan_module)
     stores = SimpleNamespace(
         postings_dir=tmp_path / "postings", decisions_dir=decisions,
-        qualifications_dir=qualifications,
+        qualifications_dir=qualifications, track_dir=tmp_path / "track",
     )
     planned = plan_module._jev_plan(profile, stores, "2026-09-18")
     expected_bindings = [

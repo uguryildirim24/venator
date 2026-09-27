@@ -46,7 +46,14 @@ export function armVerifierStandIn(): ReadonlyMap<string, string> {
 	writeFileSync(
 		join(directory, PRELOAD),
 		[
-			'const { writeSync } = require("node:fs");',
+			'const { writeSync, readFileSync } = require("node:fs");',
+			'if (process.argv[1]?.endsWith("profile_version.py")) {',
+			'  const { createHash } = require("node:crypto");',
+			'  const { join } = require("node:path");',
+			'  const hash = createHash("sha256");',
+			'  for (const name of ["resume.yaml", "constraints.yaml", "targeting.yaml"]) hash.update(readFileSync(join(process.argv[2], name)));',
+			'  writeSync(1, hash.digest("hex") + "\\n"); process.exit(0);',
+			'}',
 			`writeSync(1, (process.env[${JSON.stringify(VERIFIER_ANSWER)}] ?? '{"outcome":"loads"}') + "\\n");`,
 			`process.exit(Number(process.env[${JSON.stringify(VERIFIER_EXIT)}] ?? "0"));`,
 			"",

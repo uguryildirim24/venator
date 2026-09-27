@@ -1005,6 +1005,7 @@ def passing_postings(
     profile: Profile, month: str, named_keys: Sequence[str] = (),
     *, eligible_only: bool = False, revisions: dict[str, str] | None = None,
     decisions_verified: bool = False, qualifications_verified: bool = False,
+    track_dir: Path | None = None,
 ) -> list[Mapping[str, Any]]:
     """Read current Hard Filter passes; the plan can omit ineligible bodies."""
     if decisions_dir.exists() and not decisions_verified:
@@ -1016,6 +1017,10 @@ def passing_postings(
     }
     if named_keys:
         keys.intersection_update(named_keys)
+    if track_dir is not None:
+        from venator.track.store import track_progress_keys
+
+        keys.difference_update(track_progress_keys(track_dir, profile.identifier))
     postings = list(latest_postings(postings_dir, keys=keys).values())
     if eligible_only:
         # select_work rejects these before preparing any case. Keep the
@@ -1052,17 +1057,24 @@ def run(
     day: str | None = None,
     decided_at: str | None = None,
     pause_on_failure: bool = False,
+    track_dir: Path | None = None,
 ) -> ExecutionReport:
     if profile.filters.jev is None:
         raise ValueError("filters.jev is required for Jev")
     if hard_filter_passes_only:
         postings = passing_postings(
             postings_dir, decisions_dir, qualifications_dir, profile, month, named_keys,
+            track_dir=track_dir,
         )
     elif named_keys:
         postings = list(latest_postings(postings_dir, keys=set(named_keys)).values())
     else:
         postings = load_postings(postings_dir)
+    if track_dir is not None and not hard_filter_passes_only:
+        from venator.track.store import track_progress_keys
+
+        progress = track_progress_keys(track_dir, profile.identifier)
+        postings = [posting for posting in postings if posting.get("key") not in progress]
     now = decided_at or f"{as_of}T00:00:00+00:00"
     today = day or as_of
     work = select_work(
@@ -1128,6 +1140,7 @@ def main(argv: Sequence[str] | None = None, *, poster: Poster | None = None,
     parser.add_argument("--postings-dir", type=Path, help=STORE_HELP)
     parser.add_argument("--decisions-dir", type=Path, help=STORE_HELP)
     parser.add_argument("--qualifications-dir", type=Path, help=STORE_HELP)
+    parser.add_argument("--track-dir", type=Path, help=STORE_HELP)
     args = parser.parse_args(argv)
     if args.offline and not args.execute:
         parser.error("--offline requires --execute")
@@ -1147,6 +1160,7 @@ def main(argv: Sequence[str] | None = None, *, poster: Poster | None = None,
             postings_dir=args.postings_dir,
             decisions_dir=args.decisions_dir,
             qualifications_dir=args.qualifications_dir,
+            track_dir=args.track_dir,
         )
         print(
             f"as_of={args.as_of} Profile={profile.identifier} "
@@ -1168,6 +1182,7 @@ def main(argv: Sequence[str] | None = None, *, poster: Poster | None = None,
             mode=current_mode(profile, month, stores["qualifications_dir"]) if args.pipeline else args.mode,
             postings_dir=stores["postings_dir"],
             qualifications_dir=stores["qualifications_dir"],
+            track_dir=stores["track_dir"],
             named_keys=args.posting_key,
             hard_filter_passes_only=args.hard_filter_passes,
             decisions_dir=stores["decisions_dir"],

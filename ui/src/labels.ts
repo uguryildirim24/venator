@@ -393,6 +393,7 @@ export function runStageResultLabel(stage: RunStage): string {
 const RUN_KINDS = {
 	"fetch-and-filter": "Refresh jobs",
 	"jev-it": "Jev it",
+	"profile-replay": "Update lists",
 } satisfies Record<RunKind, string>;
 
 export function runKindLabel(kind: RunKind): string {

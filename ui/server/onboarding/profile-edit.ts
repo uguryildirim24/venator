@@ -1,8 +1,11 @@
 import { cpSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 import type { ProfileDocuments } from "../../shared/profile-form.ts";
-import { systemContext, writableProfilesRoot, type LocationContext } from "../locations.ts";
+import { pipelineWorkingDirectory, pythonInterpreter, systemContext, writableProfilesRoot, type LocationContext } from "../locations.ts";
+import { nonJevInheritedEnvironment } from "../runs/environment.ts";
 import { OnboardingError } from "./errors.ts";
 import { oneWriterPerProfile } from "./one-writer.ts";
 import { profileDirectoryFor, writeAndFlush } from "./profile.ts";
@@ -45,10 +48,21 @@ export function readProfileDocuments(name: string, context: LocationContext = sy
 	} satisfies ProfileDocuments;
 }
 
+function versionOf(directory: string, context: LocationContext): string | null {
+	try {
+		return execFileSync(pythonInterpreter(context), [fileURLToPath(new URL("./profile_version.py", import.meta.url)), directory], {
+			cwd: pipelineWorkingDirectory(context), env: nonJevInheritedEnvironment(context),
+			encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+	} catch {
+		return null; // The write succeeded even if the follow-up replay cannot be planned.
+	}
+}
+
 /** Preserve every Profile file and asset; validate the candidate with the pipeline before replacing anything. */
-export async function editProfileDocuments(name: string, documents: ProfileDocuments, original: ProfileDocuments, context: LocationContext = systemContext()): Promise<void> {
+export async function editProfileDocuments(name: string, documents: ProfileDocuments, original: ProfileDocuments, context: LocationContext = systemContext()): Promise<boolean> {
 	const target = profileDirectoryFor(name, context);
-	await oneWriterPerProfile(target, async () => {
+	return oneWriterPerProfile(target, async () => {
 		const current = readProfileDocuments(name, context);
 		for (const file of FILES) {
 			const text = documents[file];
@@ -59,6 +73,8 @@ export async function editProfileDocuments(name: string, documents: ProfileDocum
 				throw new OnboardingError("write_failed", "This Profile changed since you opened it. Reopen it before saving so you do not erase those changes.");
 			}
 		}
+		const changed = FILES.some((file) => documents[file] !== current[file]);
+		const beforeVersion = changed ? versionOf(target, context) : null;
 		const staging = mkdtempSync(join(writableProfilesRoot(context), `.profile-edit-${name}-`));
 		const retired = `${staging}.replaced`;
 		let moved = false;
@@ -72,6 +88,7 @@ export async function editProfileDocuments(name: string, documents: ProfileDocum
 				if (documents[file] !== current[file]) writeAndFlush(join(staging, file), documents[file]);
 			}
 			await requireLoadableProfile(staging, "the Profile", context);
+			const afterVersion = changed ? versionOf(staging, context) : null;
 			// Refuse a path swapped for a link or a Profile changed during verification.
 			const beforeRename = readProfileDocuments(name, context);
 			if (FILES.some((file) => beforeRename[file] !== current[file])) {
@@ -80,6 +97,7 @@ export async function editProfileDocuments(name: string, documents: ProfileDocum
 			renameSync(target, retired);
 			moved = true;
 			renameSync(staging, target);
+			return beforeVersion !== null && afterVersion !== null && beforeVersion !== afterVersion;
 		} catch (error) {
 			if (moved && !existsSync(target)) renameSync(retired, target);
 			throw error;

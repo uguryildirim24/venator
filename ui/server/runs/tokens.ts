@@ -319,7 +319,7 @@ export async function redeemPlan(
 
 	// The kind first, and separately from `startable`, because the two say different things.
 	// `startable` is about this Install now. The closed kind is about the surface in principle.
-	if (runKindOf(entry.plan.kind) === null) {
+	if (entry.plan.kind === "profile-replay" || runKindOf(entry.plan.kind) === null) {
 		throw new RunError(
 			"not_startable",
 			"That plan does not name a run this dashboard can start, so nothing was started.",

@@ -18,10 +18,10 @@ export function shutdownApplications(): void {
 	for (const child of children) signalTree(child, "SIGKILL", systemContext());
 }
 
-export type ApplicationCommand = (argv: readonly string[]) => Promise<JsonValue>;
+export type ApplicationCommand = (argv: readonly string[], options?: { readonly signal?: AbortSignal; readonly timeoutMs?: number }) => Promise<JsonValue>;
 
 /** Fixed module and argv, never a shell command or executable chosen by a request. */
-export function applicationCommand(argv: readonly string[]): Promise<JsonValue> {
+export function applicationCommand(argv: readonly string[], options?: { readonly signal?: AbortSignal; readonly timeoutMs?: number }): Promise<JsonValue> {
 	const context = systemContext();
 	const environment = runEnvironment(context);
 	// Forward custom endpoint configuration only; the request explicitly chooses
@@ -35,6 +35,7 @@ export function applicationCommand(argv: readonly string[]): Promise<JsonValue> 
 		const key = context.environment(keyName);
 		if (key !== undefined) environment[keyName] = key;
 	}
+	if (options?.signal?.aborted) return Promise.reject(new Error("Application status was cancelled."));
 	return new Promise((resolve, reject) => {
 		const child = spawn(pythonInterpreter(context), ["-m", "venator.applications", ...argv], {
 			cwd: pipelineWorkingDirectory(context), env: environment, stdio: ["ignore", "pipe", "pipe"],
@@ -42,7 +43,11 @@ export function applicationCommand(argv: readonly string[]): Promise<JsonValue> 
 		});
 		children.add(child);
 		let output = "";
-		const timeout = setTimeout(() => signalTree(child, "SIGKILL", context), 10 * 60_000);
+		const abort = () => signalTree(child, "SIGKILL", context);
+		options?.signal?.addEventListener("abort", abort, { once: true });
+		if (options?.signal?.aborted) abort();
+		const timeout = setTimeout(abort, options?.timeoutMs ?? 10 * 60_000);
+		const cleanup = () => { children.delete(child); clearTimeout(timeout); options?.signal?.removeEventListener("abort", abort); };
 		child.stdout.setEncoding("utf8");
 		child.stdout.on("data", (chunk: string) => {
 			output += chunk;
@@ -50,11 +55,11 @@ export function applicationCommand(argv: readonly string[]): Promise<JsonValue> 
 		});
 		// The CLI returns a redacted structured error. Do not echo provider stderr.
 		child.stderr.resume();
-		child.on("error", () => { children.delete(child); clearTimeout(timeout); reject(new Error("The application service could not start.")); });
+		child.on("error", () => { cleanup(); reject(new Error("The application service could not start.")); });
 		child.on("close", (code) => {
-			children.delete(child);
-			clearTimeout(timeout);
+			cleanup();
 			try {
+				if (options?.signal?.aborted) throw new Error("Application status was cancelled.");
 				const result = parseJson(output);
 				if (code !== 0) {
 					const error = asMapping(result);
@@ -77,6 +82,61 @@ function jsonResponse(value: JsonValue): Response {
 
 export function createApplicationRoutes(command: ApplicationCommand = applicationCommand, selectedProfile: () => readonly string[] = profileArgs): Hono {
 	const routes = new Hono();
+	const flights = new Map<string, { controller: AbortController; promise: Promise<JsonValue>; readers: number }>();
+	let running = 0;
+	const queue: Array<() => void> = [];
+	async function slot(signal: AbortSignal): Promise<() => void> {
+		if (signal.aborted) throw new Error("Application status was cancelled.");
+		if (running >= 2) {
+			if (queue.length >= 16) throw new Error("Too many application status checks. Try again shortly.");
+			await new Promise<void>((resolve, reject) => {
+				const wake = () => { signal.removeEventListener("abort", cancel); resolve(); };
+				const cancel = () => { queue.splice(queue.indexOf(wake), 1); reject(new Error("Application status was cancelled.")); };
+				queue.push(wake);
+				signal.addEventListener("abort", cancel, { once: true });
+			});
+		} else {
+			running += 1;
+		}
+		if (signal.aborted) {
+			const next = queue.shift();
+			if (next) next(); else running -= 1;
+			throw new Error("Application status was cancelled.");
+		}
+		return () => { const next = queue.shift(); if (next) next(); else running -= 1; };
+	}
+	function status(args: readonly string[], signal: AbortSignal): Promise<JsonValue> {
+		const identity = JSON.stringify(args);
+		let flight = flights.get(identity);
+		if (flight === undefined || flight.controller.signal.aborted) {
+			const controller = new AbortController();
+			const promise = (async () => {
+				const release = await slot(controller.signal);
+				try { return await command(args, { signal: controller.signal, timeoutMs: 4_000 }); }
+				finally { release(); }
+			})();
+			flight = { controller, promise, readers: 0 };
+			flights.set(identity, flight);
+			void promise.finally(() => { if (flights.get(identity) === flight) flights.delete(identity); }).catch(() => {});
+		}
+		const active = flight;
+		active.readers += 1;
+		return new Promise<JsonValue>((resolve, reject) => {
+			let finished = false;
+			const finish = () => {
+				if (finished) return false;
+				finished = true;
+				signal.removeEventListener("abort", cancel);
+				active.readers -= 1;
+				if (active.readers === 0) active.controller.abort();
+				return true;
+			};
+			const cancel = () => { if (finish()) reject(new Error("Application status was cancelled.")); };
+			signal.addEventListener("abort", cancel, { once: true });
+			if (signal.aborted) cancel();
+			void active.promise.then((value) => { if (finish()) resolve(value); }, (failure: Error) => { if (finish()) reject(failure instanceof Error ? failure : new Error("Application status could not be checked.")); });
+		});
+	}
 	routes.use("*", cors({ origin: [...LOCAL_ACTION_ORIGINS], allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["Content-Type", HEADER] }));
 	routes.post("/", async (context) => {
 		const refusal = checkLocalAction(HEADER, "1", context.req.header(HEADER), context.req.header("origin"));
@@ -102,7 +162,7 @@ export function createApplicationRoutes(command: ApplicationCommand = applicatio
 		try { return jsonResponse(await command(args)); }
 		finally { setApplicationActive(false); }
 	});
-	routes.get("/:key", async (context) => jsonResponse(await command(["status", context.req.param("key"), ...selectedProfile()])));
+	routes.get("/:key", async (context) => jsonResponse(await status(["status", context.req.param("key"), ...selectedProfile()], context.req.raw.signal)));
 	routes.get("/:key/files/:name", async (context) => {
 		const name = context.req.param("name");
 		if (!["resume.pdf", "resume.txt", "letter.txt"].includes(name)) return context.json({ error: "Unknown document." }, 404);

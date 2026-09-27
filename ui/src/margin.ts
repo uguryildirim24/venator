@@ -358,9 +358,20 @@ export function buildMargin(input: MarginInput): Margin {
 
 /** A block's text cut at its marks, for rendering: plain runs and marked runs, in order. */
 export function segments(block: MarkedBlock): readonly { readonly text: string; readonly tone: MarkTone | null }[] {
+	const marks: Mark[] = [];
+	for (const mark of [...block.marks].sort((left, right) => left.start - right.start)) {
+		const last = marks.at(-1);
+		if (last !== undefined && mark.start <= last.end) {
+			// A second overlapping mark must not repeat text. Adjacent marks of one tone
+			// are one underline, so they cannot create an extra break inside a word.
+			if (mark.tone === last.tone) marks[marks.length - 1] = { ...last, end: Math.max(last.end, mark.end) };
+			continue;
+		}
+		marks.push(mark);
+	}
 	const runs: { text: string; tone: MarkTone | null }[] = [];
 	let cursor = 0;
-	for (const mark of block.marks) {
+	for (const mark of marks) {
 		if (mark.start > cursor) runs.push({ text: block.text.slice(cursor, mark.start), tone: null });
 		runs.push({ text: block.text.slice(mark.start, mark.end), tone: mark.tone });
 		cursor = mark.end;

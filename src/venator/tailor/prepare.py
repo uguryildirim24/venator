@@ -37,9 +37,8 @@ from venator.profile import Profile
 from venator.profile.facts import confirmed as _confirmed
 from venator.resume.render import DEFAULT_SECTIONS, SUPERSCRIPTS, register_fonts
 from venator.tailor.draft import CheckedDraft, DRAFT_SCHEMA, SUPPORTED_PROVIDERS, generate_and_check
+from venator.tailor.version import PREPARATION_REVISION, _input_version, _plain_copy
 
-
-PREPARATION_REVISION = 8
 
 # These are control fields in resume.yaml.  They decide whether a fact may be
 # selected, but are never copied into the rendered document.
@@ -83,18 +82,6 @@ class _Line:
 class _Selection:
     entries: tuple[_Entry, ...]
     bullets: Mapping[str, tuple[_Bullet, ...]]
-
-
-def _plain_copy(value: object) -> object:
-    """Copy YAML-shaped data without trying to pickle MappingProxyType."""
-
-    if isinstance(value, Mapping):
-        return {str(key): _plain_copy(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_plain_copy(item) for item in value]
-    if isinstance(value, set):
-        return sorted((_plain_copy(item) for item in value), key=str)
-    return value
 
 
 def _text(value: object) -> str | None:
@@ -482,21 +469,6 @@ def _write_pdf(lines: Sequence[_Line], path: Path, *, title: str) -> None:
             if len(fields) > 1:
                 flow.append(_paragraph(" | ".join(fields[1:]), entry_metadata if followed_by_bullet else body))
     document.build(flow)
-
-
-def _input_version(profile: Profile, resume: Mapping[str, object], *, include_layout: bool = True) -> str:
-    # The public freshness stamp must match application open; this additional
-    # fingerprint also protects callers using in-memory Profile changes.
-    payload = {"resume": _plain_copy(resume), "constraints": _plain_copy(profile.constraints),
-               "targeting": _plain_copy(profile.targeting)}
-    reference = profile.directory / "resume-reference"
-    if include_layout and reference.exists():
-        payload["resume_reference"] = {
-            path.relative_to(reference).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in sorted(reference.rglob("*")) if path.is_file()
-        }
-    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _manifest_path(directory: Path) -> Path:

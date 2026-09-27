@@ -6,8 +6,9 @@ import { applicationFileUrl, type ApplicationManifest, type ApplicationProvider 
 import { preparation, type ApplicationControl } from "../application.ts";
 import { formatDay, formatMoment, hostOf } from "../format.ts";
 import { assessmentNoteLabel, decisionTitle, employerLabel, ruleLabel, sourceLabel, statusLabel, trackEventLabel } from "../labels.ts";
-import { buildMargin, segments, type Margin, type MarginNote, type MarkedBlock } from "../margin.ts";
+import { buildMargin, type Margin, type MarginNote, type MarkedBlock } from "../margin.ts";
 import { ExternalLink } from "./external-link.tsx";
+import { PageBlockText } from "./page-block-text.ts";
 import { Sheet } from "./sheet.tsx";
 
 /* ----------------------------------------------------------------- notes */
@@ -46,31 +47,15 @@ function Notes({ notes, count, onOpen }: { readonly notes: readonly MarginNote[]
 
 /* ----------------------------------------------------------------- page */
 
-function BlockText({ block }: { readonly block: MarkedBlock }) {
-	return (
-		<>
-			{segments(block).map((run, index) =>
-				run.tone === null ? (
-					<Fragment key={index}>{run.text}</Fragment>
-				) : (
-					<span key={index} className="mark" data-mark={run.tone}>
-						{run.text}
-					</span>
-				),
-			)}
-		</>
-	);
-}
-
 function Block({ block, onOpen, anchor }: { readonly block: MarkedBlock; readonly onOpen: () => void; readonly anchor: boolean }) {
 	const text =
 		block.kind === "heading" ? (
 			<h2 className="page-heading">
-				<BlockText block={block} />
+				<PageBlockText block={block} />
 			</h2>
 		) : (
 			<p className={block.kind === "item" ? "page-text page-item" : "page-text"}>
-				<BlockText block={block} />
+				<PageBlockText block={block} />
 			</p>
 		);
 	return (
@@ -115,7 +100,7 @@ function PageBlocks({ blocks, requirementsAt, onOpen }: { readonly blocks: reado
 function emptyPageReason(detail: PostingDetail): string {
 	const kind = detail.assessment?.descriptionKind;
 	if (kind === "snippet") return "Only a snippet of the description was fetched, and it has no text to set here.";
-	if (detail.descriptionHtml.trim() !== "") return "The description has no text a reader page can hold. Read Full Description shows it as the employer wrote it.";
+	if (detail.descriptionHtml.trim() !== "") return "No readable text in this description.";
 	return "The full description has not been fetched yet. It arrives with the next detail check of this listing.";
 }
 
@@ -426,6 +411,7 @@ function FitLedger({ fit, requirementsAt, onOpen }: { readonly fit: Margin["fit"
 type PostingPageProps = {
 	readonly detail: PostingDetail;
 	readonly control: ApplicationControl;
+	readonly arriving: boolean;
 };
 
 /**
@@ -435,7 +421,7 @@ type PostingPageProps = {
  * lines up with its text without anything being measured. The page column holds only the
  * employer's words, as plain text from the reader extraction; the margin holds only Venator's.
  */
-export function PostingPage({ detail, control }: PostingPageProps) {
+export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 	const [sheet, setSheet] = useState<"description" | "changed" | "history" | "requirements" | null>(null);
 	const pageRef = useRef<HTMLElement>(null);
 
@@ -502,7 +488,7 @@ export function PostingPage({ detail, control }: PostingPageProps) {
 	};
 
 	return (
-		<article ref={pageRef} className="posting" aria-label={posting.title}>
+		<article ref={pageRef} className="posting" data-arriving={arriving || undefined} aria-label={posting.title}>
 			<div className="page-block" data-kind="header">
 				<header className="page-cell">
 					<p className="page-eyebrow">{eyebrow}</p>
@@ -558,7 +544,7 @@ export function PostingPage({ detail, control }: PostingPageProps) {
 						</>
 					) : (
 						<>
-							<button type="button" className="button" onClick={() => setSheet("description")}>
+							<button type="button" className="button" data-size="large" onClick={() => setSheet("description")}>
 								Read Full Description
 							</button>
 						</>

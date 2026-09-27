@@ -41,6 +41,23 @@ EVENT_STATES = {
     "outcome": "concluded",
     "withdraw": "withdrawn",
 }
+APPLICATION_PROGRESS = frozenset({
+    "approved", "rejected", "prepared", "filled", "submitted", "concluded", "withdrawn",
+})
+
+
+def application_progress_keys(states: Mapping[str, dict]) -> set[str]:
+    """Postings whose Track standing takes precedence over Awaiting Jev."""
+    return {key for key, row in states.items() if row["state"] in APPLICATION_PROGRESS}
+
+
+def track_progress_keys(track_dir: Path, profile_id: str) -> set[str]:
+    """The same progress gate used by the Jev plan and its execution."""
+    if track_dir.exists():
+        verify_track_dir(track_dir, profile_id)
+    return application_progress_keys(fold_states(load_events(track_dir), {}))
+
+
 OUTCOMES = frozenset({"interview", "offer", "rejected", "no_response"})
 DETAIL_EVENTS = frozenset({"fill", "submit", "outcome", "prepare"})
 STATE_ORDER = (

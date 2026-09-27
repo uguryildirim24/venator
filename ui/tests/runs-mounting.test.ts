@@ -342,28 +342,27 @@ test("and the served app answers no write method under /api/runs outside those r
 });
 
 test("the dashboard API is still answered as read-only, and still answers", async () => {
-	const app = createServer();
-
-	const preflighted = await app.request(
-		new Request("http://127.0.0.1:5170/api/summary", {
-			method: "OPTIONS",
-			headers: { origin: DESKTOP_ORIGIN, "access-control-request-method": "GET" },
-		}),
-	);
-	assert.deepEqual(allowedMethods(preflighted), ["GET", "OPTIONS"]);
-
-	// Do not read the machine's Install: its view may have a different schema.
-	const home = mkdtempSync(join(tmpdir(), "venator-api-mount-"));
-	const previous = process.env.VENATOR_HOME;
+	const home = mkdtempSync(join(tmpdir(), "venator-runs-mounting-"));
+	const previous = process.env["VENATOR_HOME"];
+	process.env["VENATOR_HOME"] = home;
 	try {
-		process.env.VENATOR_HOME = home;
+		const app = createServer();
+		const preflighted = await app.request(
+			new Request("http://127.0.0.1:5170/api/summary", {
+				method: "OPTIONS",
+				headers: { origin: DESKTOP_ORIGIN, "access-control-request-method": "GET" },
+			}),
+		);
+		assert.deepEqual(allowedMethods(preflighted), ["GET", "OPTIONS"]);
+
+		// Do not read the machine's Install: its view may have a different schema.
 		const summary = await app.request(
 			new Request("http://127.0.0.1:5170/api/summary", { headers: { origin: DESKTOP_ORIGIN } }),
 		);
 		assert.equal(summary.status, 200);
 	} finally {
-		if (previous === undefined) delete process.env.VENATOR_HOME;
-		else process.env.VENATOR_HOME = previous;
+		if (previous === undefined) delete process.env["VENATOR_HOME"];
+		else process.env["VENATOR_HOME"] = previous;
 		rmSync(home, { recursive: true, force: true });
 	}
 });

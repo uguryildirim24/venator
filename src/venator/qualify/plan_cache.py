@@ -33,6 +33,8 @@ def fingerprint(profile: Any, stores: Any, as_of: str) -> str:
     paths = [
         *(_files(stores.postings_dir, "*.jsonl")),
         *(_files(stores.decisions_dir, "*.jsonl")),
+        *(_files(stores.track_dir, "*.jsonl")),
+        stores.track_dir / ".profile",
         stores.decisions_dir / ".profile",
         *(_files(stores.qualifications_dir, "*.jsonl")),
         stores.qualifications_dir / ".profile",
@@ -73,6 +75,7 @@ def _compute(profile: Any, stores: Any, as_of: str) -> dict:
         stores.postings_dir, stores.decisions_dir, stores.qualifications_dir, profile, month,
         eligible_only=True, revisions=revisions,
         decisions_verified=True, qualifications_verified=True,
+        track_dir=stores.track_dir,
     )
     work = select_work(
         postings, profile=profile, month=month, mode=mode,
