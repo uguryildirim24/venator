@@ -75,7 +75,8 @@ test("an ordinary plan names the closed pipeline stages", async () => {
 test("no run kind the dashboard can start commits", () => {
 	const startable: readonly string[] = RUN_KINDS.flatMap((kind) => [...RUN_KIND_STAGES[kind]]);
 	assert.equal(startable.includes("commit"), false);
-	assert.deepEqual(PLAN_KINDS.filter((kind) => runKindOf(kind) !== null), [...RUN_KINDS]);
+	assert.deepEqual(PLAN_KINDS.filter((kind) => runKindOf(kind) !== null), ["fetch-and-filter", "jev-it"]);
+	assert.ok(!PLAN_KINDS.some((kind) => String(kind) === "profile-replay"));
 	assert.equal(runKindOf("fetch-and-filter"), "fetch-and-filter");
 });
 

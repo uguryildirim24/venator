@@ -50,7 +50,7 @@ from venator.match.store import (
     load_postings,
     verify_decisions_dir,
 )
-from venator.track.store import fold_states, load_events, verify_track_dir
+from venator.track.store import application_progress_keys, fold_states, load_events, verify_track_dir
 from venator.profile import (
     PROFILE_ENV,
     PROFILES_DIR,
@@ -106,6 +106,7 @@ CREATE TABLE postings (
   discovered_at TEXT,
   description_html TEXT
 );
+CREATE TABLE posting_revisions (key TEXT PRIMARY KEY, revision TEXT NOT NULL);
 CREATE TABLE decisions (
   id INTEGER PRIMARY KEY,
   posting_key TEXT,
@@ -432,6 +433,7 @@ def build_database(
     runs = list(_iter_jsonl_file(runs_file))
     folded_states = fold_states(track_events, latest_decisions)
     application_states = [folded_states[key] for key in sorted(folded_states)]
+    progress_keys = application_progress_keys(folded_states)
     current_filters_version = None
     if profile is not None:
         if jev_mode:
@@ -458,6 +460,7 @@ def build_database(
             latest_decisions=latest_decisions, revisions=revisions,
             qualifications_verified=True,
         )
+        passes = [posting for posting in passes if posting["key"] not in progress_keys]
         work = select_work(
             passes, profile=profile, month=as_of_month,
             mode=current_mode(profile, as_of_month, qualifications_dir, JEV_RELEASE),
@@ -669,6 +672,10 @@ def build_database(
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 posting_rows,
+            )
+            database.executemany(
+                "INSERT INTO posting_revisions VALUES (?, ?)",
+                ((posting["key"], posting_revision(posting)) for posting in postings),
             )
             # A decision row also carries `profile_id` — which Profile produced it
             # — and the view deliberately does not materialize it. A decisions

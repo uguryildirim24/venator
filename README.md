@@ -92,7 +92,8 @@ has **Skip for Now**.
 After setup, **Profile** in the sidebar opens a form for editing the Profile you
 already saved: contact and résumé facts, target jobs, filters, employers and settings.
 Save checks your changes before writing and keeps Profile fields the form does not
-show. If you skipped the employers, the empty list offers **Add Employers…**. If
+show. It then reruns Hard Filters on stored Postings and rebuilds the lists, without
+fetching boards or calling Jev. If you skipped the employers, the empty list offers **Add Employers…**. If
 you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
 
 ## Everyday use
@@ -104,7 +105,8 @@ you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
 - **Jev it** sits above your Profile name at the bottom of the sidebar. Without
   a key, the button is disabled without an extra message. Refresh sits below
   Employers. Jev it sends
-  waiting Postings to Jev, with a $10 limit per press. If it stops (no key, no
+  waiting Postings to Jev, with a $10 limit per press. It skips Postings you've
+already prepared or applied for. If it stops (no key, no
   credit, a connection problem, or the limit), earlier results stay and the rest
   wait for the next press. The run shows what is waiting and when the view is ready.
 - The location choice above a list narrows the visible Postings and counts. Open
@@ -120,6 +122,8 @@ you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
 - **For you** is what Jev says to look at first. **Explore** is what it says to
   review. **Excluded** holds Hard Filter kills and Jev exclusions. **Applications**,
   **Saved** and **Dismissed** hold what you've acted on.
+- Switching Postings fades and raises the new page. **Read Full Description** opens
+  the employer's full text below the shortened reading page.
 - A Posting's margin starts with **Meets N of M** and a tally of the requirements
   Venator can check against your résumé. **Open Listing** goes to the employer's page
   when Venator can't prepare an application. **Save** and **Dismiss** record your

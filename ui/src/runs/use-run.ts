@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { PlanKind, RunKind, RunPlan, RunState } from "../../shared/runs.ts";
+import type { PlanKind, RunPlan, RunState } from "../../shared/runs.ts";
 import { planRun, readCurrentRun, readRecentRuns, RunRequestError, startRun, stopRun } from "./api.ts";
 
 const LIVE_POLL_MS = 1_000;
@@ -97,7 +97,7 @@ export type RunControl = {
 };
 
 export function useRunControl(
-	kind: RunKind,
+	kind: PlanKind,
 	planToken = 0,
 	onSettled?: (() => void) | undefined,
 ): RunControl {

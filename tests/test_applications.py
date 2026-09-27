@@ -253,6 +253,45 @@ def test_profile_changed_during_refresh_stops_before_model(application_run, monk
     assert not run.model_calls
 
 
+def test_status_never_replays_postings_or_decisions(application_run, monkeypatch):
+    run = application_run
+    def forbid(*_args, **_kwargs):
+        raise AssertionError("status replayed a whole store")
+    with monkeypatch.context() as patched:
+        patched.setattr("venator.match.store.load_postings", forbid)
+        patched.setattr("venator.match.store.verify_decisions_dir", forbid)
+        assert run.perform("status")["prepared"] is False
+    record = run.perform("prepare")
+    monkeypatch.setattr("venator.match.store.load_postings", forbid)
+    monkeypatch.setattr("venator.match.store.verify_decisions_dir", forbid)
+    assert run.perform("status")["version"] == record["version"]
+    with (run.profile_dir / "resume.yaml").open("a") as stream:
+        stream.write("summary: Changed confirmed facts.\n")
+    assert run.perform("status")["prepared"] is False
+
+
+def test_status_checks_indexed_posting_revision(application_run):
+    import sqlite3
+    run = application_run
+    run.perform("prepare")
+    with sqlite3.connect(run.install / "build" / "venator.db") as database:
+        database.execute("UPDATE posting_revisions SET revision = ? WHERE key = ?",
+                         ("a-different-revision", run.refreshed["key"]))
+    status = run.perform("status")
+    assert status["prepared"] is False
+    assert "changed" in status["message"]
+
+
+def test_status_refuses_stale_view_revision(application_run):
+    run = application_run
+    run.perform("prepare")
+    changed = dict(run.refreshed, description_html="A changed employer listing.")
+    append_observations(run.install / "data" / "postings", [changed])
+    result = run.perform("status")
+    assert result["prepared"] is False
+    assert "Rebuild the View" in result["message"]
+
+
 def test_status_handles_malformed_manifest_without_claiming_documents_are_ready(application_run):
     run = application_run
     run.perform("prepare")

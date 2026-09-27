@@ -18,7 +18,7 @@
 		"preview": "vite preview",
 		"fixture": "node fixtures/build.ts",
 		"smoke": "node tools/smoke.ts",
-		"test": "node --test \"tests/*.test.ts\"",
+		"test": "node --import ./tools/isolate-install.ts --test \"tests/*.test.ts\"",
 		"snapshot": "node tools/snapshot.ts",
 		"lint": "oxlint",
 		"typecheck": "tsc --noEmit",

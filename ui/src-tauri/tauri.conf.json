@@ -48,6 +48,7 @@
 		"resources": [
 			"resources/server.mjs",
 			"resources/parse_resume.py",
+			"resources/profile_version.py",
 			"resources/resolve_board.py",
 			"resources/verify_profile.py",
 			"resources/plan.py",

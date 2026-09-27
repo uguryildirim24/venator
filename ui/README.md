@@ -89,7 +89,10 @@ the choice in the Install; it doesn't change a Profile or the view.
 `python -m venator.applications <action> <key> --profile <name>` and returns its JSON.
 While another application action or a run is going, it answers `409`.
 
-`GET /api/applications/:key` returns the application's status.
+`GET /api/applications/:key` returns the application's status. The view keeps
+Posting revisions in an indexed table, so a status check does not load every Posting.
+Concurrent checks for the same Posting share one child; status children have a short
+time limit and a bounded queue. Abandoned checks cancel their child.
 `GET /api/applications/:key/files/<name>` returns a prepared `resume.pdf`,
 `resume.txt` or `letter.txt`.
 
@@ -161,12 +164,15 @@ Setup takes over the whole window, with no sidebar. Each step has **Skip for Now
 and the step lives in the URL so Back works. When the app opens with no route and no
 real Profile, it goes to setup once. **Profile** in the sidebar opens the saved
 Profile's form instead. Changes are checked before Save; fields the form doesn't
-show remain in the Profile. The location choice above the lists filters visible
+show remain in the Profile. Save replays Hard Filters on stored Postings and rebuilds
+the view, without fetching or calling Jev. The location choice above the lists filters visible
 Postings, page counts and pagination without changing the view database.
 
 Jev it is a separate press above the Profile account row. Its waiting, running and paused
 states stay visible while Refresh remains a fetch-and-filter action. Lists and the
-inspector use lighter transitions, with reduced motion respected.
+inspector use lighter transitions, with reduced motion respected. Switching Postings
+fades and raises the new page. **Read Full Description** is a capsule below the
+shortened reading page; highlighted words stay whole.
 
 The first-run states (No jobs yet, Jev needs a key, Updating your job list) are in
 `src/views/first-run.tsx`. None of them starts anything just by being shown.

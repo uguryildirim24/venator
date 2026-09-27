@@ -1,7 +1,7 @@
 import { RotateCw, Square } from "lucide-react";
 import { useState } from "react";
 
-import type { RunKind, RunState } from "../../shared/runs.ts";
+import type { PlanKind, RunKind, RunState } from "../../shared/runs.ts";
 import { Sheet } from "../components/sheet.tsx";
 import { formatMoment } from "../format.ts";
 import { jevPauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";
@@ -28,8 +28,6 @@ type RunRowProps = {
 	readonly control: RunControl;
 	/** The line or two shown beside the press while this kind is not running. */
 	readonly idle: readonly string[];
-	/** The plan's own sentence in full, as the idle lines' tooltip. */
-	readonly idleTitle?: string | undefined;
 	/** The press is off before anybody presses: no plan yet, or one that says there is nothing to do. */
 	readonly off: boolean;
 	/** A line under the row, in words: why the press is off, the last pause, the last run. */
@@ -86,7 +84,7 @@ function RunFailureDetail({ run }: { readonly run: RunState }) {
  * that finished left behind, and what the pipeline printed — in a sheet rather than in a
  * 240px column.
  */
-function RunRow({ kind, control, idle, idleTitle, off, note, press, updating = false }: RunRowProps) {
+function RunRow({ kind, control, idle, off, note, press, updating = false }: RunRowProps) {
 	const { run, busy, actionError, start, stop } = control;
 	const [failureOpen, setFailureOpen] = useState(false);
 	const own = run !== null && run.kind === kind ? run : null;
@@ -103,29 +101,27 @@ function RunRow({ kind, control, idle, idleTitle, off, note, press, updating = f
 	return (
 		<div className="run-row">
 			<div className="run-status">
-				<div className="run-status-lines" aria-live="polite">
-					{updating && !running ? (
-						<>
-							<span>{FIRST_RUN.updatingSidebar}</span>
-							<span className="run-progress" data-indeterminate="" role="progressbar" aria-label={FIRST_RUN.updatingSidebar}>
-								<span />
-							</span>
-						</>
-					) : running ? (
-						<>
-							<span>{stage === null ? "Starting…" : `${runStageLabel(stage.stage)}…`}</span>
-							<span className="run-progress" role="progressbar" aria-valuemin={0} aria-valuemax={own.stages.length} aria-valuenow={finished}>
-								<span style={{ transform: `scaleX(${String(finished / Math.max(1, own.stages.length))})` }} />
-							</span>
-						</>
-					) : (
-						idle.map((line) => (
-							<span key={line} title={idleTitle}>
-								{line}
-							</span>
-						))
-					)}
-				</div>
+				{updating || running || idle.length > 0 ? (
+					<div className="run-status-lines" aria-live="polite">
+						{updating && !running ? (
+							<>
+								<span>{FIRST_RUN.updatingSidebar}</span>
+								<span className="run-progress" data-indeterminate="" role="progressbar" aria-label={FIRST_RUN.updatingSidebar}>
+									<span />
+								</span>
+							</>
+						) : running ? (
+							<>
+								<span>{stage === null ? "Starting…" : `${runStageLabel(stage.stage)}…`}</span>
+								<span className="run-progress" role="progressbar" aria-valuemin={0} aria-valuemax={own.stages.length} aria-valuenow={finished}>
+									<span style={{ transform: `scaleX(${String(finished / Math.max(1, own.stages.length))})` }} />
+								</span>
+							</>
+						) : (
+							idle.map((line) => <span key={line}>{line}</span>)
+						)}
+					</div>
+				) : null}
 				{updating && !running ? null : running ? (
 					<button type="button" className="icon-button" onClick={stop} disabled={busy} aria-label="Stop the run" title="Stop the run">
 						<Square aria-hidden="true" className="icon" />
@@ -186,14 +182,8 @@ export function FetchStatus({ lastFetchAt, onSettled, updating }: FetchRowProps)
 	);
 }
 
-/** How many Postings the plan would send to Jev, as the one line beside the press. */
-function awaitingLabel(count: number): string {
-	if (count === 0) return "Nothing awaiting Jev";
-	return `${count.toLocaleString("en-US")} awaiting Jev`;
-}
-
 type JevItRowProps = {
-	readonly kind: RunKind;
+	readonly kind: PlanKind;
 	/** The last Jev it pause the view recorded, if the latest Jev run ended in one. */
 	readonly jevPause: { readonly reason: string; readonly waiting: number } | null;
 	readonly onSettled: () => void;
@@ -202,25 +192,15 @@ type JevItRowProps = {
 /**
  * Jev it: one press sorts every Posting that passed the Hard Filters and has no Jev result.
  *
- * The line beside the press is the plan's count; with a key, the plan's full sentence is its
- * tooltip. This row never counts Postings itself and never estimates a cost, and no Jev result is
- * shown here or anywhere else. Under it, one note at most: a pause other than a missing key,
+ * No idle count or plan explanation sits beside the press; Awaiting Jev already has the count.
+ * Under it, one note at most: a pause other than a missing key,
  * or when the last sort finished. Without a key the press is off, without explanatory copy.
  */
 function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
 	const control = useRunControl(kind, 0, onSettled);
 	const { plan, planError, run } = control;
-	const count = plan?.jev?.postingCount ?? null;
 	const keyMissing = plan?.notes.find((entry) => entry.code === "jev-key-missing") ?? null;
 	const sorted = run !== null && run.kind === kind && run.phase === "succeeded" && run.endedAt !== null ? run.endedAt : null;
-	const line =
-		planError !== null
-			? "Jev could not be planned"
-			: plan === null
-				? "Counting what awaits Jev…"
-				: count === null
-					? "The Jev plan did not say what it would assess"
-					: awaitingLabel(count);
 	const note =
 		planError !== null
 			? planError.message
@@ -234,8 +214,7 @@ function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
 		<RunRow
 			kind={kind}
 			control={control}
-			idle={[line]}
-			idleTitle={keyMissing === null ? plan?.jev?.summary : undefined}
+			idle={[]}
 			off={off}
 			note={note}
 			press={{ kind: "capsule", label: JEV_IT_LABEL, prominent: keyMissing === null }}

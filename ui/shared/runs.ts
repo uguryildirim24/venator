@@ -10,8 +10,8 @@
  *
  * - `RunStage` is the vocabulary of `venator.schedule.loop` minus `commit`. It is what the
  *   progress reader recognises on the loop's stdout and what a `RunState` reports about.
- * - `RunKind` is what a request may **start**. A request never names stages — it names a
- *   kind, and the server looks the stages up in `RUN_KIND_STAGES`. So there is no route that
+ * - `RunKind` is what the runner may **start**. A request names only a `PlanKind`, while Save
+ *   alone starts `profile-replay`. The server looks stages up in `RUN_KIND_STAGES`. No route
  *   takes a module name, no argument passthrough, and no way to assemble a stage list from
  *   input.
  * - `PlanKind` is what a request may **ask about**. It is kept as a named type because a plan
@@ -41,20 +41,18 @@ export type RunStage = "discover" | "filters" | "jev" | "view";
 export const RUN_STAGES: readonly RunStage[] = ["discover", "filters", "jev", "view"];
 
 /**
- * What a person can **start**.
- *
+ * What the runner can start. Profile replay is internal to Save, never an HTTP plan.
  * Fetching Postings, recording Filter Decisions and rebuilding the disposable view.
  */
-export type RunKind = "fetch-and-filter" | "jev-it";
+export type RunKind = "fetch-and-filter" | "jev-it" | "profile-replay";
 
-export const RUN_KINDS: readonly RunKind[] = ["fetch-and-filter", "jev-it"];
+export const RUN_KINDS: readonly RunKind[] = ["fetch-and-filter", "jev-it", "profile-replay"];
 
 /**
  * What a person can **ask about** before a start. Keeping this closed set separate makes a
- * plan request explicit and keeps future described-only work from becoming startable by
- * accident.
+ * plan request explicit and keeps the internal Profile replay off the HTTP surface.
  */
-export type PlanKind = RunKind;
+export type PlanKind = "fetch-and-filter" | "jev-it";
 
 export const PLAN_KINDS: readonly PlanKind[] = ["fetch-and-filter", "jev-it"];
 
@@ -64,7 +62,7 @@ export const PLAN_KINDS: readonly PlanKind[] = ["fetch-and-filter", "jev-it"];
  * The one place the two sets meet, and it narrows rather than asserts: a caller that wants to
  * start something has to handle the null, and the type-checker is what makes it.
  */
-export function runKindOf(kind: PlanKind): RunKind | null {
+export function runKindOf(kind: RunPlan["kind"]): RunKind | null {
 	return RUN_KINDS.find((candidate) => candidate === kind) ?? null;
 }
 
@@ -77,6 +75,7 @@ export function runKindOf(kind: PlanKind): RunKind | null {
 export const RUN_KIND_STAGES = {
 	"fetch-and-filter": ["discover", "filters", "view"],
 	"jev-it": ["view"],
+	"profile-replay": ["filters", "view"],
 } satisfies Record<RunKind, readonly RunStage[]>;
 
 /**
@@ -132,7 +131,7 @@ export type RunPlan = {
 	 * A `PlanKind`, narrowed again at redemption so the plan and run closed sets cannot drift
 	 * without a refusal.
 	 */
-	readonly kind: PlanKind;
+	readonly kind: PlanKind | "profile-replay";
 	readonly profile: string;
 	readonly profileDirectory: string;
 	/**

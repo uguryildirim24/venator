@@ -31,6 +31,8 @@
  * API for every Posting and proves neither number crosses the wire. See `HELD_NUMBERS`.
  */
 
+import "./isolate-install.ts";
+
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -835,39 +837,43 @@ const JEV_KEY_MISSING_NOTE = "No TypeSafe key is saved, so these Postings wait f
 /**
  * The footer's Jev row, with the key the pass answers with: none.
  *
- * The line beside the press is the plan's count in words. With no key the capsule is off;
- * neither the note nor the plan's explanatory tooltip appears in the foot.
+ * The capsule is alone with no idle count or plan summary. With no key it is off;
+ * the missing-key note does not appear in the foot.
  */
 const JEV_PLAN_CHECK: RouteCheck = {
 	hash: "#/queue",
 	label: "runs: without a key, Jev it is off with no key note",
 	expected: [
-		`${JEV_POSTING_COUNT} awaiting Jev`,
 		'<button type="button" class="button" data-size="large" disabled="">Jev it</button>',
 	],
-	absent: ["spend allowance", "next refresh", JEV_KEY_MISSING_NOTE, JEV_PLAN_SUMMARY, 'data-tone="prominent">Jev it'],
+	absent: ["spend allowance", "next refresh", `${JEV_POSTING_COUNT} awaiting Jev`, "Nothing awaiting Jev", "Counting what awaits Jev…", JEV_KEY_MISSING_NOTE, JEV_PLAN_SUMMARY, 'data-tone="prominent">Jev it'],
 };
 
 /** The same row once a key is saved: the plan carries no note, and the press is ember. */
 const JEV_READY_CHECK: RouteCheck = {
 	hash: "#/queue",
 	label: "runs: with a key saved, Jev it is the footer's ember press",
-	expected: [`${JEV_POSTING_COUNT} awaiting Jev`, '<button type="button" class="button" data-size="large" data-tone="prominent">Jev it</button>'],
-	absent: [JEV_KEY_MISSING_NOTE],
+	expected: ['<button type="button" class="button" data-size="large" data-tone="prominent">Jev it</button>'],
+	absent: [`${JEV_POSTING_COUNT} awaiting Jev`, "Nothing awaiting Jev", "Counting what awaits Jev…", JEV_KEY_MISSING_NOTE, JEV_PLAN_SUMMARY],
 };
 
 /**
- * Answers the next Jev plans as a plan with a key behind it, and hands back the undo. Only the
- * note changes: the count, the summary and the token are the pass's own.
+ * Answers the next Jev plans as a plan with a key behind it, and hands back the undo.
+ * The zero case has no work to send, so the press must remain off.
  */
-function answerJevPlanWithKey(): () => void {
+function answerJevPlanWithKey(postingCount?: number): () => void {
 	const previous = globalThis.fetch;
 	globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 		const response = await previous(input, init);
 		const path = new URL(String(input), "http://127.0.0.1").pathname;
 		if (path !== "/api/runs/plan" || JSON.parse(String(init?.body)).kind !== "jev-it") return response;
 		const body: PlanResponse = await response.json();
-		const plan: RunPlan = { ...body.plan, notes: body.plan.notes.filter((note) => note.code !== "jev-key-missing") };
+		const plan: RunPlan = {
+			...body.plan,
+			startable: postingCount === 0 ? false : body.plan.startable,
+			notes: body.plan.notes.filter((note) => note.code !== "jev-key-missing"),
+			jev: postingCount === undefined || body.plan.jev === null ? body.plan.jev : { ...body.plan.jev, postingCount },
+		};
 		return new Response(JSON.stringify({ plan }), { status: 200, headers: { "content-type": "application/json" } });
 	};
 	return () => {
@@ -882,6 +888,18 @@ async function checkJevReady(renderer: RouteRenderer): Promise<void> {
 		judge(JEV_READY_CHECK, await renderer.render(JEV_READY_CHECK.hash));
 	} finally {
 		restore();
+	}
+	checked += 1;
+	const restoreZero = answerJevPlanWithKey(0);
+	try {
+		judge({
+			hash: "#/queue",
+			label: "runs: nothing to send leaves Jev it alone and off",
+			expected: ['<button type="button" class="button" data-size="large" disabled="">Jev it</button>'],
+			absent: ["Nothing awaiting Jev", "Counting what awaits Jev…", `${JEV_POSTING_COUNT} awaiting Jev`, JEV_PLAN_SUMMARY],
+		}, await renderer.render("#/queue"));
+	} finally {
+		restoreZero();
 	}
 }
 

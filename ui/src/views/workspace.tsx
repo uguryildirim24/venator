@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useMemo, useState, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import type { Funnel, JevTriageDecision, JevTriageEntry, PostingEntry } from "../../shared/contracts.ts";
 import { useJevTriage, useLocations, usePostingDetail, usePostings } from "../api.ts";
@@ -40,6 +40,7 @@ import {
 import { EmptyList } from "./empty-list.tsx";
 import { AwaitingKey, UpdatingState, useJevKeyMissing } from "./first-run.tsx";
 import { FIRST_RUN } from "./onboarding/copy.ts";
+import { nextPostingArrival } from "./posting-arrival.ts";
 
 /** What the list column is showing: a home list, early review, or the inspector's results. */
 type Source =
@@ -181,6 +182,13 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	const keyMissing = useJevKeyMissing(awaitingList, reloadToken + keyToken);
 	const awaitingKey = awaitingList && keyMissing && route.name !== "posting" && keys.length > 0;
 	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || keys.includes(route.key)) ? route.key : awaitingKey ? null : (keys[0] ?? null);
+	const detailPane = useRef<HTMLDivElement>(null);
+	const [arrival, setArrival] = useState(() => ({ key: selectedKey, at: performance.now(), animate: false }));
+	useLayoutEffect(() => {
+		// Reset the reading position on selection, not after the new detail finishes loading.
+		if (detailPane.current !== null) detailPane.current.scrollTop = 0;
+		setArrival((previous) => nextPostingArrival(previous, selectedKey, performance.now()));
+	}, [selectedKey]);
 	const detail = usePostingDetail(selectedKey, reloadToken);
 	const control = useApplicationControl(selectedKey, reloadToken, onReload);
 	const [keyboardMoves, setKeyboardMoves] = useState(0);
@@ -296,14 +304,14 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 						</footer>
 					)}
 				</section>
-				<div className="detail-pane">
+				<div className="detail-pane" ref={detailPane}>
 					{detail.status === "error" ? (
 						<div className="empty">
 							<p className="empty-title">This Posting could not be read</p>
 							<p>{detail.message}</p>
 						</div>
 					) : null}
-					{current === null ? null : <PostingPage key={current.posting.key} detail={current} control={control} />}
+					{current === null ? null : <PostingPage key={current.posting.key} detail={current} control={control} arriving={arrival.key === selectedKey && arrival.animate} />}
 					{awaitingKey ? <AwaitingKey waiting={total ?? keys.length} onSaved={() => setKeyToken((value) => value + 1)} /> : null}
 				</div>
 			</div>

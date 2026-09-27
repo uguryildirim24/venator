@@ -36,6 +36,7 @@ const PYTHON_SITES = {
 	"onboarding/resume-reference.ts": ["env: nonJevInheritedEnvironment(context)"],
 	"onboarding/runtime.ts": ["env: nonJevInheritedEnvironment(context)"],
 	"onboarding/verify.ts": ["env: nonJevInheritedEnvironment(context)"],
+	"onboarding/profile-edit.ts": ["env: nonJevInheritedEnvironment(context)"],
 	"runs/plan.ts": ["env: runEnvironment(context)"],
 	"runs/runner.ts": ["env: runEnvironment(context)", "env: environment"],
 } satisfies Record<string, readonly string[]>;

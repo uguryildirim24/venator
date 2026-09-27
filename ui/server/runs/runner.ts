@@ -2,7 +2,8 @@
  * One run at a time, supervised by this server process.
  *
  * **What it starts, and nothing else.** `fetch-and-filter` starts `python -m
- * venator.schedule.loop --only discover,filters,view --profile <name>`. `jev-it` starts
+ * venator.schedule.loop --only discover,filters,view --profile <name>`. Profile Save starts
+ * `--only filters,view` through this runner, without Discover or Jev. `jev-it` starts
  * `python -m venator.schedule.loop --only jev` with the plan-bound date and spend cap, then
  * `python -m venator.view.build --profile <name>`. There is no route into this module that
  * takes a module name, argument list or store path, and `commit` is not a stage any kind
@@ -119,6 +120,39 @@ type LiveRun = {
 
 let live: LiveRun | null = null;
 let recent: RunState[] = [];
+const pendingReplays = new Map<string, { context: LocationContext; spawnChild: SpawnChild }>();
+let replayTimer: NodeJS.Timeout | null = null;
+
+/** A saved Profile needs a replay, not a Discover fetch or a paid Jev request. */
+export function queueProfileReplay(profile: string, context: LocationContext = systemContext(), spawnChild: SpawnChild = spawn): void {
+	pendingReplays.set(profile, { context, spawnChild });
+	startPendingReplay();
+}
+
+function startPendingReplay(): void {
+	if (live !== null || pendingReplays.size === 0 || shuttingDown) return;
+	if (applicationIsActive()) {
+		if (replayTimer === null) replayTimer = setTimeout(() => {
+			replayTimer = null;
+			startPendingReplay();
+		}, 250);
+		return;
+	}
+	if (replayTimer !== null) clearTimeout(replayTimer);
+	replayTimer = null;
+	const [profile, next] = pendingReplays.entries().next().value!;
+	pendingReplays.delete(profile);
+	try {
+		startRun({
+			token: "", kind: "profile-replay", profile,
+			profileDirectory: "", stages: RUN_KIND_STAGES["profile-replay"],
+			storeRoot: "", viewPath: "", dashboardViewPath: "", boards: 0,
+			startable: true, notes: [],
+		}, next.context, next.spawnChild);
+	} catch (error) {
+		process.stderr.write(`Profile replay could not start: ${String(error)}\n`);
+	}
+}
 /** Set once the server is going away, so nothing new is spawned on the way out. */
 let shuttingDown = false;
 
@@ -274,6 +308,7 @@ function retire(run: LiveRun): void {
 	const state = snapshot(run);
 	recent = [state, ...recent].slice(0, RECENT_LIMIT);
 	if (live === run) live = null;
+	startPendingReplay();
 }
 
 /**
@@ -449,7 +484,7 @@ export function startRun(
 			stages.join(","),
 			"--profile",
 			plan.profile,
-			"--interactive-discover",
+			...(kind === "fetch-and-filter" ? ["--interactive-discover"] : []),
 		];
 	}
 	const child = spawnChild(pythonInterpreter(context), argv, {
@@ -570,6 +605,9 @@ export function stopRun(): RunState {
  */
 export function shutdownRuns(): void {
 	shuttingDown = true;
+	pendingReplays.clear();
+	if (replayTimer !== null) clearTimeout(replayTimer);
+	replayTimer = null;
 	const run = live;
 	if (run === null) return;
 	// Whatever child this run currently has, including the recovery rebuild: a run whose loop
@@ -592,5 +630,8 @@ export function resetRunsForTest(): void {
 	if (run !== null && run.killTimer !== null) clearTimeout(run.killTimer);
 	live = null;
 	recent = [];
+	pendingReplays.clear();
+	if (replayTimer !== null) clearTimeout(replayTimer);
+	replayTimer = null;
 	shuttingDown = false;
 }

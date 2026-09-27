@@ -550,6 +550,7 @@ test("the desktop bundle declares the staged runtime, or it does not ship", () =
 	assert.deepEqual(resources, [
 		"resources/server.mjs",
 		"resources/parse_resume.py",
+		"resources/profile_version.py",
 		"resources/resolve_board.py",
 		"resources/verify_profile.py",
 		"resources/plan.py",

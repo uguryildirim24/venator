@@ -12,7 +12,7 @@ from venator.qualify import plan_cache
 
 
 @pytest.mark.parametrize("changed", [
-    "posting", "description", "decision", "decision_claim", "qualification",
+    "posting", "description", "decision", "decision_claim", "track", "track_claim", "qualification",
     "promotion", "qualification_claim", "targeting", "constraints", "resume",
     "release", "policy", "filter_code", "profile_code",
 ])
@@ -21,7 +21,7 @@ def test_each_selection_input_invalidates_cache(tmp_path: Path, monkeypatch, cha
     profile_dir.mkdir()
     stores = SimpleNamespace(
         path=tmp_path, postings_dir=tmp_path / "postings",
-        decisions_dir=tmp_path / "decisions",
+        decisions_dir=tmp_path / "decisions", track_dir=tmp_path / "track",
         qualifications_dir=tmp_path / "qualifications",
     )
     targets = {
@@ -29,6 +29,8 @@ def test_each_selection_input_invalidates_cache(tmp_path: Path, monkeypatch, cha
         "description": stores.postings_dir / "2026-09-02.jsonl",
         "decision": stores.decisions_dir / "2026-09-01.jsonl",
         "decision_claim": stores.decisions_dir / ".profile",
+        "track": stores.track_dir / "2026-09-01.jsonl",
+        "track_claim": stores.track_dir / ".profile",
         "qualification": stores.qualifications_dir / "2026-09-01.jsonl",
         "promotion": stores.qualifications_dir / "promotions.jsonl",
         "qualification_claim": stores.qualifications_dir / ".profile",
@@ -71,6 +73,7 @@ def test_each_selection_input_invalidates_cache(tmp_path: Path, monkeypatch, cha
 def test_refresh_and_replacement_do_not_reuse_plan(tmp_path: Path, monkeypatch) -> None:
     profile = SimpleNamespace(identifier="test", directory=tmp_path)
     stores = SimpleNamespace(decisions_dir=tmp_path / "decisions", postings_dir=tmp_path / "postings",
+                             track_dir=tmp_path / "track",
                              qualifications_dir=tmp_path / "qualifications")
     calls = []
     monkeypatch.setattr(plan_cache, "_compute", lambda *args: calls.append(1) or {"n": len(calls)})

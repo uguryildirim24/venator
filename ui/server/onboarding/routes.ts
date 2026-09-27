@@ -88,6 +88,7 @@ import { readProfileUpload } from "./profile-upload.ts";
 import type { ExistingProfileResponse } from "../../shared/profile-form.ts";
 import { readProfileDocuments, type ProfileDocuments } from "./profile-edit.ts";
 import { formOf, profileFormFromBody, saveProfileForm } from "./profile-form.ts";
+import { queueProfileReplay } from "../runs/runner.ts";
 import { validateProfileName, writeProfile, type ProfileProposal } from "./profile.ts";
 import { readResumePdf, ResumeReaderBusyError, type ResumePdfOutcome } from "./resume-pdf.ts";
 import {
@@ -581,7 +582,12 @@ export function createOnboardingRoutes(): Hono {
 		}
 		const form = profileFormFromBody(at(body, "form"));
 		// SAFETY: the three required file strings were checked above.
-		await saveProfileForm(name, form, original as ProfileDocuments);
+		const changed = await saveProfileForm(name, form, original as ProfileDocuments);
+		if (changed) {
+			try { queueProfileReplay(name); } catch (error) {
+				process.stderr.write(`Profile replay could not be queued: ${String(error)}\n`);
+			}
+		}
 		return context.json({ saved: true });
 	});
 
