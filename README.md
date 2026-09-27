@@ -22,7 +22,11 @@ yourself. Venator never presses submit for you.
 - **Jev** sorts the Postings that pass. It only runs when you press **Jev it**, and
   it costs a little money per Posting (see [Jev](#jev)).
 - **The dashboard** shows the lists, each Posting as a page with notes beside it,
-  and buttons to save, dismiss, prepare documents and open the application.
+  and buttons to save, dismiss, prepare documents and open the application. Its
+  résumé assessment treats confirmed post-secondary education, including current
+  enrolment, as meeting a high school requirement. This covers ordinary wording
+  such as “(Required)” and high school as one option, but not separate required
+  qualifications. Preferred extras stay separate.
 - **Handoff** opens the employer's form in a visible browser, fills what it can
   confirm (Greenhouse forms, for now), and stops. You check it and submit.
 
@@ -94,9 +98,12 @@ you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
 ## Everyday use
 
 - **Refresh** fetches your boards again, runs the Hard Filters and rebuilds the
-  lists. New Postings that pass wait in **Awaiting Jev**.
-- **Jev it** sits above your Profile name at the bottom of the sidebar. Refresh
-  sits below Employers. Jev it sends
+  lists. Current Hard Filter passes selected by the Jev plan wait in **Awaiting
+  Jev** until they have a current result. Postings needing fresh Hard Filters show
+  **Awaiting Hard Filters** instead.
+- **Jev it** sits above your Profile name at the bottom of the sidebar. Without
+  a key, the button is disabled without an extra message. Refresh sits below
+  Employers. Jev it sends
   waiting Postings to Jev, with a $10 limit per press. If it stops (no key, no
   credit, a connection problem, or the limit), earlier results stay and the rest
   wait for the next press. The run shows what is waiting and when the view is ready.

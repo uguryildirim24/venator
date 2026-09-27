@@ -30,6 +30,7 @@ from venator.qualify.store import (
     qualification_rows,
     verify_store,
 )
+from venator.qualify.jev import current_mode, hard_filter_passes, select_work
 from venator.qualify.jev_effective import current_filter_version, jev_promotion_state
 from venator.qualify.jev_release import JEV_RELEASE
 from venator.qualify.jev_policy import _description_reason
@@ -142,6 +143,7 @@ CREATE TABLE runs (
 """ + JEV_TRIAGE_DDL + """
 CREATE TABLE jev_selection (mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')));
 CREATE TABLE jev_skip (posting_key TEXT PRIMARY KEY, reason TEXT NOT NULL);
+CREATE TABLE jev_awaiting (posting_key TEXT PRIMARY KEY);
 CREATE TABLE source_health (
   source_key TEXT PRIMARY KEY, status TEXT, last_attempt_at TEXT,
   last_success_at TEXT, count INTEGER, message TEXT,
@@ -400,6 +402,8 @@ def build_database(
             if accepted is not None
             else None
         )
+        if active is not None and active.qualifier_version != JEV_RELEASE.qualifier_version:
+            active = None
         shadow_qualifier = selected_jev_shadow(qualification_history, profile.identifier)
         posting_revisions = {
             str(posting["key"]): posting_revision(posting) for posting in postings
@@ -446,6 +450,26 @@ def build_database(
         for (posting_key, stage), decision in latest_decisions.items()
         if stage == "hard_filter"
     }
+    if jev_mode:
+        assert profile is not None and qualifications_dir is not None and as_of_month is not None
+        revisions: dict[str, str] = {}
+        passes = hard_filter_passes(
+            postings, decisions_dir, profile, as_of_month, qualifications_dir,
+            latest_decisions=latest_decisions, revisions=revisions,
+            qualifications_verified=True,
+        )
+        work = select_work(
+            passes, profile=profile, month=as_of_month,
+            mode=current_mode(profile, as_of_month, qualifications_dir, JEV_RELEASE),
+            qualifications_dir=qualifications_dir, named_keys=None, release=JEV_RELEASE,
+            decided_at=f"{as_of_month}-01T00:00:00+00:00", bindings_only=True,
+            posting_revisions=revisions, qualifications_verified=True,
+        )
+        awaiting_keys = {key for key, _ in work.selection}
+    else:
+        # A non-Jev Profile has no Jev selection gate; retain its passing state.
+        awaiting_keys = {key for key, decision in latest_hard.items()
+                         if decision.get("verdict") == "pass"}
     cached_assessments = {}
     resume_version = hashlib.sha256(json.dumps(
         dict(profile.resume) if profile is not None else None,
@@ -526,7 +550,7 @@ def build_database(
                 if not current_jev:
                     decision = None
         input_version = hashlib.sha256(json.dumps(
-            ["evidence-v14", current_filters_version, resume_version, posting_revision(posting), decision,
+            ["evidence-v15", current_filters_version, resume_version, posting_revision(posting), decision,
              bool(posting.get("last_verified_at")), posting.get("verification_status"),
              bool(posting.get("detail_verified_at")), posting.get("detail_verification_status"),
              as_of_month, promotion_revision, shadow_qualifier, jev_row],
@@ -594,6 +618,7 @@ def build_database(
         with closing(sqlite3.connect(temporary_path)) as database, database:
             database.executescript(SCHEMA)
             database.executemany("INSERT INTO jev_skip VALUES (?, ?)", jev_skip_rows)
+            database.executemany("INSERT INTO jev_awaiting VALUES (?)", ((key,) for key in sorted(awaiting_keys)))
             database.execute("INSERT INTO jev_selection (mode) VALUES (?)", (
                 "promoted" if jev_mode and active is not None else "shadow",
             ))

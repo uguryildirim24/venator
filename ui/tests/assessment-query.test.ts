@@ -58,13 +58,14 @@ test("closed and unscoreable Postings do not inflate Awaiting Jev", () => {
 		for (const [key, listing] of [
 			["closed-pass", "closed"], ["closed-old", "closed"], ["closed-current", "closed"],
 			["no-text", "open"], ["protected", "unknown"], ["too-long", "open"],
-			["waiting", "unknown"], ["for-you", "open"], ["application", "closed"],
+			["waiting", "unknown"], ["stale-filter", "open"], ["for-you", "open"], ["application", "closed"],
 		] as const) {
 			insert.run(key, key);
 			assess.run(key, listing);
 			filter.run(key);
 		}
-		db.exec(`INSERT INTO jev_skip VALUES ('no-text', 'missing'), ('protected', 'protected'), ('too-long', 'too_long')`);
+		db.exec(`INSERT INTO jev_skip VALUES ('no-text', 'missing'), ('protected', 'protected'), ('too-long', 'too_long');
+			INSERT INTO jev_awaiting VALUES ('waiting')`);
 		const triage = db.prepare(`INSERT INTO jev_triage
 			(posting_key, mode, state, decision, fit_probability, fit_score, exclusions, review_flags,
 			 diagnostic_flags, qualifier_version, assessment_key, input_version, as_of_month)
@@ -76,7 +77,7 @@ test("closed and unscoreable Postings do not inflate Awaiting Jev", () => {
 		const statuses = Object.fromEntries(readPostingEntries(db, query).map((entry) => [entry.posting.key, entry.status]));
 		assert.deepEqual(statuses, {
 			application: "applied", "closed-current": "closed", "closed-old": "closed", "closed-pass": "closed",
-			"for-you": "queued", "no-text": "no-text", protected: "protected", "too-long": "too-long", waiting: "unscored",
+			"for-you": "queued", "no-text": "no-text", protected: "protected", "too-long": "too-long", waiting: "unscored", "stale-filter": "not-filtered",
 		});
 		for (const [status, count] of [["unscored", 1], ["queued", 1], ["needs-review", 0],
 			["applied", 1], ["closed", 3], ["no-text", 1], ["protected", 1], ["too-long", 1]] as const) {
@@ -101,6 +102,7 @@ test("an active promoted release without current results never routes from shado
 		db.prepare(`INSERT INTO jev_triage (posting_key, mode, state, decision, fit_probability, fit_score,
 			exclusions, review_flags, diagnostic_flags, qualifier_version, assessment_key, input_version, as_of_month)
 			VALUES ('job', 'shadow', 'current', 'prioritize', 0.8, 0.8, '[]', '[]', '[]', 'jev-current', 'ak', 'input', '2026-09')`).run();
+		db.prepare("INSERT INTO jev_awaiting VALUES ('job')").run();
 		assert.equal(readPostingDetail(db, "job")?.status, "queued");
 		db.prepare("UPDATE jev_selection SET mode = 'promoted'").run();
 		assert.equal(readPostingDetail(db, "job")?.status, "unscored");

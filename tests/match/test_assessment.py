@@ -434,6 +434,71 @@ def test_post_secondary_education_meets_secondary_requirement(
     assert not any("Qualification not established" in text for text in result["unknowns"])
 
 
+@pytest.mark.parametrize("requirement", [line for line in
+    (Path(__file__).parent / "fixtures" / "secondary_view_clauses.txt").read_text(encoding="utf-8").splitlines()
+    if line and not line.startswith("#")])
+def test_every_standalone_secondary_clause_from_view(tmp_path: Path, requirement: str) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
+    assert any(row["requirement"] == requirement.strip().rstrip(".").rstrip() and
+               row["source"] == "profile.resume.education[0].degree" for row in result["evidence"])
+    assert not any("Qualification not established" in item for item in result["unknowns"])
+
+
+# The generic clauses below are phrasings found in the read-only View inventory.
+# Keep the spelling and punctuation variants: the rule uses a full clause match.
+@pytest.mark.parametrize("requirement", [
+    "High School or Equivalent (Required)",
+    "High School Diploma or Equivalent (Required)",
+    "High School Diploma or Equivalent preferred",
+    "High School Diploma / GED (or higher)",
+    "High school diploma or GED or equivalent",
+    "High school diploma or G.E.D.",
+    "H.S./GED Required.",
+    "HS Diploma or equivalency is required.",
+    "HS degree or equivalent required.",
+    "1. High school diploma or equivalent.",
+    "• High school diploma or equivalent required",
+    "· High school diploma or GED required",
+    "Education Required: High School Diploma or equivalent",
+    "Minimum Education Required: High School Diploma or GED",
+    "Required: High school diploma or equivalent",
+    "Must have a high school diploma or GED equivalent.",
+    "Minimum of a High School Education.",
+    "High School Diploma minimum is required",
+    "High School Diploma or equivalent Req",
+    "High School graduate or equivalent required.",
+    "High School diploma or General Educational Development (GED) is required",
+    "High School diploma or General Education Diploma is required",
+    "High school diploma or equivalent qualification required",
+    "High school diploma or equivalent high school certification.",
+    "High School Diploma or GED (or equivalent) is required.",
+    "High School Diploma or GED equivalent required",
+    "High school diploma/equivalent",
+    "High school diploma / GED required",
+    "High School",
+    "Requires high school diploma or equivalency",
+    "High School diploma or GED required .",
+    "High School or General Education Diploma required",
+    "High school diploma or equivalency.",
+    "High School Diploma or Equivalent (Preferred)",
+    "GED (or higher) (Required)",
+    "Secondary school diploma or equivalent required.",
+    "Secondary education required:",
+    "Must be a high-school graduate or have a GED.",
+    "Must possess a High School diploma or a GED.",
+    "HS Diploma/GED or local equivalent",
+    "Requires a minimum of a High School Diploma or government recognized equivalent.",
+    "Education Required: High school diploma/equivalent is strongly preferred",
+])
+def test_view_secondary_phrasings_met_by_confirmed_college_enrolment(tmp_path: Path, requirement: str) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
+    assert any(row["source"] == "profile.resume.education[0].degree" and
+               row["requirement"] == requirement.rstrip(".").rstrip() for row in result["evidence"])
+    assert not any("Qualification not established" in text for text in result["unknowns"])
+
+
 @pytest.mark.parametrize("degree,requirement", [
     ("High School Diploma", "High school diploma required."),
     ("GED", "GED required."),
@@ -448,11 +513,14 @@ def test_explicit_secondary_education_still_matches(
 
 
 @pytest.mark.parametrize("education", [[], [{"degree": "Bachelor of Science", "confirmed": False}]])
-def test_no_confirmed_education_does_not_meet_secondary_requirement(tmp_path: Path, education: list[dict]) -> None:
-    result = assess_posting(posting(description_html="<h2>Requirements</h2><p>GED required.</p>"),
+@pytest.mark.parametrize("requirement", ["GED required.", "High School Diploma or Equivalent (Required)"])
+def test_no_confirmed_education_does_not_meet_secondary_requirement(
+    tmp_path: Path, education: list[dict], requirement: str,
+) -> None:
+    result = assess_posting(posting(description_html=f"<h2>Requirements</h2><p>{requirement}</p>"),
                             profile(tmp_path, {"education": education}), passing_decision())
-    assert not any(row["requirement"] == "GED required" for row in result["evidence"])
-    assert any("Qualification not established: GED required" in text for text in result["unknowns"])
+    assert not any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
+    assert any(f"Qualification not established: {requirement}" in text for text in result["unknowns"])
 
 
 def test_secondary_rule_does_not_cover_college_degree_or_other_requirements(tmp_path: Path) -> None:
@@ -463,6 +531,65 @@ def test_secondary_rule_does_not_cover_college_degree_or_other_requirements(tmp_
     combined = assess_posting(posting(description_html="<h2>Requirements</h2><p>GED and Python required.</p>"),
                               candidate, passing_decision())
     assert any("Python required" in text for text in combined["unknowns"])
+
+
+@pytest.mark.parametrize("requirement", [
+    "High school diploma/GED plus Certificate in Medical Assisting.",
+    "HS diploma/GED and Python required.",
+    "High school diploma or equivalent in biology.",
+    "High school diploma or equivalent. Certification required.",
+    "Currently enrolled in High School Program required.",
+    "Completed secondary education in a technical field.",
+    "GED/CAEC and/or educational credential assessment required.",
+    "HS diploma and 2 years of experience required.",
+    "High School Diploma and a Phlebotomy Certificate required.",
+    "GED and a current nursing license required.",
+    "High School Diploma or equivalent in chemistry required.",
+])
+def test_secondary_clause_with_extra_bar_stays_unresolved(tmp_path: Path, requirement: str) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
+    assert not any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
+    assert any("Qualification not established" in text or "Credential or eligibility" in text
+               or "No confirmed resume evidence for python" in text for text in result["unknowns"])
+
+
+@pytest.mark.parametrize("requirement", [
+    "High school diploma or equivalent high school certification or combination of education and/or experience.",
+    "GED or equivalent experience.",
+    "High school diploma or equivalent required or Trade Diploma required.",
+    "High school diploma or GED with four years of related experience.",
+])
+def test_secondary_branch_of_or_meets_bar(tmp_path: Path, requirement: str) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
+    assert any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
+    assert not any("Qualification not established" in item for item in result["unknowns"])
+
+
+@pytest.mark.parametrize("requirement", [
+    "GED required; associate's preferred",
+    *(line for line in (Path(__file__).parent / "fixtures" / "secondary_view_addons.txt").read_text(encoding="utf-8").splitlines()
+      if line and not line.startswith("#")),
+])
+def test_preferred_addon_remains_optional_gap(tmp_path: Path, requirement: str) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
+    assert any(row["source"] == "profile.resume.education[0].degree" and
+               ("high school" in row["requirement"].casefold() or "ged" in row["requirement"].casefold())
+               for row in result["evidence"])
+    assert not any("Qualification not established" in item for item in result["unknowns"])
+    assert any("Optional qualification gap" in item and "preferred" in item for item in result["unknowns"])
+
+
+@pytest.mark.parametrize("requirement", [
+    "HS means Heart Saver certification required.",
+    "GED is a software label in this prose.",
+])
+def test_incidental_acronyms_are_not_secondary_bars(tmp_path: Path, requirement: str) -> None:
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
+    assert not any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
 
 
 def test_in_progress_degree_evidence_keeps_the_expected_date(tmp_path: Path) -> None:

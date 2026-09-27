@@ -174,11 +174,7 @@
 	padding: 0 var(--space-2-5);
 }
 
-/*
- * The source list is board A + C of the design book: the kit's Large rows, each section's rows
- * in a rounded card on the sidebar ground, and the section headers between the cards. The
- * slot is the space between the top strip and the footer; the check caption sits under Sources.
- */
+/* The kit's Medium rows on the sidebar ground, with headers between groups. */
 .sidebar-nav {
 	flex: 1;
 	min-height: 0;
@@ -186,24 +182,20 @@
 	padding: 0 var(--sidebar-inset) var(--space-4);
 }
 
-/* A group card: the kit's form container, on the card ground. The footer can take it too. */
+/* Groups have no card ground, inset or separators. */
 .sidebar-card {
 	display: flex;
 	flex-direction: column;
-	gap: var(--hairline-width);
-	padding: var(--space-1);
-	border-radius: var(--radius-group);
-	background: var(--sidebar-card);
 }
 
-/* A section header sits between two cards, its title resting near the foot of its 43. */
+/* The kit's Medium section header, aligned with the row's symbol slot. */
 .sidebar-heading {
 	display: flex;
 	align-items: flex-end;
 	height: var(--sidebar-heading-height);
-	padding: 0 var(--space-1) var(--space-2-5);
-	font-size: var(--size-headline);
-	line-height: var(--leading-headline);
+	padding: 0 0 var(--space-2-5);
+	font-size: var(--size-subheadline);
+	line-height: var(--leading-subheadline);
 	font-weight: var(--weight-bold);
 	color: var(--label-secondary);
 }
@@ -212,12 +204,10 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	gap: var(--space-1-5);
+	gap: var(--space-1);
 	height: var(--row-height);
-	padding: 0 var(--space-2);
-	border-radius: var(--radius-row);
-	font-size: var(--size-title3);
-	line-height: var(--leading-title3);
+	font-size: var(--size-body);
+	line-height: var(--leading-body);
 	font-weight: var(--weight-medium);
 	text-align: left;
 	color: var(--label-primary);
@@ -226,48 +216,37 @@
 	cursor: default;
 }
 
-/*
- * A hairline between two rows of a card, drawn in the card's 1px gap and inset 4 from the
- * row's edges. It is hidden on both sides of the selected row, as the kit hides it; the gap
- * stays, so the rows do not move when the selection does.
- */
-.sidebar-row + .sidebar-row::before {
+/* The selection and hover pills extend four points beyond each end of the 196-wide row. */
+.sidebar-row::before {
 	content: "";
 	position: absolute;
-	top: calc(-1 * var(--hairline-width));
-	right: var(--space-1);
-	left: var(--space-1);
-	height: var(--hairline-width);
-	background: var(--label-quinary);
+	inset: 0 calc(-1 * var(--space-1));
+	border-radius: var(--radius-row);
+	pointer-events: none;
 }
+.sidebar-row:hover::before { background: var(--row-hover); }
+.sidebar-row:active::before,
+.sidebar-row[aria-current="page"]::before { background: var(--sidebar-selected); }
+.sidebar-row > * { position: relative; }
 
-.sidebar-row[aria-current="page"]::before,
-.sidebar-row[aria-current="page"] + .sidebar-row::before {
-	content: none;
+.sidebar-symbol {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--space-6);
+	height: var(--space-4);
+	flex-shrink: 0;
 }
-
-/* Hover is the row's own ground; a press is the selected pill, and the selection then holds it. */
-.sidebar-row:hover {
-	background: var(--row-hover);
-}
-
-.sidebar-row:active,
-.sidebar-row[aria-current="page"] {
-	background: var(--sidebar-selected);
-}
-
-/* The Large symbol, ember: one size up from the toolbar's glyphs, at the same stroke. */
-.sidebar-row .icon {
+.sidebar-symbol .icon {
 	width: var(--icon-size-large);
 	height: var(--icon-size-large);
-	flex-shrink: 0;
 	color: var(--ember-vibrant);
 }
 
 .sidebar-count {
 	margin-left: auto;
 	white-space: nowrap;
-	color: var(--label-secondary);
+	color: var(--label-tertiary);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -293,15 +272,15 @@
 .sidebar-footer {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-2);
+	gap: var(--space-3);
 	flex-shrink: 0;
-	padding: var(--space-3) var(--sidebar-inset) var(--space-4);
+	padding: var(--space-3) var(--sidebar-inset) var(--space-2-5);
 	font-size: var(--size-subheadline);
 	line-height: var(--leading-subheadline);
 	color: var(--label-secondary);
 }
 
-.sidebar-account { padding-left: var(--space-3); min-width: 0; }
+.sidebar-account { min-width: 0; }
 .sidebar-account > span { white-space: nowrap; }
 .sidebar-footer .run-status-lines { white-space: nowrap; }
 

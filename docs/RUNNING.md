@@ -170,8 +170,10 @@ pnpm --dir ui desktop   # the same app in a Tauri window
 ```
 
 The API listens only on `127.0.0.1`. The lists are **For you** (Jev says look first),
-**Explore** (Jev says review), **Awaiting Jev**, **Applications**, and **Excluded**
-(Hard Filter kills and Jev exclusions). Employer HTML is shown in a sandboxed iframe.
+**Explore** (Jev says review), **Awaiting Jev** (current Hard Filter passes selected
+by the Jev plan without a current result), **Applications**, and **Excluded** (Hard
+Filter kills and Jev exclusions). A stale pass shows as **Awaiting Hard Filters**,
+not Awaiting Jev. Employer HTML is shown in a sandboxed iframe.
 
 ## Applying
 

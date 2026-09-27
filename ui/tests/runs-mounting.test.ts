@@ -21,6 +21,9 @@
  */
 
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { createServer } from "../server/app.ts";
@@ -349,10 +352,20 @@ test("the dashboard API is still answered as read-only, and still answers", asyn
 	);
 	assert.deepEqual(allowedMethods(preflighted), ["GET", "OPTIONS"]);
 
-	const summary = await app.request(
-		new Request("http://127.0.0.1:5170/api/summary", { headers: { origin: DESKTOP_ORIGIN } }),
-	);
-	assert.equal(summary.status, 200);
+	// Do not read the machine's Install: its view may have a different schema.
+	const home = mkdtempSync(join(tmpdir(), "venator-api-mount-"));
+	const previous = process.env.VENATOR_HOME;
+	try {
+		process.env.VENATOR_HOME = home;
+		const summary = await app.request(
+			new Request("http://127.0.0.1:5170/api/summary", { headers: { origin: DESKTOP_ORIGIN } }),
+		);
+		assert.equal(summary.status, 200);
+	} finally {
+		if (previous === undefined) delete process.env.VENATOR_HOME;
+		else process.env.VENATOR_HOME = previous;
+		rmSync(home, { recursive: true, force: true });
+	}
 });
 
 test("a page from somewhere else is refused at the preflight, whatever it asks for", async () => {

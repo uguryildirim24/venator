@@ -17,9 +17,7 @@ const JEV_IT_LABEL = "Jev it";
  *
  * Refresh is the borderless glyph the mock draws beside the last fetch. Jev it is the large
  * capsule every prominent press in the app is — Continue, Find Jobs, Add Key — and it is
- * ember while there is something to sort and a key to sort it with. With no key it is the
- * same capsule in grey: the press still works, and pauses cleanly, but Add Key… is then the
- * one ember press on the screen.
+ * ember while there is something to sort and a key to sort it with. With no key it is off.
  */
 type Press =
 	| { readonly kind: "glyph"; readonly label: string; readonly icon: typeof RotateCw }
@@ -204,11 +202,10 @@ type JevItRowProps = {
 /**
  * Jev it: one press sorts every Posting that passed the Hard Filters and has no Jev result.
  *
- * The line beside the press is the plan's count, and the plan's full sentence is its tooltip.
- * This row never counts Postings itself and never estimates a cost, and no Jev result is
- * shown here or anywhere else. Under it, one note at most: the last pause and what resumes
- * it, the plan's word on a missing key, or when the last sort finished. A plan with nothing
- * to sort turns the press off and the line says so.
+ * The line beside the press is the plan's count; with a key, the plan's full sentence is its
+ * tooltip. This row never counts Postings itself and never estimates a cost, and no Jev result is
+ * shown here or anywhere else. Under it, one note at most: a pause other than a missing key,
+ * or when the last sort finished. Without a key the press is off, without explanatory copy.
  */
 function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
 	const control = useRunControl(kind, 0, onSettled);
@@ -227,20 +224,18 @@ function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
 	const note =
 		planError !== null
 			? planError.message
-			: jevPause !== null
+			: jevPause !== null && jevPause.reason !== "no-key" && keyMissing === null
 				? jevPauseLabel(jevPause.reason)
-				: keyMissing !== null
-					? keyMissing.message
-					: sorted !== null
-						? `Sorted ${formatMoment(sorted)}`
-						: null;
-	const off = plan === null || !plan.startable;
+				: sorted !== null && keyMissing === null
+					? `Sorted ${formatMoment(sorted)}`
+					: null;
+	const off = plan === null || !plan.startable || keyMissing !== null;
 	return (
 		<RunRow
 			kind={kind}
 			control={control}
 			idle={[line]}
-			idleTitle={plan?.jev?.summary}
+			idleTitle={keyMissing === null ? plan?.jev?.summary : undefined}
 			off={off}
 			note={note}
 			press={{ kind: "capsule", label: JEV_IT_LABEL, prominent: keyMissing === null }}

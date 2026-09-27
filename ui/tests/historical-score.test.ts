@@ -32,6 +32,7 @@ function viewWithOneScoredPosting(): DatabaseSync {
 	decision.run(SCORED, "hard_filter", "pass", null, "2026-08-18T20:10:11+00:00");
 	decision.run(SCORED, "llm_score", "queue", 99, "2026-08-18T20:17:26+00:00");
 	decision.run(UNSCORED, "hard_filter", "pass", null, "2026-08-19T20:10:11+00:00");
+	database.prepare("INSERT INTO jev_awaiting VALUES (?), (?)").run(SCORED, UNSCORED);
 	return database;
 }
 
@@ -73,6 +74,7 @@ test("a historical Match Score kill still shows the Hard Filter outcome", () => 
 		);
 		decision.run("hard_filter", "pass", null);
 		decision.run("llm_score", "kill", 12);
+		database.prepare("INSERT INTO jev_awaiting VALUES ('greenhouse:acme:1')").run();
 		const entries = readPostingEntries(database, { ...EVERY_POSTING, sort: "discovered" });
 		assert.equal(entries[0]?.status, "unscored");
 	} finally {

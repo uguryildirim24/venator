@@ -835,22 +835,17 @@ const JEV_KEY_MISSING_NOTE = "No TypeSafe key is saved, so these Postings wait f
 /**
  * The footer's Jev row, with the key the pass answers with: none.
  *
- * The line beside the press is the plan's count in words and the plan's full sentence is that
- * line's tooltip, so both are pinned — the count as visible text, the sentence as the `title`
- * it now travels in. The press is the large capsule every prominent press in the app is, in
- * grey: with no key, Add Key… on the Awaiting Jev screen is the one ember press, and the
- * plan's own note under the row says why (ui/DESIGN.md, principle 2). It stays pressable.
+ * The line beside the press is the plan's count in words. With no key the capsule is off;
+ * neither the note nor the plan's explanatory tooltip appears in the foot.
  */
 const JEV_PLAN_CHECK: RouteCheck = {
 	hash: "#/queue",
-	label: "runs: Awaiting Jev keeps the button ready, in grey, without showing a Jev number or cost preview",
+	label: "runs: without a key, Jev it is off with no key note",
 	expected: [
 		`${JEV_POSTING_COUNT} awaiting Jev`,
-		`title="${JEV_PLAN_SUMMARY}"`,
-		JEV_KEY_MISSING_NOTE,
-		'<button type="button" class="button" data-size="large">Jev it</button>',
+		'<button type="button" class="button" data-size="large" disabled="">Jev it</button>',
 	],
-	absent: ["spend allowance", "next refresh", 'data-tone="prominent">Jev it'],
+	absent: ["spend allowance", "next refresh", JEV_KEY_MISSING_NOTE, JEV_PLAN_SUMMARY, 'data-tone="prominent">Jev it'],
 };
 
 /** The same row once a key is saved: the plan carries no note, and the press is ember. */
