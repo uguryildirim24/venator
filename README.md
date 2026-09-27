@@ -122,11 +122,12 @@ already prepared or applied for. If it stops (no key, no
 - **For you** is what Jev says to look at first. **Explore** is what it says to
   review. **Excluded** holds Hard Filter kills and Jev exclusions. **Applications**,
   **Saved** and **Dismissed** hold what you've acted on.
-- Switching Postings fades and raises the new page. **Read Full Description** opens
-  the employer's full text below the shortened reading page.
-- A Posting's margin starts with **Meets N of M** and a tally of the requirements
-  Venator can check against your résumé. **Open Listing** goes to the employer's page
-  when Venator can't prepare an application. **Save** and **Dismiss** record your
+- Switching Postings fades and raises the new page. The description opens with
+  eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
+- A Posting's margin is one ledger. It starts with **Meets N of M** and a tally
+  of the requirements Venator can check against your résumé. Press a requirement
+  line to open the description at that line. **Open Listing** goes to the
+  employer's page when Venator can't prepare an application. **Save** and **Dismiss** record your
   choice, and **Restore** undoes it. **Prepare Application** drafts a résumé (and a
   cover letter if you want one) from confirmed facts only. **Open Application** hands
   the prepared files to a browser window. **I Applied** records that you applied.

@@ -155,9 +155,10 @@ the sidebar.
 
 The main screen keeps two columns even at the smallest opening window size.
 The desktop window opens at 1440×900. Lists sort by when a Posting was last
-verified, never by a score. The Posting page's margin starts with **Meets N of M**
-and a requirements tally, then shows facts from the résumé assessment and Hard
-Filters beside the relevant text. **Open Listing** appears there when Venator can't
+verified, never by a score. The Posting page's margin is one ledger. It starts
+with **Meets N of M** and a requirements tally, then shows one-line facts from
+the résumé assessment and Hard Filters. Press a requirement line to open the
+description at that line. **Open Listing** appears there when Venator can't
 prepare an application. It has no explainer lines.
 
 Setup takes over the whole window, with no sidebar. Each step has **Skip for Now**,
@@ -171,8 +172,8 @@ Postings, page counts and pagination without changing the view database.
 Jev it is a separate press above the Profile account row. Its waiting, running and paused
 states stay visible while Refresh remains a fetch-and-filter action. Lists and the
 inspector use lighter transitions, with reduced motion respected. Switching Postings
-fades and raises the new page. **Read Full Description** is a capsule below the
-shortened reading page; highlighted words stay whole.
+fades and raises the new page. The description opens with eight faded lines;
+**Read More** unfolds it and **Read Less** folds it back. Highlighted words stay whole.
 
 The first-run states (No jobs yet, Jev needs a key, Updating your job list) are in
 `src/views/first-run.tsx`. None of them starts anything just by being shown.
