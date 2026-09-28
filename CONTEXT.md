@@ -42,7 +42,9 @@ _Avoid_: job, listing, opportunity
 
 **Hard Filter**
 A fixed rule that kills a Posting outright. The rules are `work_authorization`,
-`education_fit`, `role_target` and `eligibility`, with wording from the Profile.
+`education_fit`, `role_target`, `eligibility` and `location`, with wording from
+the Profile. Location kills only when all readable sites are outside the
+Profile's New England regions; remote, US-wide and unreadable sites pass.
 When the wording is unclear, the Posting passes. Killing a good Posting by mistake
 is the failure to avoid.
 _Avoid_: rule, blacklist
@@ -74,8 +76,8 @@ Hard Filter passes selected by the Jev plan wait in Awaiting Jev until they have
 current result. Stale passes wait in Awaiting Hard Filters instead. Only pressing
 Jev it sends Postings to Jev. If Jev pauses, the rest wait for the next Jev it,
 not the next Refresh.
-The sidebar's location choice narrows what is displayed; it is not a Hard Filter
-and never changes a Filter Decision.
+The sidebar's location choice narrows what is displayed; unlike the Profile's
+location Hard Filter, it never changes a Filter Decision.
 
 ## Applying
 

@@ -87,9 +87,9 @@ def append_decisions(decisions_dir: Path, decisions: Iterable[dict], *, day: dat
 # 20 removes the retired trained qualification-model delegation path.
 # 21 adds the SmartRecruiters Source; 22 removes the location Hard Filter.
 # 23 adds employer exclusion. 24 reads excluded functions in title context;
-# both employer-policy branches move so every Profile replays its decisions.
-FILTERS_REVISION = b"24-title-context-exclusion"
-_PRE_EXCLUSION_REVISION = b"24-title-context-exclusion-no-employer"
+# 30 reads New England sites and named US territories. Every Profile replays
+# when filter code changes.
+FILTERS_REVISION = b"33-new-england-historical-source-sites"
 
 #: Blocks that live in a hashed Profile file but reach no decision, keyed by
 #: **which positional argument** of ``filters_version`` the file is — not by its
@@ -223,20 +223,7 @@ def filters_version(*paths: Path, promotion_state_revision: str = "", jev_releas
     all stored Hard Filter Decisions to produce byte-identical verdicts. The test for whether something belongs here
     is not "does the code touch it" but "can it change a verdict".
     """
-    # Old Profiles must keep their existing decisions and Jev binding. Only a
-    # configured exclusion introduces new verdicts and needs a replay.
-    excluded_employers = False
-    if len(paths) > 1 and paths[1].exists():
-        try:
-            targeting = yaml.safe_load(paths[1].read_text(encoding="utf-8"))
-            if isinstance(targeting, dict):
-                filters = targeting.get("filters") or {}
-                if isinstance(filters, dict):
-                    employer = filters.get("employer") or {}
-                    excluded_employers = isinstance(employer, dict) and bool(employer.get("exclude"))
-        except (UnicodeDecodeError, yaml.YAMLError):
-            pass
-    digest = hashlib.sha256(FILTERS_REVISION if excluded_employers else _PRE_EXCLUSION_REVISION)
+    digest = hashlib.sha256(FILTERS_REVISION)
     if promotion_state_revision:
         digest.update(b"\0promotion_state_revision\0" + promotion_state_revision.encode("ascii"))
     if jev_release_hash:

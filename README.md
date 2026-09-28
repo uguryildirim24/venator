@@ -17,8 +17,8 @@ yourself. Venator never presses submit for you.
 - **Discover** fetches Postings from Greenhouse, Lever, Ashby, SmartRecruiters,
   Workday and a few other job boards.
 - **Hard Filters** apply fixed rules from your Profile (work authorization,
-  education, role level, eligibility). Every Posting gets a recorded decision, so
-  nothing disappears without a reason.
+  education, role level, eligibility, and location when enabled). Every Posting
+  gets a recorded decision, so nothing disappears without a reason.
 - **Jev** sorts the Postings that pass. It only runs when you press **Jev it**, and
   it costs a little money per Posting (see [Jev](#jev)).
 - **The dashboard** shows the lists, each Posting as a page with notes beside it,
@@ -168,6 +168,25 @@ stage with `--profile <name>`. The name is a name, never a path.
 Each board needs its token under `sources.boards` and the employer's name under
 `sources.names`. To stop fetching an employer and exclude its stored Postings, add
 its display name (or board token) to `filters.employer.exclude` in `targeting.yaml`.
+To keep only New England sites, add `location` to `filters.enabled` in
+`targeting.yaml` and set:
+
+```yaml
+filters:
+  location:
+    regions: [MA, RI, NH, CT, VT, ME]
+```
+
+Use all six codes, once each. A Posting with any readable New England site
+passes. Remote, US-wide and unclear sites pass too; a Posting is excluded only
+when all its readable sites are outside New England. This is a Hard Filter on
+Postings, separate from the location choice above a dashboard list.
+
+`education_fit` treats “<2 years experience” as a ceiling, not a two-year
+minimum. Required advanced degrees count only when the wording clearly asks for
+a degree; “Rockville, MD” and “DO NOT” do not. A co-op page offering several
+degree tracks passes when one track is within reach.
+
 Screening answers start empty. Fill in only what's true. The example
 files explain every field in comments, and [docs/RUNNING.md](docs/RUNNING.md) covers
 registering boards.
