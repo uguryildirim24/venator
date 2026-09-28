@@ -9,7 +9,7 @@ import yaml
 
 from venator.discover import run as discover
 from venator.match.filters import apply_filters
-from venator.match.store import _hashed_bytes, filters_version
+from venator.match.store import FILTERS_REVISION, _hashed_bytes, filters_version
 from venator.profile import load_profile
 from venator.qualify.compile import compile_profile
 from venator.qualify.versions import jev_accepted_profile_hash, jev_policy_hash
@@ -67,8 +67,8 @@ def test_hash_stability_and_replay(tmp_path):
                 jev_accepted_profile_hash(compiled.profile_hash, policy))
 
     original = hashes()
-    # Pin the no-employer branch after the title-context replay bump.
-    digest = hashlib.sha256(b"24-title-context-exclusion-no-employer")
+    # Every Profile moves with the filter-code revision, with or without exclusions.
+    digest = hashlib.sha256(FILTERS_REVISION)
     for path, skipped in ((directory / "constraints.yaml", ()),
                           (directory / "targeting.yaml", ("sources.boards", "profile.id")),
                           (directory / "resume.yaml", ())):

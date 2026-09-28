@@ -3,7 +3,7 @@
  *
  * Two jobs, and the order matters: nothing reaches the filesystem until the whole proposal
  * has been checked, and the check is aimed at one class of outcome above all others — a
- * Profile that *loads* but filters nothing. `src/venator/profile/loader.py` names four such
+ * Profile that *loads* but filters nothing. `src/venator/profile/loader.py` names five such
  * failures explicitly and refuses them; every one is reproduced here, because a Profile
  * written by onboarding that the loader then rejects is a broken Install, and a Profile the
  * loader accepts with no Hard Filter is a worse one: it passes every Posting and looks like it
@@ -43,7 +43,7 @@ import { requireLoadableProfile } from "./verify.ts";
 import { LONE_SURROGATE, writeYamlDocument, YamlWriteError } from "./yaml.ts";
 
 /** `loader.py: KNOWN_RULES` — the Hard Filters a Profile may enable. */
-export const KNOWN_RULES: readonly string[] = ["work_authorization", "education_fit", "role_target", "eligibility"];
+export const KNOWN_RULES: readonly string[] = ["location", "work_authorization", "education_fit", "role_target", "eligibility"];
 
 /** `schema.py: REMOTE_PREFERENCES`. */
 const REMOTE_PREFERENCES: readonly string[] = ["required", "preferred", "acceptable", "no"];

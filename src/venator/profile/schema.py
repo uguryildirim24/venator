@@ -538,6 +538,7 @@ class FilterPolicy:
     jev: JevPolicy | None = None
     shift_preference: str = "no_preference"
     employer_exclude: tuple[str, ...] = ()
+    location_regions: tuple[str, ...] = ()
     employer_names: Mapping[str, str] = field(default_factory=dict)
 
 

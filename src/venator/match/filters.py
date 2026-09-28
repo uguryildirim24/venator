@@ -30,6 +30,7 @@ from html.parser import HTMLParser
 from types import MappingProxyType
 from typing import Literal, NamedTuple, TypeAlias
 
+from venator.match.location_scope import location_scope
 from venator.match.timing import eligibility_finding, eligibility_relevant
 from venator.profile.schema import (
     DEGREE_LEVELS,
@@ -391,7 +392,16 @@ def work_authorization_reading(posting: dict, policy: FilterPolicy = EMPTY_POLIC
 _DEGREE = (
     r"(?:bachelor(?:'s|’s|\s+degree)|baccalaureate(?:\s+degree)?|"
     r"master(?:'s|’s|\s+degree)|(?:b|m)\.?\s*s\.?c?\.?|b\.?\s*a\.?|"
-    r"m\.\s*a\.|m\.?\s*b\.?\s*a\.?|ph\.?\s*d\.?|doctorate(?:\s+degree)?|"
+    r"m\.\s*a\.|m\.?\s*b\.?\s*a\.?|ph\.?\s*d\.?|pharm\.?\s*d\.?|"
+    r"doctor\s+of\s+(?:osteopathic\s+)?medicine|"
+    # Bare MD / DO is also a state / verb. Accept only an explicit degree
+    # construction or a requirement directly beside the abbreviation; do not
+    # read a city followed by MD as an academic qualification.
+    r"(?-i:M\.D|D\.O)|"
+    r"(?<!,\s)(?<!,)(?-i:MD|DO)(?=\s*/\s*(?:MD|DO)\b|\s+or\s+(?:MD|DO)\b)|"
+    r"(?<!,\s)(?<!,)(?-i:MD|DO)(?=\s+degree\b)|"
+    r"(?<!\w\s)(?<!,\s)(?<!,)(?-i:MD|DO)(?=\s+required\b)|"
+    r"doctorate(?:\s+degree)?|"
     r"degree(?=\s+in\b))"
 )
 # A bare abbreviation is a degree only when what follows is not a product name.
@@ -523,7 +533,7 @@ def _degree_level(match: re.Match[str]) -> str | None:
         return "bachelor"
     if written.startswith(("master", "mba", "ms", "ma")):
         return "master"
-    if written.startswith(("phd", "doctorate")):
+    if written.startswith(("phd", "pharmd", "md", "do", "doctorate", "doctorof")):
         return "doctorate"
     return None
 
@@ -656,14 +666,14 @@ _YEARS_SPAN = (
     rf"(?:\s*(?:-|–|—|to)\s*(?P<maximum>{_YEAR_NUMBER}))?(?:\s*(?:\+|plus)|\s+or more)?"
 )
 _YEARS_EXPERIENCE = re.compile(
-    rf"\b(?:(?:at least|minimum(?: of)?|more than|over)\s+)?"
-    rf"(?P<minimum>{_YEAR_NUMBER})(?:\s*\(\d{{1,2}}\))?"
+    rf"(?<!\w)(?:(?:at least|minimum(?: of)?|more than|over)\s+)?"
+    rf"(?P<less_than><\s*)?(?P<minimum>{_YEAR_NUMBER})(?:\s*\(\d{{1,2}}\))?"
     rf"{_YEARS_SPAN}"
     rf"\s+years?(?:['’])?(?:\s+(?:of|in))?\s+[^.;:]{{0,90}}?\bexperience\b",
     re.IGNORECASE,
 )
 _YEARS_IN_FIELD = re.compile(
-    rf"\b(?:(?:at least|minimum(?: of)?|over)\s+)?(?P<minimum>{_YEAR_NUMBER})(?:\s*\(\d{{1,2}}\))?"
+    rf"(?<!\w)(?:(?:at least|minimum(?: of)?|over)\s+)?(?P<less_than><\s*)?(?P<minimum>{_YEAR_NUMBER})(?:\s*\(\d{{1,2}}\))?"
     rf"{_YEARS_SPAN}"
     rf"\s+years?\s+(?:in|building|working|developing|leading|managing|conducting|"
     rf"designing|delivering|supporting|programming|engineering)\b[^.;:]{{0,100}}",
@@ -820,8 +830,25 @@ def _preferred_after(description: str, match: re.Match[str]) -> bool:
 def _degree_is_optional(description: str, match: re.Match[str]) -> bool:
     """The guards the completed-degree scan applies, so a bundle reads them too."""
     context = _context(description, match.start(), match.end())
+    # Umbrella student listings enumerate separate Bachelor's / Master's / PhD /
+    # PharmD tracks, sometimes over hundreds of characters. A track is not a
+    # completed-degree requirement for the undergraduate track. Stop at the next
+    # requirement heading so an unrelated degree later is not waived.
+    before = description[: match.start()]
+    enrollment = list(re.finditer(
+        r"\bcurrently enrolled\b[^:\n]{0,110}\bpursuing a degree in\s*:", before, re.I
+    ))
+    umbrella = False
+    if enrollment:
+        tail = description[enrollment[-1].end() : match.start()]
+        umbrella = (
+            len(tail) < 2000
+            and re.search(r"\bbachelor(?:'s|’s)\b", tail, re.I) is not None
+            and re.search(r"\bCandidates must\b|\bAdditional (?:requirements|qualifications)\b", tail, re.I) is None
+        )
     return bool(
-        _DEGREE_NON_REQUIREMENT.search(context)
+        umbrella
+        or _DEGREE_NON_REQUIREMENT.search(context)
         # The same offer in the phrasings that pattern does not list, and read
         # from the clause rather than from the 100-wide context, because an
         # equivalence belongs to the degree it sits beside.
@@ -1108,7 +1135,9 @@ def _education_attainment_reading(posting: dict, policy: FilterPolicy = EMPTY_PO
             continue
         if _COMPANY_BOILERPLATE.search(f"{before} {match.group(0)} {after}"):
             continue
-        minimum = _number(match.group("minimum"))
+        # An upper bound is not the minimum it names. In particular "<2 years"
+        # must not kill a Posting when the Profile excludes 2+ years.
+        minimum = 0 if match.group("less_than") else _number(match.group("minimum"))
         if minimum > rules.experience_years_implausible:
             continue  # implausible as a candidate requirement — company-history talk
         stated.append((minimum, match))
@@ -1544,7 +1573,18 @@ def eligibility_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
     return Reading("pass", "eligibility", finding.reason, finding.fact)
 
 
+def location_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> Reading:
+    """Keep unreadable and remote Postings; reject only known outside sites."""
+    if not policy.location_regions:
+        return Reading("pass", "location", "no location scope configured", "unconfigured")
+    scope = location_scope(posting)
+    if scope == "outside":
+        return Reading("kill", "location", f"outside New England: {posting.get('location') or 'structured location'}")
+    return Reading("pass", "location", f"location scope: {scope}", scope)
+
+
 HARD_FILTER_RULES: dict[str, HardFilter] = {
+    "location": location_reading,
     "work_authorization": work_authorization_reading,
     "education_fit": education_fit_reading,
     "role_target": role_target_reading,

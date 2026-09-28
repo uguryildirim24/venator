@@ -38,7 +38,7 @@ from venator.profile.schema import (
 )
 
 PROFILE_FILES = ("resume.yaml", "constraints.yaml", "targeting.yaml")
-KNOWN_RULES = ("work_authorization", "education_fit", "role_target", "eligibility")
+KNOWN_RULES = ("location", "work_authorization", "education_fit", "role_target", "eligibility")
 
 
 class ProfileError(ValueError):
@@ -456,6 +456,14 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
             raise at.child("enabled").child(str(index)).reject(
                 f"must name a Hard Filter — one of {list(KNOWN_RULES)}", rule
             )
+    location = _mapping(config.get("location"), at.child("location"))
+    regions = _strings(location.get("regions"), at.child("location").child("regions"))
+    if regions and (len(regions) != 6 or set(regions) != {"MA", "RI", "NH", "CT", "VT", "ME"}):
+        raise at.child("location").child("regions").reject(
+            "must name MA, RI, NH, CT, VT, ME exactly once", regions
+        )
+    if regions and "location" not in enabled:
+        raise at.child("enabled").reject("must include location when filters.location.regions is set")
     work_authorization = _work_authorization_policy(
         config.get("work_authorization"), at.child("work_authorization")
     )
@@ -490,6 +498,7 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
         jev=jev,
         shift_preference=shift_preference,
         employer_exclude=employer_exclude,
+        location_regions=regions,
     )
 
 

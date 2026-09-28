@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from venator.match.filters import apply_filters, role_target_filter
+from venator.match.filters import apply_filters, education_fit_reading, role_target_filter
 from venator.match.timing import eligibility_finding, pay_range
 from venator.profile import load_profile
-from venator.profile.schema import FilterPolicy, SearchTargeting, TimingPolicy
+from venator.profile.schema import EducationFitPolicy, FilterPolicy, SearchTargeting, TimingPolicy
 
 REPOSITORY = Path(__file__).parents[2]
 POLICY = load_profile(REPOSITORY / "profiles" / "example").filters
@@ -25,6 +25,57 @@ def posting(**changes: object) -> dict[str, object]:
     }
     value.update(changes)
     return value
+
+
+def test_strict_experience_upper_bound_does_not_become_a_minimum() -> None:
+    for limit in (2, 3):
+        policy = FilterPolicy(education_fit=EducationFitPolicy(experience_years_kill=limit))
+        assert education_fit_reading(posting(description_html="<2 years experience required"), policy).verdict == "pass"
+        assert education_fit_reading(posting(description_html=f"{limit}+ years experience required"), policy).verdict == "kill"
+
+
+def test_advanced_degree_requires_an_anchor_and_has_no_waiver() -> None:
+    policy = FilterPolicy(education_fit=EducationFitPolicy(
+        kill_completed_degree=True, current_student_level="undergraduate"
+    ))
+    for text in ("PhD required", "MS required", "Master's degree required", "MD/DO required", "PharmD required", "Currently pursuing an MS / MBA", "M.D. required", "MD degree required", "MD or DO required", "D.O. degree required", "Doctor of Medicine required", "Doctor of Osteopathic Medicine required", "MD required", "DO required", "Candidates must hold an MD degree", "DO degree is required"):
+        assert education_fit_reading(posting(description_html=text), policy).verdict == "kill", text
+    for text in ("PharmD track co-op opportunities", "PhD preferred", "PhD or equivalent experience required", "MD optional", "We do lab work."):
+        assert education_fit_reading(posting(description_html=text), policy).verdict == "pass", text
+
+
+@pytest.mark.parametrize("text", (
+    "Frederick, MD - Required: 0-2 years lab experience.",
+    "Based in Rockville, MD. Required skills: pipetting, cell culture.",
+    "Our team in Baltimore, MD is hiring. Must be able to lift 25 lbs (required).",
+    "DO NOT apply through agencies. Required: cell culture experience.",
+    "Required: pipetting. Location: Bethesda, MD",
+    "Baltimore MD required: pipetting.",
+    "Location: Rockville, MD 20878. Required: lab work.",
+    "Required: collaboration with MD/PA/NPs in multi-person care.",
+    "Consults MD, when necessary, before care.",
+    "Works with a varied workforce including MD’s, nurses, and administrative staff. Required: scheduling.",
+))
+def test_medical_degree_abbreviations_are_not_locations_or_verbs(text: str) -> None:
+    policy = FilterPolicy(education_fit=EducationFitPolicy(
+        kill_completed_degree=True, current_student_level="undergraduate"
+    ))
+    assert education_fit_reading(posting(description_html=text), policy).verdict == "pass"
+
+
+def test_umbrella_coop_degree_tracks_do_not_require_a_pharmd() -> None:
+    policy = FilterPolicy(education_fit=EducationFitPolicy(
+        kill_completed_degree=True, current_student_level="undergraduate"
+    ))
+    listing = (
+        "Currently enrolled at an accredited college or university pursuing a degree in:\n"
+        "Bachelor's in Biology, Chemistry, Biotechnology, Biochemistry and Molecular Biology.\n"
+        "or\nMaster's in Biology, Chemical Engineering and Bioinformatics.\n"
+        "or\nPhD in Biology, Pharmaceutical Sciences, and Pharmacy (PharmD).\n"
+        "Candidates must be eligible to work in the US."
+    )
+    assert education_fit_reading(posting(description_html=listing), policy).verdict == "pass"
+    assert education_fit_reading(posting(description_html="PharmD required."), policy).verdict == "kill"
 
 
 def test_expired_deadline_and_past_internship_cohort_are_kills() -> None:

@@ -93,9 +93,23 @@ run. Each stored Posting still gets a Filter Decision.
 ### 2. Hard Filters
 
 `venator.match.run` applies the Hard Filters the Profile enables
-(`work_authorization`, `education_fit`, `role_target`, `eligibility`) and appends one
-Filter Decision per Posting it sees. A filter with no wording kills nothing. Every
-Posting gets a decision, including the ones that pass.
+(`work_authorization`, `education_fit`, `role_target`, `eligibility`, `location`) and
+appends one Filter Decision per Posting it sees. A filter with no wording kills
+nothing. Every Posting gets a decision, including the ones that pass.
+
+To enable the New England location Hard Filter in `targeting.yaml`, add `location`
+to `filters.enabled` and set `filters.location.regions` to
+`[MA, RI, NH, CT, VT, ME]`. All six codes are required. A Posting passes if any
+site is in New England, remote, US-wide or unreadable. Only Postings with every
+readable site outside New England are killed, including sites in named US
+territories. Workday's “2 Locations” label does not hide its other sites: the
+filter also reads sites in `source_facts`, including on older Postings. The
+location choice on the dashboard only narrows what's displayed.
+
+`education_fit` reads “<2 years experience” as an upper bound, not a minimum.
+It counts a required MD/DO, PharmD, PhD or MS as an advanced degree only in
+clear degree context, not in an address like “Rockville, MD” or “DO NOT”. A
+co-op page with several degree tracks passes when one track is within reach.
 
 When filter code or the Profile's decision inputs change, `filters_version` changes
 and the next run appends a replay. Old rows stay as they are. The effective decision

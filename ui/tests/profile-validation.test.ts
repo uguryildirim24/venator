@@ -131,10 +131,10 @@ test("a kill threshold above the implausibility ceiling is refused, default ceil
 	assert.match(implied.message, /\(15\)/u);
 });
 
-test("the retired location Hard Filter cannot be enabled", () => {
-	const error = refusal(() => validateProposal(proposal({ filters: { enabled: ["location"] } })));
-	assert.equal(error.field, "targeting.filters.enabled.0");
-	assert.match(error.message, /not a Hard Filter/u);
+test("an existing Profile's location Hard Filter survives validation", () => {
+	assert.doesNotThrow(() => validateProposal(proposal({ filters: {
+		enabled: ["location"], location: { regions: ["MA", "RI", "NH", "CT", "VT", "ME"] },
+	} })));
 });
 
 test("a Profile name inside targeting.yaml that disagrees with the directory is refused", () => {
