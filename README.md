@@ -7,8 +7,8 @@
 
 Venator is a local, personal job application app. It runs on your own computer and
 works for one person. It pulls job postings from the employer job boards you pick,
-throws out the ones you can't or don't want to apply to, and lets Jev, a TypeSafe
-classifier, sort the rest into look first, review and skip. You read them on a
+throws out the ones you can't or don't want to apply to, and uses your own keep
+model to sort the rest. You read them on a
 dashboard, prepare a résumé and cover letter for the ones you like, and apply
 yourself. Venator never presses submit for you.
 
@@ -19,8 +19,8 @@ yourself. Venator never presses submit for you.
 - **Hard Filters** apply fixed rules from your Profile (work authorization,
   education, role level, eligibility, and location when enabled). Every Posting
   gets a recorded decision, so nothing disappears without a reason.
-- **Jev** sorts the Postings that pass. It only runs when you press **Jev it**, and
-  it costs a little money per Posting (see [Jev](#jev)).
+- **Score** sorts Hard Filter passes using your keep model, configured in your
+  Install. It runs only when you press **Score**.
 - **The dashboard** shows the lists, each Posting as a page with notes beside it,
   and buttons to save, dismiss, prepare documents and open the application. Its
   résumé assessment treats confirmed post-secondary education, including current
@@ -33,9 +33,8 @@ yourself. Venator never presses submit for you.
 Everything personal (your Profile, the Postings, every decision) stays in a folder on
 your computer, outside this repository.
 
-Jev ships in shadow mode, without a validated public release. Its labels are an
-estimate, not a verdict. Its current vocabulary is written for life-sciences jobs, so
-in other fields expect more Postings in review and a less useful look-first list.
+Without a keep model configured in your Install, passing Postings wait in
+**Awaiting Score**. No model or question comes with the repository.
 
 ## Install
 
@@ -76,9 +75,7 @@ has **Skip for Now**.
 1. **Connect an assistant.** Pick **Use Claude** (Claude Code, signed in with your
    Claude plan) or **Use ChatGPT** (Codex, signed in with your ChatGPT plan). Venator
    uses it to read your résumé and to draft application documents. Checking the
-   connection uses a few words of your plan. Here you can also paste a TypeSafe key
-   for Jev. On a Mac it is saved in the Keychain. Elsewhere, set `TYPESAFE_API_KEY`
-   before you start the dashboard.
+   connection uses a few words of your plan.
 2. **Add your résumé.** Drop in a PDF or paste the text. Reading the PDF on your
    computer is free but only finds your contact details. Reading it with the
    assistant fills in experience, education and skills, and costs one request on your
@@ -93,22 +90,16 @@ After setup, **Profile** in the sidebar opens a form for editing the Profile you
 already saved: contact and résumé facts, target jobs, filters, employers and settings.
 Save checks your changes before writing and keeps Profile fields the form does not
 show. It then reruns Hard Filters on stored Postings and rebuilds the lists, without
-fetching boards or calling Jev. If you skipped the employers, the empty list offers **Add Employers…**. If
-you skipped the Jev key, **Awaiting Jev** offers **Add Key…**.
+fetching boards or scoring. If you skipped the employers, the empty list offers **Add Employers…**.
 
 ## Everyday use
 
 - **Refresh** fetches your boards again, runs the Hard Filters and rebuilds the
-  lists. Current Hard Filter passes selected by the Jev plan wait in **Awaiting
-  Jev** until they have a current result. Postings needing fresh Hard Filters show
-  **Awaiting Hard Filters** instead.
-- **Jev it** sits above your Profile name at the bottom of the sidebar. Without
-  a key, the button is disabled without an extra message. Refresh sits below
-  Employers. Jev it sends
-  waiting Postings to Jev, with a $10 limit per press. It skips Postings you've
-already prepared or applied for. If it stops (no key, no
-  credit, a connection problem, or the limit), earlier results stay and the rest
-  wait for the next press. The run shows what is waiting and when the view is ready.
+  lists without inference. Passes without a current score wait in **Awaiting Score**.
+  Postings needing fresh Hard Filters show **Awaiting Hard Filters** instead.
+- **Score** sits above your Profile name. It runs the keep model configured in your
+  Install on Modal, then rebuilds the lists. If a run stops, earlier scores stay and
+  remaining Postings wait for the next press. Refresh sits below Employers.
 - The location choice above a list narrows the visible Postings and counts. Open
   a state or country to choose its cities, or choose the whole state or country.
   Boston spellings share one city choice. Campus names and job-posting labels use
@@ -119,9 +110,9 @@ already prepared or applied for. If it stops (no key, no
 - The last-checked line below Employers shows when Discover last checked your boards,
   including checks run from the command line. It says **Not checked yet** until
   a board check has been recorded.
-- **For you** is what Jev says to look at first. **Explore** is what it says to
-  review. **Excluded** holds Hard Filter kills and Jev exclusions. **Applications**,
-  **Saved** and **Dismissed** hold what you've acted on.
+- **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
+  from 0.014 to below 0.5. **Excluded** holds Hard Filter kills and probabilities
+  below 0.014. **Applications**, **Saved** and **Dismissed** hold what you've acted on.
 - Switching Postings fades and raises the new page. The description opens with
   eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
 - A Posting's margin is one ledger. It starts with **Meets N of M** and a tally
@@ -131,8 +122,8 @@ already prepared or applied for. If it stops (no key, no
   choice, and **Restore** undoes it. **Prepare Application** drafts a résumé (and a
   cover letter if you want one) from confirmed facts only. **Open Application** hands
   the prepared files to a browser window. **I Applied** records that you applied.
-- **Jev Diagnostics** is under **View**. It shows eligible Postings with failed or
-  stale Jev results, not current results.
+- **Jev Diagnostics** under **View** only shows historical Jev results; Jev no longer
+  routes the lists.
 
 Nothing is scheduled. Venator only fetches when you press Refresh, unless you set up
 the optional timer in [ops/README.md](ops/README.md).
@@ -194,30 +185,22 @@ registering boards.
 ## From the terminal
 
 Every button has a command behind it, and the example above shows the pipeline ones.
-Discover and the Hard Filters append to history, the view build rebuilds a throwaway
-SQLite database, and none of them calls TypeSafe. [docs/RUNNING.md](docs/RUNNING.md)
-covers the rest: Jev, preparing and handing off applications, tracking, the stores
-and the loop.
+Discover and the Hard Filters append to history; View rebuilds a disposable SQLite
+file. None of them scores. [docs/RUNNING.md](docs/RUNNING.md) covers Score,
+applications, tracking, stores and the loop.
 
-## Jev
+## Score
 
-Jev it sends only Hard Filter passes that don't have a current result, using your
-Profile's own Jev policy. Refresh never calls Jev.
+Your Install's private `keep-model.json` names its Modal profile, app and volume,
+base and adapter paths, adapter hash and fixed binary question. The repository has
+none of these values. Score builds compact inputs from Posting text and confirmed
+Profile facts, with identity stripped. Only anonymous row IDs, compact inputs and
+configured model metadata go to Modal. The Posting join stays local.
 
-To preview what would be sent, without sending anything:
-
-```bash
-uv run python -m venator.qualify.jev --profile NAME --as-of YYYY-MM-DD --mode shadow
-```
-
-Sending needs a key: `TYPESAFE_API_KEY` in the environment, or one saved in the
-Keychain from setup. Never put the key in a Profile or a log. At the current price,
-expect about $0.00018 per Posting. Jev it stops at $10 per press. A request already
-in flight can go slightly past what's left. From the terminal, `VENATOR_JEV_MAX_USD`
-changes that limit.
-
-This repository doesn't include the protected test set or the promotion tool, so
-Jev stays in shadow here.
+`uv run python -m venator.score.run --profile NAME --estimate` runs a bounded CPU
+preflight. `--execute` checks the estimate against the $0.50 cap and scores missing
+or stale passes. Scores append under `data/keep-scores`. Nothing trains or downloads
+weights. Jev's historical modules do not route lists.
 
 ## Environment variables
 
@@ -228,8 +211,6 @@ Jev stays in shadow here.
 | `VENATOR_VIEW_DB` | open this view database in the dashboard |
 | `VENATOR_SAMPLE_DATA` | allow the sample data when there's no view (`pnpm dev` sets it) |
 | `VENATOR_PYTHON` | the Python the dashboard runs the pipeline with |
-| `TYPESAFE_API_KEY` | the Jev key |
-| `VENATOR_JEV_MAX_USD` | the spending limit for a pipeline Jev run from the terminal (default 10) |
 | `VENATOR_LLM_RUNTIME` | which completion runtime to use (`claude` by default) |
 | `VENATOR_LLM_API_URL`, `VENATOR_LLM_API_MODEL`, `VENATOR_LLM_API_KEY_VAR` | settings for your own key endpoint |
 | `VENATOR_HANDOFF_HEADLESS` | keep browser tests from opening a window |
@@ -248,7 +229,7 @@ pnpm --dir ui smoke
 ```
 
 The browser tests need Chromium (`uv run playwright install chromium`). None of the
-tests makes a paid Jev request or submits an application.
+tests makes a paid model request or submits an application.
 
 ## More docs
 

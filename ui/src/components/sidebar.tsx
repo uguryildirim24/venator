@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import type { DatabaseInfo, Funnel } from "../../shared/contracts.ts";
 import { homeListLabel, SAMPLE_DATA_DETAIL, SAMPLE_DATA_STAMP } from "../labels.ts";
 import { employersHash, profileHash, queueHash, type HomeList, type Route } from "../router.ts";
-import { FetchStatus, JevStatus } from "../runs/status.tsx";
+import { FetchStatus, ScoreStatus } from "../runs/status.tsx";
 
 type Row = {
 	readonly id: string;
@@ -40,7 +40,7 @@ type SidebarProps = {
 	readonly configured: boolean;
 	/** Display name from the active Profile's resume.yaml. */
 	readonly profileName: string | null;
-	/** Nothing discovered yet: nothing for Jev it to run on. */
+	/** Nothing discovered yet: nothing to Score. */
 	readonly firstRun: boolean;
 	/** The job list is being rebuilt, and the check caption shows that state. */
 	readonly updating: boolean;
@@ -49,7 +49,7 @@ type SidebarProps = {
 };
 
 /**
- * Three sections of compact rows, with Refresh beneath Sources and Jev it above the
+ * Three sections of rows, with Refresh beneath Sources and Score above the
  * Profile account row. The selected row is a neutral pill; the symbols
  * are ember. Counts are the funnel's, so they agree with every list they name. Applications,
  * Saved and Dismissed are disjoint — the application states `approved` and `rejected` are
@@ -114,7 +114,7 @@ export function Sidebar({ route, funnel, database, boards, configured, profileNa
 			) : null}
 			{configured ? (
 				<div className="sidebar-footer">
-					{!firstRun && !updating ? <JevStatus jevPause={database?.jevPause ?? null} onSettled={onReload} /> : null}
+					{!firstRun && !updating ? <ScoreStatus scorePause={database?.scorePause ?? null} onSettled={onReload} /> : null}
 					<a className="sidebar-row sidebar-account" href={profileHash()} aria-current={active === "profile" ? "page" : undefined}>
 						<span className="sidebar-symbol"><CircleUser aria-hidden="true" className="icon" /></span>
 						<span>{profileName ?? "Profile"}</span>

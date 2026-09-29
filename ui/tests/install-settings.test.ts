@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { documentRuntime, saveDocumentRuntime } from "../server/install-settings.ts";
-import { nonJevInheritedEnvironment, runEnvironment, jevRunEnvironment } from "../server/runs/environment.ts";
+import { nonJevInheritedEnvironment, runEnvironment } from "../server/runs/environment.ts";
 import type { LocationContext } from "../server/locations.ts";
 
 test("a saved runtime is the only runtime for document children; no key goes to non-Jev children", async () => {
@@ -22,7 +22,6 @@ test("a saved runtime is the only runtime for document children; no key goes to 
 		assert.equal(runEnvironment(context)["VENATOR_LLM_RUNTIME"], "codex");
 		assert.equal(runEnvironment(context)["TYPESAFE_API_KEY"], undefined);
 		assert.equal(runEnvironment(context)["PLAYWRIGHT_NODEJS_PATH"], "/Applications/Venator.app/Contents/MacOS/node");
-		assert.equal(jevRunEnvironment(context)["TYPESAFE_API_KEY"], "sentinel");
 		assert.equal(nonJevInheritedEnvironment(context)["TYPESAFE_API_KEY"], undefined);
 	} finally {
 		rmSync(home, { recursive: true, force: true });

@@ -31,7 +31,6 @@ import {
 	type RunStage,
 } from "../../shared/runs.ts";
 import { RunError } from "./errors.ts";
-import { TYPESAFE_API_KEY_ENVIRONMENT } from "./environment.ts";
 import { describeRun, type PipelinePlan, type PlanDocument } from "./plan.ts";
 
 /**
@@ -174,7 +173,6 @@ function notesFor(
 	viewPath: string,
 	dashboardViewPath: string,
 	postingCount: number,
-	keyAvailable: boolean,
 ): readonly PlanNote[] {
 	const notes: PlanNote[] = [];
 	if (kind === "fetch-and-filter" && boards === 0) {
@@ -184,19 +182,8 @@ function notesFor(
 				"This Profile registers no employer, so a run has nothing to fetch from. Register one and this control turns on.",
 		});
 	}
-	if (kind === "jev-it" && postingCount === 0) {
-		notes.push({
-			code: "nothing-to-qualify",
-			message: "No current passing Posting with description text needs Jev. Refresh Postings and Hard Filters if you expected more.",
-		});
-	}
-	if (kind === "jev-it" && !keyAvailable) {
-		// Said as a note, not a refusal: the plan still counts what is waiting, and once a key
-		// is saved Jev it can run them. Nothing about the key is said but that it is missing.
-		notes.push({
-			code: "jev-key-missing",
-			message: "No TypeSafe key is saved, so these Postings wait for Jev until you add one.",
-		});
+	if (kind === "score" && postingCount === 0) {
+		notes.push({ code: "nothing-to-score", message: "No Postings awaiting Score." });
 	}
 
 	if (viewPath !== dashboardViewPath) {
@@ -234,10 +221,6 @@ function dashboardView(context: LocationContext): string {
 	return view.path;
 }
 
-function hasTypesafeApiKey(context: LocationContext): boolean {
-	return (context.environment(TYPESAFE_API_KEY_ENVIRONMENT) ?? "").trim() !== "";
-}
-
 /**
  * Issues a plan for `kind`, and a token.
  *
@@ -250,24 +233,13 @@ export async function issuePlan(
 ): Promise<RunPlan> {
 	const profile = chooseProfile(context);
 	const answer = await askPipeline(kind, profile, context, describe);
-	if (kind === "jev-it" && answer.jev == null) {
-		throw new RunError(
-			"pipeline_absent",
-			"The pipeline did not describe the Jev run, so nothing was guessed.",
-			"This dashboard and the pipeline it runs are out of step with each other.",
-		);
+	if (kind === "score" && answer.score == null) {
+		throw new RunError("pipeline_absent", "The pipeline did not describe the Score run.");
 	}
 	const dashboardViewPath = dashboardView(context);
-	const answerJev = answer.jev ?? null;
-	const postingCount = answerJev?.postingCount ?? 0;
-	const keyAvailable = hasTypesafeApiKey(context);
-	const notes = notesFor(kind, answer.boards, answer.viewPath, dashboardViewPath, postingCount, keyAvailable);
-	const jev = answerJev === null ? null : {
-		...answerJev,
-		summary:
-			`${answerJev.postingCount} Postings passed the Hard Filters, have description text, and have no Jev result under the current release.` +
-			(keyAvailable ? "" : " Jev will pause until an API key is available."),
-	};
+	const score = answer.score ?? null;
+	const postingCount = score?.postingCount ?? 0;
+	const notes = notesFor(kind, answer.boards, answer.viewPath, dashboardViewPath, postingCount);
 	const plan: RunPlan = {
 		token: `plan_${randomUUID()}`,
 		kind,
@@ -278,7 +250,7 @@ export async function issuePlan(
 		viewPath: answer.viewPath,
 		dashboardViewPath,
 		boards: answer.boards,
-		jev,
+		score,
 		// A plan remains visible at zero work; starting it would do nothing, so it does not.
 		startable:
 			runKindOf(kind) !== null &&
@@ -339,17 +311,16 @@ export async function redeemPlan(
 	const profile = chooseProfile(context);
 	const answer = await askPipeline(entry.plan.kind, profile, context, describe);
 	const currentDashboardViewPath = dashboardView(context);
-	const plannedJev = entry.plan.jev ?? null;
-	const currentJev = answer.jev ?? null;
-	const jevChanged =
-		currentJev === null
-			? plannedJev !== null
-			: plannedJev === null ||
-				currentJev.asOf !== plannedJev.asOf ||
-				currentJev.mode !== plannedJev.mode ||
-				currentJev.postingCount !== plannedJev.postingCount ||
-				currentJev.maximumUsd !== plannedJev.maximumUsd ||
-				currentJev.selectionHash !== plannedJev.selectionHash;
+	const plannedScore = entry.plan.score ?? null;
+	const currentScore = answer.score ?? null;
+	const scoreChanged =
+		currentScore === null
+			? plannedScore !== null
+			: plannedScore === null ||
+				currentScore.asOf !== plannedScore.asOf ||
+				currentScore.postingCount !== plannedScore.postingCount ||
+				currentScore.maximumUsd !== plannedScore.maximumUsd ||
+				currentScore.selectionHash !== plannedScore.selectionHash;
 	if (
 		profile !== entry.plan.profile ||
 		answer.profileDirectory !== entry.plan.profileDirectory ||
@@ -357,7 +328,7 @@ export async function redeemPlan(
 		answer.viewPath !== entry.plan.viewPath ||
 		currentDashboardViewPath !== entry.plan.dashboardViewPath ||
 		answer.boards !== entry.plan.boards ||
-		jevChanged
+		scoreChanged
 	) {
 		throw expired;
 	}

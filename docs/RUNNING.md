@@ -46,7 +46,7 @@ uv run python -m venator.schedule.loop \
   --only discover,filters,view --profile NAME --interactive-discover
 ```
 
-Jev it is a separate run (see step 3). Neither Refresh nor Jev it prepares
+Score is a separate run (see step 3). Neither Refresh nor Score prepares
 documents, opens a browser or submits anything.
 
 ### 1. Discover
@@ -115,12 +115,26 @@ When filter code or the Profile's decision inputs change, `filters_version` chan
 and the next run appends a replay. Old rows stay as they are. The effective decision
 is the latest row per `(posting_key, stage)`.
 
-With `qualification_mode: jev`, `--as-of` is required so that Jev freshness and the
-Hard Filter evidence use the same month. Jev never changes a Filter Decision. Current
-Jev results only decide which dashboard list a passing Posting lands in: For you,
-Explore or Excluded.
+With `qualification_mode: jev`, `--as-of` is required for the historical Jev
+command. Jev never changes a Filter Decision and no longer routes the dashboard.
 
-### 3. Jev
+### 3. Score
+
+Score uses the person's own keep model in their Install's private `keep-model.json`.
+It sends compact, identity-stripped inputs and configured model metadata to Modal.
+No model, adapter, question or Modal account comes with the repository. Score only
+runs on a press or an explicit command:
+
+```bash
+uv run python -m venator.score.run --profile NAME --estimate
+uv run python -m venator.score.run --profile NAME --execute
+```
+
+The estimate is a bounded CPU preflight. Execute uses that receipt, checks the $0.50
+cap, then appends scores under `data/keep-scores`. A partial run resumes without
+rescoring current inputs. Refresh does not run inference.
+
+### Historical Jev CLI
 
 A Profile can run Jev in shadow mode. A preview is local and sends nothing:
 
@@ -145,15 +159,8 @@ Options:
 - `--offline --execute` records only validated results that are already cached and
   sends nothing.
 
-The dashboard's Jev it runs `venator.schedule.loop --only jev --as-of DATE`, which
-calls Jev with `--pipeline`. In that mode the cap comes from `VENATOR_JEV_MAX_USD`,
-or $10 if it isn't set. Jev it always sets it to $10. If there is no key, no credit,
-a service or network failure, or the cap is reached, Jev stops cleanly, keeps earlier
-results and records how many Postings are still waiting. The next Jev it picks them
-up. Preparation now loads only the latest Postings that passed Hard Filters before
-selecting Jev work, rather than holding every discovered Posting in memory. The
-view builder likewise retains only the latest decision per Posting for assessment
-and replays the store when inserting the full history into SQLite.
+The CLI Jev command is separate from Score. Its results stay in historical
+qualification stores and never decide which dashboard list a Posting enters.
 
 Results are appended to `data/qualifications/<date>.jsonl`, and validated responses
 are cached under `data/qualifications/jev/responses/`. Killed, closed, snippet-only
@@ -172,8 +179,8 @@ uv run python -m venator.view.build \
 
 This rebuilds `build/venator.db` from the JSONL stores in one atomic step. The file
 is disposable: delete it and build it again whenever you like. It holds current
-Postings, Filter Decisions, assessments, Jev results, Track state, source health and
-run heartbeats. Building it makes no network request and never calls Jev or any
+Postings, Filter Decisions, assessments, keep scores, historical Jev results, Track state,
+source health and run heartbeats. Building it makes no network request and never calls Jev or any
 other model.
 
 ### 5. Open the dashboard
@@ -183,11 +190,11 @@ pnpm --dir ui dev       # in a browser, at http://127.0.0.1:5173
 pnpm --dir ui desktop   # the same app in a Tauri window
 ```
 
-The API listens only on `127.0.0.1`. The lists are **For you** (Jev says look first),
-**Explore** (Jev says review), **Awaiting Jev** (current Hard Filter passes selected
-by the Jev plan without a current result), **Applications**, and **Excluded** (Hard
-Filter kills and Jev exclusions). A stale pass shows as **Awaiting Hard Filters**,
-not Awaiting Jev. Employer HTML is shown in a sandboxed iframe.
+The API listens only on `127.0.0.1`. **For you** holds keep probabilities at
+least 0.5; **Explore** holds 0.014 to below 0.5; **Excluded** holds Hard Filter
+kills and lower probabilities. Passes without a current score sit in **Awaiting
+Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. Employer HTML
+is shown in a sandboxed iframe.
 
 ## Applying
 

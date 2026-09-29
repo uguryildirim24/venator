@@ -11,13 +11,13 @@
  *
  * - It spawns exactly four listed commands. `runs/plan.py --kind <kind>` reports what a run
  *   would do and writes nothing. `fetch-and-filter` runs `python -m venator.schedule.loop
- *   --only discover,filters,view --profile <name>`. `jev-it` runs `python -m
- *   venator.schedule.loop --only jev` with the plan-bound date and spend cap, then `python
+ *   --only discover,filters,view --profile <name>`. `score` runs `python -m
+ *   venator.score.run --execute` with the plan-bound date, then `python
  *   -m venator.view.build --profile <name>`. The same view command is the recovery pass after
  *   a run stopped after writing rows. Every argv is selected by kind in `runner.ts`; none is
  *   assembled from request data.
  * - The loop stage set is the closed four of `shared/runs.ts`: `discover`, `filters`,
- *   `jev`, `view`. `RUN_KINDS` names `fetch-and-filter` and `jev-it`. There is no route that takes a
+ *   `score`, `view`. `RUN_KINDS` names `fetch-and-filter` and `score`. There is no route that takes a
  *   module name, no argument passthrough, and no way
  *   to reach `venator.browser.fill`, `venator.browser.recon`, `venator.fill.plan` or
  *   `venator.track.record` from HTTP. `commit` is never named: a button in a shipped app must
@@ -59,14 +59,6 @@ import { checkLocalAction, LOCAL_ACTION_ORIGINS } from "../http/local-action-gua
 import { asMapping, asText, at, JsonParseError, parseJson } from "../onboarding/json.ts";
 import type { JsonMapping } from "../onboarding/json.ts";
 import { systemContext, type LocationContext } from "../locations.ts";
-import { jevKey } from "../install-settings.ts";
-
-async function contextWithJevKey(context: LocationContext, readKey: (context: LocationContext) => Promise<string | null>): Promise<LocationContext> {
-	if ((context.environment("TYPESAFE_API_KEY") ?? "").trim()) return context;
-	const key = await readKey(context);
-	if (key === null) return context;
-	return { ...context, environment: (name) => name === "TYPESAFE_API_KEY" ? key : context.environment(name) };
-}
 import { RunError } from "./errors.ts";
 import { describeRun } from "./plan.ts";
 import { issuePlan, redeemPlan, type DescribeRun } from "./tokens.ts";
@@ -143,14 +135,12 @@ export type RunRouteDependencies = {
 	readonly location?: LocationContext;
 	readonly describe?: DescribeRun;
 	readonly spawnChild?: SpawnChild;
-	readonly readJevKey?: (context: LocationContext) => Promise<string | null>;
 };
 
 export function createRunRoutes(dependencies: RunRouteDependencies = {}): Hono {
 	const runs = new Hono();
 	const location = dependencies.location ?? systemContext();
 	const describe = dependencies.describe ?? describeRun;
-	const readJevKey = dependencies.readJevKey ?? jevKey;
 
 	runs.use(
 		"*",
@@ -178,7 +168,7 @@ export function createRunRoutes(dependencies: RunRouteDependencies = {}): Hono {
 		const body = readJsonBody(await context.req.text());
 		const kind = kindFrom(body);
 		const response: PlanResponse = {
-			plan: await issuePlan(kind, kind === "jev-it" ? await contextWithJevKey(location, readJevKey) : location, describe),
+			plan: await issuePlan(kind, location, describe),
 		};
 		return context.json(response);
 	});
@@ -202,12 +192,11 @@ export function createRunRoutes(dependencies: RunRouteDependencies = {}): Hono {
 			);
 		}
 		const plan = await redeemPlan(token, location, describe);
-		const executionContext = plan.kind === "jev-it" ? await contextWithJevKey(location, readJevKey) : location;
 		const response: RunResponse = {
 			run:
 				dependencies.spawnChild === undefined
-					? startRun(plan, executionContext)
-					: startRun(plan, executionContext, dependencies.spawnChild),
+					? startRun(plan, location)
+					: startRun(plan, location, dependencies.spawnChild),
 		};
 		return context.json(response, 202);
 	});

@@ -30,7 +30,8 @@ from venator.qualify.store import (
     qualification_rows,
     verify_store,
 )
-from venator.qualify.jev import current_mode, hard_filter_passes, select_work
+from venator.score.model import load_model
+from venator.score.selection import inputs_for_passes
 from venator.qualify.jev_effective import current_filter_version, jev_promotion_state
 from venator.qualify.jev_release import JEV_RELEASE
 from venator.qualify.jev_policy import _description_reason
@@ -50,7 +51,7 @@ from venator.match.store import (
     load_postings,
     verify_decisions_dir,
 )
-from venator.track.store import application_progress_keys, fold_states, load_events, verify_track_dir
+from venator.track.store import fold_states, load_events, verify_track_dir
 from venator.profile import (
     PROFILE_ENV,
     PROFILES_DIR,
@@ -144,7 +145,10 @@ CREATE TABLE runs (
 """ + JEV_TRIAGE_DDL + """
 CREATE TABLE jev_selection (mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')));
 CREATE TABLE jev_skip (posting_key TEXT PRIMARY KEY, reason TEXT NOT NULL);
-CREATE TABLE jev_awaiting (posting_key TEXT PRIMARY KEY);
+CREATE TABLE keep_scores (
+  posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
+  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
+);
 CREATE TABLE source_health (
   source_key TEXT PRIMARY KEY, status TEXT, last_attempt_at TEXT,
   last_success_at TEXT, count INTEGER, message TEXT,
@@ -433,7 +437,6 @@ def build_database(
     runs = list(_iter_jsonl_file(runs_file))
     folded_states = fold_states(track_events, latest_decisions)
     application_states = [folded_states[key] for key in sorted(folded_states)]
-    progress_keys = application_progress_keys(folded_states)
     current_filters_version = None
     if profile is not None:
         if jev_mode:
@@ -452,27 +455,13 @@ def build_database(
         for (posting_key, stage), decision in latest_decisions.items()
         if stage == "hard_filter"
     }
-    if jev_mode:
-        assert profile is not None and qualifications_dir is not None and as_of_month is not None
-        revisions: dict[str, str] = {}
-        passes = hard_filter_passes(
-            postings, decisions_dir, profile, as_of_month, qualifications_dir,
-            latest_decisions=latest_decisions, revisions=revisions,
-            qualifications_verified=True,
+    model = load_model(postings_dir.parent.parent)
+    score_inputs = []
+    if profile is not None and current_filters_version is not None:
+        score_inputs = inputs_for_passes(
+            postings, latest_hard, profile, as_of_month or '', current_filters_version,
+            model, postings_dir.parent / 'keep-scores',
         )
-        passes = [posting for posting in passes if posting["key"] not in progress_keys]
-        work = select_work(
-            passes, profile=profile, month=as_of_month,
-            mode=current_mode(profile, as_of_month, qualifications_dir, JEV_RELEASE),
-            qualifications_dir=qualifications_dir, named_keys=None, release=JEV_RELEASE,
-            decided_at=f"{as_of_month}-01T00:00:00+00:00", bindings_only=True,
-            posting_revisions=revisions, qualifications_verified=True,
-        )
-        awaiting_keys = {key for key, _ in work.selection}
-    else:
-        # A non-Jev Profile has no Jev selection gate; retain its passing state.
-        awaiting_keys = {key for key, decision in latest_hard.items()
-                         if decision.get("verdict") == "pass"}
     cached_assessments = {}
     resume_version = hashlib.sha256(json.dumps(
         dict(profile.resume) if profile is not None else None,
@@ -621,7 +610,11 @@ def build_database(
         with closing(sqlite3.connect(temporary_path)) as database, database:
             database.executescript(SCHEMA)
             database.executemany("INSERT INTO jev_skip VALUES (?, ?)", jev_skip_rows)
-            database.executemany("INSERT INTO jev_awaiting VALUES (?)", ((key,) for key in sorted(awaiting_keys)))
+            database.executemany("INSERT INTO keep_scores VALUES (?, ?, ?, ?, ?)", (
+                (row.posting_key, row.input_hash, model.model_id if model else None,
+                 row.score.probability if row.score else None, row.score.scored_at if row.score else None)
+                for row in score_inputs
+            ))
             database.execute("INSERT INTO jev_selection (mode) VALUES (?)", (
                 "promoted" if jev_mode and active is not None else "shadow",
             ))
@@ -891,15 +884,6 @@ def main() -> None:
     print(
         f"built {stores['database_path']}: {postings} Postings, {decisions} Filter Decisions"
     )
-    # View is the last stage of both Refresh and Jev it. Prime the disposable
-    # plan after the stores settle so the next dashboard launch reads metadata.
-    if (profile is not None and profile.filters.qualification_mode == "jev"
-            and all(getattr(args, name) is None for name in
-                    ("postings_dir", "decisions_dir", "database", "qualifications_dir"))):
-        from types import SimpleNamespace
-        from venator.qualify.plan_cache import jev_plan
-
-        jev_plan(profile, SimpleNamespace(**stores), today, refresh=True)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import threading
 import time
@@ -315,17 +314,12 @@ def test_selective_store_read_keeps_selection_and_payloads(
     # The plan's lightweight binding selection must match full preparation and
     # the exact Posting order selected by the Jev run, including observations,
     # stale decisions, closed/snippet Postings and a current shadow result.
-    spec = importlib.util.spec_from_file_location(
-        "runs_plan", Path(__file__).parents[2] / "ui/server/runs/plan.py",
-    )
-    assert spec is not None and spec.loader is not None
-    plan_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(plan_module)
+    from venator.qualify.plan_cache import jev_plan
     stores = SimpleNamespace(
         postings_dir=tmp_path / "postings", decisions_dir=decisions,
         qualifications_dir=qualifications, track_dir=tmp_path / "track",
     )
-    planned = plan_module._jev_plan(profile, stores, "2026-09-18")
+    planned = jev_plan(profile, stores, "2026-09-18")
     expected_bindings = [
         (case.bindings.posting_key, case.bindings.input_version)
         for case in expected.prepared

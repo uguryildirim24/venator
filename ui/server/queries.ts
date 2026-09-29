@@ -96,13 +96,10 @@ const STATUS_SQL = `
       WHEN ${APP_PROGRESS} THEN 'applied'
       WHEN hf.verdict = 'kill' THEN 'hard-killed'
       WHEN a.listing_status = 'closed' THEN 'closed'
-      WHEN hf.verdict = 'pass' AND t.state = 'current' AND t.decision = 'prioritize' THEN 'queued'
-      WHEN hf.verdict = 'pass' AND t.state = 'current' AND t.decision = 'review' THEN 'needs-review'
-      WHEN hf.verdict = 'pass' AND t.state = 'current' AND t.decision = 'exclude' THEN 'hard-killed'
-      WHEN hf.verdict = 'pass' AND s.reason = 'protected' THEN 'protected'
-      WHEN hf.verdict = 'pass' AND s.reason = 'too_long' THEN 'too-long'
-      WHEN hf.verdict = 'pass' AND s.reason IS NOT NULL THEN 'no-text'
-      WHEN hf.verdict = 'pass' AND awaiting.posting_key IS NOT NULL THEN 'unscored'
+      WHEN hf.verdict = 'pass' AND k.probability >= 0.5 THEN 'queued'
+      WHEN hf.verdict = 'pass' AND k.probability < 0.014 THEN 'hard-killed'
+      WHEN hf.verdict = 'pass' AND k.probability IS NOT NULL THEN 'needs-review'
+      WHEN hf.verdict = 'pass' AND k.posting_key IS NOT NULL THEN 'unscored'
       ELSE 'not-filtered'
     END`;
 
@@ -135,8 +132,7 @@ entries AS (
   LEFT JOIN decisions hf ON hf.id = hl.decision_id
   LEFT JOIN application_states aps ON aps.posting_key = p.key
   LEFT JOIN assessments a ON a.posting_key = p.key
-  LEFT JOIN jev_skip s ON s.posting_key = p.key
-  LEFT JOIN jev_awaiting awaiting ON awaiting.posting_key = p.key
+  LEFT JOIN keep_scores k ON k.posting_key = p.key
   LEFT JOIN jev_triage t ON t.posting_key = p.key AND t.mode = ${JEV_MODE}
 )`;
 }
@@ -585,9 +581,9 @@ export function readDatabaseInfo(
 			ORDER BY julianday(last_verified_at) DESC LIMIT 1`).get();
 	const lastFetchAt = fetchRow === undefined ? null : optionalTextColumn(fetchRow, "at");
 
-	const pauseRow = database.prepare("SELECT status, pause_reason, waiting FROM runs WHERE stage = 'jev' ORDER BY id DESC LIMIT 1").get();
+	const pauseRow = database.prepare("SELECT status, pause_reason, waiting FROM runs WHERE stage = 'score' ORDER BY id DESC LIMIT 1").get();
 	const reason = pauseRow === undefined ? null : optionalTextColumn(pauseRow, "pause_reason");
-	const jevPause = pauseRow?.status === "paused" && reason !== null
+	const scorePause = pauseRow?.status === "paused" && reason !== null
 		? { reason, waiting: Number(pauseRow.waiting) } : null;
-	return { path, kind, filtersVersions: versions, lastDecisionAt, lastFetchAt, jevPause };
+	return { path, kind, filtersVersions: versions, lastDecisionAt, lastFetchAt, scorePause };
 }

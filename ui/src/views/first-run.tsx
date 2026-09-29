@@ -1,32 +1,28 @@
-import { KeyRound, LoaderCircle, Search } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode, type RefObject } from "react";
+import { LoaderCircle, Search } from "lucide-react";
+import { useCallback, useState, type ReactNode, type RefObject } from "react";
 
 import type { BoardEntry } from "../../shared/onboarding.ts";
-import { ExternalLink } from "../components/external-link.tsx";
 import { Sheet, SheetClose } from "../components/sheet.tsx";
 import { Toolbar, type SearchProps } from "../components/toolbar.tsx";
 import { homeListLabel } from "../labels.ts";
-import { OnboardingRequestError, readInstallSettings, registerEmployers } from "../onboarding/api.ts";
+import { OnboardingRequestError, registerEmployers } from "../onboarding/api.ts";
 import { navigate, onboardingHash, queueHash, replaceRoute, type HomeList } from "../router.ts";
-import { planRun } from "../runs/api.ts";
 import { useRunControl } from "../runs/use-run.ts";
-import { FIRST_RUN, keyBody, LINKS, refreshBody, RESUME } from "./onboarding/copy.ts";
+import { FIRST_RUN, refreshBody, RESUME } from "./onboarding/copy.ts";
 import { EmployerPicker } from "./onboarding/employers.tsx";
-import { JevKeyField } from "./onboarding/parts.tsx";
 
 /**
- * The three first-run states (ui/DESIGN.md, "Setup and first run"), drawn in the main window
+ * The first-run states, drawn in the main window
  * with its sidebar rather than over it:
  *
  * - **No jobs yet** — a Profile and nothing discovered: Refresh, or the reason it can't run.
- * - **Awaiting Jev, no key** — Postings wait for Jev and there is no TypeSafe key to run it.
  * - **Updating your job list** — the view is being rebuilt under a read that is still open
  *   (`server/view-recovery.ts`), so the list is on its way rather than missing.
  */
 
 /** A first-run state's glyph, title, sentence and presses, centred where the list would be. */
 function State({ glyph, title, body, children }: {
-	readonly glyph: "search" | "key" | "spinner";
+	readonly glyph: "search" | "spinner";
 	readonly title: string;
 	readonly body: string | null;
 	readonly children?: ReactNode;
@@ -34,7 +30,6 @@ function State({ glyph, title, body, children }: {
 	return (
 		<div className="first-run" role={glyph === "spinner" ? "status" : undefined}>
 			{glyph === "search" ? <Search aria-hidden="true" className="first-run-glyph" /> : null}
-			{glyph === "key" ? <KeyRound aria-hidden="true" className="first-run-glyph" /> : null}
 			{glyph === "spinner" ? <LoaderCircle aria-hidden="true" className="first-run-glyph spinner" /> : null}
 			<p className="first-run-title">{title}</p>
 			{body === null ? null : <p className="first-run-body">{body}</p>}
@@ -191,77 +186,6 @@ export function NoJobsYet({ list, profile, searchField, sidebarHidden, onShowSid
 					}}
 				/>
 			)}
-		</>
-	);
-}
-
-/**
- * Whether Jev is waiting for a key, as the Jev plan says it.
- *
- * Asked only while the Awaiting Jev list is on screen. The plan is the server's answer — it
- * knows whether a key is in the environment or the Keychain — and asking writes nothing.
- */
-export function useJevKeyMissing(active: boolean, token: number): boolean {
-	const [missing, setMissing] = useState(false);
-	useEffect(() => {
-		if (!active) {
-			setMissing(false);
-			return;
-		}
-		let cancelled = false;
-		planRun("jev-it")
-			.then((answer) => {
-				if (!cancelled) setMissing(answer.plan.notes.some((note) => note.code === "jev-key-missing"));
-			})
-			.catch(() => {
-				if (!cancelled) setMissing(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [active, token]);
-	return missing;
-}
-
-/** Awaiting Jev, no key: the Postings wait, and the key is one sheet away. */
-export function AwaitingKey({ waiting, onSaved }: { readonly waiting: number; readonly onSaved: () => void }) {
-	const [open, setOpen] = useState(false);
-	const [present, setPresent] = useState(false);
-	useEffect(() => {
-		if (!open) return;
-		readInstallSettings()
-			.then((settings) => setPresent(settings.jevKeyPresent))
-			.catch(() => setPresent(false));
-	}, [open]);
-	return (
-		<>
-			<State glyph="key" title={FIRST_RUN.keyTitle} body={keyBody(waiting)}>
-				<button type="button" className="button" data-size="large" data-tone="prominent" onClick={() => setOpen(true)}>
-					{FIRST_RUN.addKey}
-				</button>
-				<ExternalLink href={LINKS.typesafeKeys} className="button" size="large" title={LINKS.typesafeKeys}>
-					{FIRST_RUN.getKey}
-				</ExternalLink>
-			</State>
-			<Sheet
-				open={open}
-				onOpenChange={setOpen}
-				title={FIRST_RUN.keySheetTitle}
-				description={FIRST_RUN.keySheetDescription}
-				actions={
-					<SheetClose className="button" data-size="large">
-						{RESUME.cancel}
-					</SheetClose>
-				}
-			>
-				<JevKeyField
-					present={present}
-					onSaved={() => {
-						setOpen(false);
-						onSaved();
-					}}
-				/>
-			</Sheet>
 		</>
 	);
 }

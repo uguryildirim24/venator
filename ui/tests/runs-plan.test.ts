@@ -61,29 +61,21 @@ test("a plan carries the pipeline's own answer about where a run would write", (
 	});
 });
 
-test("a Jev plan carries the exact count, cent cap, date and activation mode", () => {
-	const jev = {
-		asOf: "2026-09-23",
-		mode: "shadow",
-		postingCount: 57,
-		maximumUsd: 0.02,
-		selectionHash: "a".repeat(64),
-	};
-	const document = readPlanDocument(JSON.stringify({ ...ANSWER, jev }));
-
+test("a Score plan carries count, cap, date and exact input binding", () => {
+	const score = { asOf: "2026-09-29", postingCount: 57, maximumUsd: 0.5, selectionHash: "a".repeat(64) };
+	const document = readPlanDocument(JSON.stringify({ ...ANSWER, score }));
 	assert.equal(document.outcome, "plan");
-	assert.deepEqual(document.outcome === "plan" ? document.plan.jev : null, jev);
+	assert.deepEqual(document.outcome === "plan" ? document.plan.score : null, score);
 });
 
-test("a malformed Jev count or cap is a mismatch rather than a guessed plan", () => {
-	for (const jev of [
-		{ asOf: "today", mode: "shadow", postingCount: 1, maximumUsd: 0.01, selectionHash: "a".repeat(64) },
-		{ asOf: "2026-09-23", mode: "active", postingCount: 1, maximumUsd: 0.01, selectionHash: "a".repeat(64) },
-		{ asOf: "2026-09-23", mode: "shadow", postingCount: -1, maximumUsd: 0.01, selectionHash: "a".repeat(64) },
-		{ asOf: "2026-09-23", mode: "shadow", postingCount: 1, maximumUsd: -0.01, selectionHash: "a".repeat(64) },
-		{ asOf: "2026-09-23", mode: "shadow", postingCount: 1, maximumUsd: 0.01, selectionHash: "bad" },
+test("a malformed Score count or cap is a mismatch", () => {
+	for (const score of [
+		{ asOf: "today", postingCount: 1, maximumUsd: 0.5, selectionHash: "a".repeat(64) },
+		{ asOf: "2026-09-29", postingCount: -1, maximumUsd: 0.5, selectionHash: "a".repeat(64) },
+		{ asOf: "2026-09-29", postingCount: 1, maximumUsd: -0.01, selectionHash: "a".repeat(64) },
+		{ asOf: "2026-09-29", postingCount: 1, maximumUsd: 0.5, selectionHash: "bad" },
 	]) {
-		assert.equal(readPlanDocument(JSON.stringify({ ...ANSWER, jev })).outcome, "mismatch");
+		assert.equal(readPlanDocument(JSON.stringify({ ...ANSWER, score })).outcome, "mismatch");
 	}
 });
 

@@ -127,14 +127,14 @@ export function statusLabel(status: PostingStatus): string {
 	if (status === "too-long") return "Job text too long to read";
 	if (status === "protected") return "Reserved for evaluation";
 	if (status === "not-filtered") return "Awaiting Hard Filters";
-	return "Awaiting Jev";
+	return "Awaiting Score";
 }
 
 /** The sidebar's name for each home list; the toolbar title reuses the same words. */
 export function homeListLabel(list: HomeList): string {
 	if (list === "queued") return "For you";
 	if (list === "needs-review") return "Explore";
-	if (list === "unscored") return "Awaiting Jev";
+	if (list === "unscored") return "Awaiting Score";
 	if (list === "applied") return "Applications";
 	if (list === "saved") return "Saved";
 	if (list === "dismissed") return "Dismissed";
@@ -369,7 +369,7 @@ export function runStatusLabel(status: string): string {
 const RUN_STAGES = {
 	discover: "Fetching jobs",
 	filters: "Checking eligibility",
-	jev: "Checking with Jev",
+	score: "Scoring Postings",
 	view: "Updating the dashboard",
 } satisfies Record<RunStage, string>;
 
@@ -381,7 +381,7 @@ export function runStageLabel(stage: RunStage): string {
 const RUN_STAGE_RESULTS = {
 	discover: "Jobs that were found are in your data.",
 	filters: "Eligibility decisions were recorded.",
-	jev: "Jev results were recorded when available.",
+	score: "Scores recorded.",
 	view: "The dashboard is showing what has been recorded.",
 } satisfies Record<RunStage, string>;
 
@@ -392,7 +392,7 @@ export function runStageResultLabel(stage: RunStage): string {
 /** What a person is asking for when they start a run. */
 const RUN_KINDS = {
 	"fetch-and-filter": "Refresh jobs",
-	"jev-it": "Jev it",
+	score: "Score",
 	"profile-replay": "Update lists",
 } satisfies Record<RunKind, string>;
 
@@ -523,20 +523,17 @@ const JEV_DECISIONS = {
 	unassessed: "Unavailable",
 } satisfies Record<JevTriageDecision, string>;
 
-/**
- * The last Jev it pause, as the short line under the run controls (ui/DESIGN.md, "Sidebar").
- * How many Postings still wait is the line above it, from the plan, so this says only why
- * Jev stopped and what resumes it.
- */
-export function jevPauseLabel(reason: string): string {
+/** The last Score pause, without model metadata or remote error text. */
+export function scorePauseLabel(reason: string): string {
 	const state = {
-		"no-key": "Jev paused: no API key. Add one and press Jev it again.",
-		"out-of-credit": "Jev paused: out of credit. Press Jev it again once there is some.",
-		"account-unusable": "Jev paused: account unavailable. Press Jev it again once it is back.",
-		"cap-reached": "Jev paused at the spending cap. Press Jev it again to continue.",
-		"transport-failed": "Jev paused: connection unavailable. Press Jev it again to continue.",
+		"model-unavailable": "Model unavailable",
+		"modal-unavailable": "Modal unavailable",
+		"out-of-credit": "Out of credit",
+		"account-unavailable": "Account unavailable",
+		"cap-reached": "Spending cap reached",
+		"connection-unavailable": "Connection unavailable",
 	};
-	return Object.entries(state).find(([code]) => code === reason)?.[1] ?? "Jev paused. Press Jev it again to continue.";
+	return Object.entries(state).find(([code]) => code === reason)?.[1] ?? "Score paused";
 }
 
 export function jevDecisionLabel(decision: JevTriageDecision): string {

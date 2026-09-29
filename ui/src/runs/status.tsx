@@ -4,20 +4,14 @@ import { useState } from "react";
 import type { PlanKind, RunKind, RunState } from "../../shared/runs.ts";
 import { Sheet } from "../components/sheet.tsx";
 import { formatMoment } from "../format.ts";
-import { jevPauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";
+import { scorePauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";
 import { FIRST_RUN } from "../views/onboarding/copy.ts";
-import { JEV_IT_KIND } from "./jev-it.ts";
 import { useRunControl, type RunControl } from "./use-run.ts";
 
-/** The button's words, exactly as Sample asked for them. */
-const JEV_IT_LABEL = "Jev it";
-
 /**
- * The press that starts a run, in one of the kit's two shapes (ui/DESIGN.md, "Sidebar").
+ * The press that starts a run, in one of two shapes.
  *
- * Refresh is the borderless glyph the mock draws beside the last fetch. Jev it is the large
- * capsule every prominent press in the app is — Continue, Find Jobs, Add Key — and it is
- * ember while there is something to sort and a key to sort it with. With no key it is off.
+ * Refresh is the borderless glyph beside the last fetch. Score uses the prominent capsule.
  */
 type Press =
 	| { readonly kind: "glyph"; readonly label: string; readonly icon: typeof RotateCw }
@@ -182,46 +176,24 @@ export function FetchStatus({ lastFetchAt, onSettled, updating }: FetchRowProps)
 	);
 }
 
-type JevItRowProps = {
-	readonly kind: PlanKind;
-	/** The last Jev it pause the view recorded, if the latest Jev run ended in one. */
-	readonly jevPause: { readonly reason: string; readonly waiting: number } | null;
+type ScoreStatusProps = {
+	readonly scorePause: { readonly reason: string; readonly waiting: number } | null;
 	readonly onSettled: () => void;
 };
 
-/**
- * Jev it: one press sorts every Posting that passed the Hard Filters and has no Jev result.
- *
- * No idle count or plan explanation sits beside the press; Awaiting Jev already has the count.
- * Under it, one note at most: a pause other than a missing key,
- * or when the last sort finished. Without a key the press is off, without explanatory copy.
- */
-function JevItRow({ kind, jevPause, onSettled }: JevItRowProps) {
-	const control = useRunControl(kind, 0, onSettled);
+export function ScoreStatus({ scorePause, onSettled }: ScoreStatusProps) {
+	const control = useRunControl("score", 0, onSettled);
 	const { plan, planError, run } = control;
-	const keyMissing = plan?.notes.find((entry) => entry.code === "jev-key-missing") ?? null;
-	const sorted = run !== null && run.kind === kind && run.phase === "succeeded" && run.endedAt !== null ? run.endedAt : null;
-	const note =
-		planError !== null
-			? planError.message
-			: jevPause !== null && jevPause.reason !== "no-key" && keyMissing === null
-				? jevPauseLabel(jevPause.reason)
-				: sorted !== null && keyMissing === null
-					? `Sorted ${formatMoment(sorted)}`
-					: null;
-	const off = plan === null || !plan.startable || keyMissing !== null;
+	const sorted = run?.kind === "score" && run.phase === "succeeded" ? run.endedAt : null;
+	const note = planError?.message ?? (scorePause !== null ? scorePauseLabel(scorePause.reason) : sorted !== null ? `Sorted ${formatMoment(sorted)}` : null);
 	return (
 		<RunRow
-			kind={kind}
+			kind="score"
 			control={control}
 			idle={[]}
-			off={off}
+			off={plan === null || !plan.startable}
 			note={note}
-			press={{ kind: "capsule", label: JEV_IT_LABEL, prominent: keyMissing === null }}
+			press={{ kind: "capsule", label: runKindLabel("score"), prominent: true }}
 		/>
 	);
-}
-
-export function JevStatus({ jevPause, onSettled }: { readonly jevPause: JevItRowProps["jevPause"]; readonly onSettled: () => void }) {
-	return <JevItRow kind={JEV_IT_KIND} jevPause={jevPause} onSettled={onSettled} />;
 }

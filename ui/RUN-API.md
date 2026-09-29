@@ -1,6 +1,6 @@
 # Run API
 
-The routes behind **Refresh** and the sidebar footer's **Jev it**. They start the same pipeline stages
+The routes behind **Refresh** and the sidebar footer's **Score**. They start the same pipeline stages
 you could start from a terminal, and nothing else. The screens are built against
 this file.
 
@@ -17,12 +17,12 @@ to run.
 | Kind | Button | What it runs |
 |---|---|---|
 | `fetch-and-filter` | Refresh | `python -m venator.schedule.loop --only discover,filters,view --profile <name> --interactive-discover` |
-| `jev-it` | Jev it | `python -m venator.schedule.loop --only jev --as-of <plan date> --profile <name>` with `VENATOR_JEV_MAX_USD` set to the plan's limit, then `python -m venator.view.build --profile <name>` if Jev exits cleanly |
+| `score` | Score | `python -m venator.score.run --profile <name> --execute`, then `python -m venator.view.build --profile <name>` |
 
 Both run with the checkout (or the data directory) as the working directory and an
 environment built from an allowlist (`server/runs/environment.ts`), not inherited.
-`TYPESAFE_API_KEY` goes only to the Jev child. It comes from the server's own
-environment, or from the Mac Keychain entry saved during setup.
+Score uses the person's own keep model configured in their Install. No model paths,
+question text or Modal credentials enter the HTTP plan.
 
 What this surface never does:
 
@@ -34,7 +34,7 @@ What this surface never does:
   to pass arguments or store paths through. Adding a stage takes a code change
   someone reviews.
 - **Write files from Node.** The pipeline writes what it always writes: Postings,
-  Filter Decisions, Jev results, heartbeats and the view.
+  Filter Decisions, keep scores, heartbeats and the view.
 - **Choose a completion runtime for you.** `VENATOR_LLM_RUNTIME` is set only from the
   assistant you picked in setup.
 - **Use `PUT`, `PATCH` or `DELETE`.** Only `POST` and `GET`.
@@ -74,18 +74,9 @@ Describes a run before it happens.
 }
 ```
 
-A `jev-it` plan also has `jev`:
-
-```jsonc
-"jev": {
-  "asOf": "2026-01-15",
-  "mode": "shadow",
-  "postingCount": 120,
-  "maximumUsd": 10,
-  "selectionHash": "…",
-  "summary": "120 Postings passed the Hard Filters, have description text, and have no Jev result under the current release."
-}
-```
+A `score` plan also has `score`, with an `asOf` date, `postingCount`,
+`maximumUsd` (0.50) and `selectionHash`. The hash binds the selection to the
+single-use plan token; model metadata stays in the Install.
 
 `selectionHash` identifies exactly which Postings were selected, so a plan goes stale
 if the selection changes even when the count doesn't.
@@ -99,7 +90,7 @@ refused:
   "error": {
     "code": "bad_request",
     "message": "There is no run called “refresh”.",
-    "remedy": "This dashboard can describe: fetch-and-filter, jev-it.",
+    "remedy": "This dashboard can describe: fetch-and-filter, score.",
     "field": "kind"
   },
   "run": null
@@ -113,8 +104,7 @@ refused:
 |---|---|
 | `no-boards` | the Profile registers no board, so there's nothing to fetch; `startable` is `false` |
 | `view-elsewhere` | the run would rebuild a different view database from the one the dashboard is reading |
-| `nothing-to-qualify` | no Posting needs Jev right now; `startable` is `false` |
-| `jev-key-missing` | no TypeSafe key is in the environment or the Keychain; the plan still counts what is waiting, and the Awaiting Jev list shows "Jev needs a key" |
+| `nothing-to-score` | every pass has a current score; `startable` is `false` |
 
 A plan is safe to ask for on every render. It runs `server/runs/plan.py`, which
 writes nothing, creates no store, starts no stage and makes no request. `plan.py` only
@@ -176,8 +166,7 @@ the database the API reads, and two `match.run`s would each append a decision fo
 the same Postings.
 
 This is one process's memory, not a lock. A `python -m venator.match.run` you start
-in a terminal isn't covered. The only lock in `src/venator/` is Jev's, which stops two
-Jev passes writing the same qualifications directory. (`venator.profile.claim` stops
+in a terminal isn't covered. The score store is append-only and a run resumes missing work. (`venator.profile.claim` stops
 two Profiles sharing a store, not two runs of one Profile.)
 
 ## The window and the app
@@ -212,7 +201,7 @@ them on. Discover prints a line per board, but those contain board tokens, which
 kept off the screen. The client polls once a second while a run is live and every ten
 seconds otherwise.
 
-Jev it's output is never captured, so a Jev run has no transcript.
+Score's progress reports the inference stage, not Posting text.
 
 ## When a run stops partway
 
@@ -222,8 +211,8 @@ Jev it's output is never captured, so a Jev run has no transcript.
   reached. Running it again appends only what changed.
 - **Hard Filters** build every decision in memory and append once at the end, so a
   stopped filters stage has usually written nothing.
-- **Jev** caches each validated response as it arrives and appends its result rows
-  at the end of the pass. The next pass reuses the cache instead of paying again.
+- **Score** appends scores by Posting, compact input and model identity. The next
+  press selects missing or stale scores.
 - **The view** is disposable. A failed rebuild is fixed by rebuilding.
 
 A finished `RunState` names the stage it stopped in, marks stages that never ran as

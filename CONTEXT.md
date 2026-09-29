@@ -62,20 +62,17 @@ A Posting that passed the Hard Filters and is worth applying to.
 Recognising that two Postings are the same job, across Sources or over time, so the
 Owner never applies twice.
 
-**Jev**
-A TypeSafe classifier that sorts Hard Filter passes into look first, review and
-skip. A new Profile starts with a cautious Jev policy in shadow mode. Jev's labels
-are an estimate, not a verdict. Results are tied to that Profile's facts and policy;
-another Profile's results never carry over. The current release's questions are
-written for life-sciences jobs, so other fields get more review and less useful
-look-first ordering until a release for that field exists.
+**Score**
+A keep probability from a person's own model configured in their Install. A score
+binds to the compact Posting input and model identity. No model ships with Venator.
+For you starts at 0.5; below 0.014 is Excluded; Explore is between those cuts.
+Jev's historical results do not route the lists.
 
-**Refresh and Jev it**
-Refresh fetches Postings, records Filter Decisions and rebuilds the view. Current
-Hard Filter passes selected by the Jev plan wait in Awaiting Jev until they have a
-current result. Stale passes wait in Awaiting Hard Filters instead. Only pressing
-Jev it sends Postings to Jev. If Jev pauses, the rest wait for the next Jev it,
-not the next Refresh.
+**Refresh and Score**
+Refresh fetches Postings, records Filter Decisions and rebuilds View without
+inference. Hard Filter passes without a current score wait in Awaiting Score.
+Stale passes wait in Awaiting Hard Filters instead. Only pressing Score runs the
+configured model; a pause keeps earlier scores for the next press.
 The sidebar's location choice narrows what is displayed; unlike the Profile's
 location Hard Filter, it never changes a Filter Decision.
 
@@ -130,7 +127,7 @@ _Avoid_: test run, simulation, preview
 One recorded fact about an Application: `approve`, `reject`, `prepare`, `fill`,
 `submit`, `restore`, `outcome` or `withdraw`. Events are appended, never edited, and
 each has a checked actor, details, a time and the Profile it belongs to. The Owner
-can act on a Posting before Jev or any score has seen it. `submit` records the
+can act on a Posting before it has a score. `submit` records the
 Owner's own report that they applied; it sends nothing to an employer. In the app,
 `approve` is Save and `reject` is Dismiss.
 _Avoid_: status update, log entry

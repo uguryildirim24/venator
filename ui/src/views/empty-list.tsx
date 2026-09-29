@@ -6,9 +6,9 @@ import { queueHash, type HomeList } from "../router.ts";
 
 /** Why a list other than For you is empty, in its own terms. */
 const REASONS = {
-	queued: "No current Jev result says to look first. Postings awaiting Jev are still visible in Awaiting Jev.",
-	"needs-review": "No current Jev result asks for review right now.",
-	unscored: "Every Posting has a current Jev result or is already excluded by a Hard Filter.",
+	queued: "No Postings for you yet.",
+	"needs-review": "No Postings to explore.",
+	unscored: "No Postings awaiting Score.",
 	applied: "No application is in progress. Saved and dismissed Postings have their own lists.",
 	saved: "Nothing is saved. Save a Posting from its toolbar and it waits here.",
 	dismissed: "Nothing is dismissed. A dismissed Posting keeps its place here and can be restored.",
@@ -29,10 +29,10 @@ type Destination = { readonly label: string; readonly hash: string; readonly cou
 function destinations(funnel: Funnel): readonly Destination[] {
 	return [
 		{ label: homeListLabel("needs-review"), hash: queueHash("needs-review"), count: funnel.needsReview, what: "need a closer look before preparing" },
-		{ label: homeListLabel("filtered"), hash: queueHash("filtered"), count: funnel.hardKilled, what: "were excluded by a Hard Filter or Jev" },
+		{ label: homeListLabel("filtered"), hash: queueHash("filtered"), count: funnel.hardKilled, what: "are excluded" },
 		{ label: homeListLabel("applied"), hash: queueHash("applied"), count: funnel.applied - funnel.saved - funnel.dismissed, what: "have an application in progress" },
 		{ label: homeListLabel("saved"), hash: queueHash("saved"), count: funnel.saved, what: "are saved" },
-		{ label: homeListLabel("unscored"), hash: queueHash("unscored"), count: funnel.unscored, what: "await a current Jev result" },
+		{ label: homeListLabel("unscored"), hash: queueHash("unscored"), count: funnel.unscored, what: "await Score" },
 	].filter((entry) => entry.count > 0);
 }
 
