@@ -40,6 +40,7 @@ import { createApiRoutes } from "./routes.ts";
 import { createRunRoutes } from "./runs/routes.ts";
 import { createApplicationRoutes } from "./applications/routes.ts";
 import { createLocationRoutes } from "./location-routes.ts";
+import { createTrainRoutes } from "./train/routes.ts";
 
 const BUNDLE_MISSING_NOTICE = [
 	"venator review dashboard",
@@ -68,6 +69,7 @@ export function createServer(): Hono {
 	// server/runs/routes.ts states the limits.
 	app.route("/api/runs", createRunRoutes());
 	app.route("/api/applications", createApplicationRoutes());
+	app.route("/api/train", createTrainRoutes());
 	// The onboarding write surface: the one place a file is written from Node, into this
 	// Install's application data directory and nowhere else, and it never performs a
 	// state-changing request against an employer or touches submission.

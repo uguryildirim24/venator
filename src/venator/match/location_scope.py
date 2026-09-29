@@ -91,8 +91,8 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
                     break
     if code and code != "US":
         return "outside"
-    if re.search(r"\bremote\b", name, re.I):
-        return "remote"
+    # A remote site tied to a state is scoped to that state. Only a remote
+    # without a specific region is US-wide; a foreign country was handled above.
     # Structured region first, then full names, then uppercase postal codes.
     state = STATE_NAMES.get(region.casefold()) or (region.upper() if region.upper() in STATE_CODES.values() else None)
     if not state:
@@ -106,6 +106,8 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
                 break
     if state:
         return "ma" if state == "MA" else "new_england" if state in NEW_ENGLAND else "outside"
+    if re.search(r"\bremote\b", name, re.I):
+        return "remote"
     if re.search(r"\b(?:Puerto Rico|Guam|American Samoa|Northern Mariana Islands|US Virgin Islands)\b", name, re.I):
         return "outside"
     if local := _LOCAL_FACILITIES.get(name.casefold()):
@@ -155,14 +157,19 @@ def _ambiguous_site(name: str) -> bool:
     return len(readings(city)) > 1
 
 
-def location_scope(posting: Mapping[str, object], *, employer_has_local: bool | None = None) -> Scope:
-    """Keep any New England site; a wholly unreadable employer is outside."""
+def location_scope(
+    posting: Mapping[str, object], *, employer_has_local: bool | None = None,
+    physical_only: bool = False,
+) -> Scope:
+    """Keep any New England site; only physical sites can vouch for an employer."""
     sites: list[Scope] = []
     ambiguous = False
     known_local = False
 
     def add(name: str, *, region: str = "", country: str = "") -> None:
         nonlocal ambiguous, known_local
+        if physical_only and re.search(r"\bremote\b", name, re.I):
+            return
         scope = _site(name, region=region, country=country)
         sites.append(scope)
         shared_city = not region and (not country or country_code(country) == "US") and _ambiguous_site(name)
@@ -210,7 +217,7 @@ def location_scope(posting: Mapping[str, object], *, employer_has_local: bool | 
             add(part)
     # A title can clarify an ambiguous site, but cannot erase a separate,
     # explicitly local (or US-remote) site on a multi-site Posting.
-    if (ambiguous or "unreadable" in sites or not sites) and not known_local:
+    if not physical_only and (ambiguous or "unreadable" in sites or not sites) and not known_local:
         title = posting.get("title")
         if isinstance(title, str):
             for match in _TITLE_PLACE.finditer(title):

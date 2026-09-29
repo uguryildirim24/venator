@@ -1,9 +1,11 @@
-"""Read Greenhouse Posting questions without opening or submitting an application."""
+"""Read or remember Posting questions without submitting an application."""
 
 from __future__ import annotations
 
 import json
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -46,6 +48,51 @@ def greenhouse_questions(posting: Mapping[str, Any], *, fetch: Callable[[str], b
     if len(names) != len(set(names)):
         raise ValueError("The Greenhouse question response contains duplicate field names.")
     return result
+
+
+def remember_ashby_form(directory: Path, posting: Mapping[str, Any], fields: list[dict],
+                        profile_id: str | None = None) -> None:
+    """Remember only question metadata from a Posting-bound Ashby document."""
+    from venator.profile.claim import claim_store
+
+    parts = str(posting.get("key") or "").split(":")
+    if len(parts) != 3 or parts[0] != "ashby" or not profile_id or not parts[1]:
+        return
+    questions = [
+        {key: field.get(key) for key in ("name", "label", "kind", "required", "options", "maxlength")}
+        for field in fields if isinstance(field, dict) and isinstance(field.get("name"), str)
+        and field.get("name") and isinstance(field.get("label"), str) and field.get("label")
+    ]
+    if not questions or len({row["name"] for row in questions}) != len(questions):
+        return
+    # A claim is a write, not a check: verify the existing stamp and rows first.
+    ashby_questions(directory, posting, profile_id)
+    claim_store(directory, profile_id)
+    now = datetime.now(timezone.utc)
+    with (directory / f"{now.date().isoformat()}.jsonl").open("a", encoding="utf-8", newline="\n") as output:
+        output.write(json.dumps({"board": parts[1], "profile_id": profile_id, "questions": questions},
+                                ensure_ascii=False) + "\n")
+
+
+def ashby_questions(directory: Path, posting: Mapping[str, Any], profile_id: str) -> list[dict]:
+    """Return the last form observed for this employer, never another board's."""
+    from venator.profile.claim import store_owner
+
+    parts = str(posting.get("key") or "").split(":")
+    if len(parts) != 3 or parts[0] != "ashby":
+        raise ValueError("This Posting is not on Ashby.")
+    owner = store_owner(directory)
+    if owner is not None and owner != profile_id:
+        raise ValueError("The form memory belongs to another Profile.")
+    questions: list[dict] = []
+    for path in sorted(directory.glob("????-??-??.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            if row.get("profile_id") != profile_id:
+                raise ValueError("The form memory belongs to another Profile.")
+            if row.get("board") == parts[1]:
+                questions = row["questions"]
+    return questions
 
 
 def review_questions(posting: Mapping[str, Any], profile: Any, directory: Any,

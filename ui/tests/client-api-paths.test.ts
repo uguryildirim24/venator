@@ -45,7 +45,7 @@ function clientPaths(): Endpoint[] {
 				const url = line.match(/`\$\{API_BASE_URL\}(\/[^`]*?)`/u);
 				if (!url) throw new Error(`${name}: unrecognised fetch: ${line}`);
 				path = url[1] ?? "";
-				method = /\/locations|\/applications`/u.test(line) && name === "api.ts" && !line.includes("/onboarding") ? "POST" : "GET";
+				method = /\/locations|\/applications`|\/train`/u.test(line) && name === "api.ts" && !line.includes("/onboarding") ? "POST" : "GET";
 			} else {
 				const argument = line.slice((site.index ?? 0) + site[0].length);
 				const found = argument.match(/(?:"([^"]*)"|`([^`]*)`)/u);
@@ -101,7 +101,7 @@ test("every client API path resolves on the mounted server, including both locat
 		for (const { method, path } of paths) {
 			const location = path.startsWith("/api/locations");
 			const response = await app.request(path, method === "GET" ? undefined : {
-				method, headers: { "content-type": "application/json", "X-Venator-Location": "1", "X-Venator-Run": "1", "X-Venator-Onboarding": "1", "X-Venator-Application": "1" },
+				method, headers: { "content-type": "application/json", "X-Venator-Location": "1", "X-Venator-Run": "1", "X-Venator-Onboarding": "1", "X-Venator-Application": "1", "X-Venator-Training": "1" },
 				body: location ? '{"selected":["remote"]}' : "{",
 			});
 			// Stopping when no run exists is a domain 404, not a missing route.

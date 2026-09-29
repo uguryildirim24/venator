@@ -44,8 +44,15 @@ from venator.profile.schema import FilterPolicy
     ("GBR-Remote", "outside"),
     ("Brazil-Remote Location-Araguaia", "outside"),
     ("Remote, USA", "remote"),
+    ("United States - Remote", "remote"),
     ("US-Remote", "remote"),
-    ("Remote, Massachusetts", "remote"),
+    ("Remote Colorado", "outside"),
+    ("Remote, Minnesota, USA", "outside"),
+    ("Remote Texas", "outside"),
+    ("Remote New Mexico", "outside"),
+    ("Remote Massachusetts", "ma"),
+    ("Remote - MA", "ma"),
+    ("Remote, Rhode Island, USA", "new_england"),
     ("Remote; Boston, MA", "ma"),
     ("Tokyo", "outside"),
     ("Tokyo (NPKK Sales)", "outside"),
@@ -99,6 +106,10 @@ def test_structured_sites_and_unconfigured_profile() -> None:
     assert location_scope({"location": "2 Locations", "locations": [
         {"name": "Remote", "country": "DE"},
     ]}) == "outside"
+    assert location_scope({"locations": ["Durham; Remote Colorado"], "title": "Technician / Durham, NC"}) == "outside"
+    assert location_scope({"locations": ["Remote Texas; Remote New Mexico"]}) == "outside"
+    assert location_scope({"locations": ["Remote Colorado", "Boston, MA"]}) == "ma"
+    assert location_scope({"locations": [{"name": "Remote", "region": "CO", "country": "US"}]}) == "outside"
     assert location_scope({"location": "2 Locations", "locations": [
         {"name": "2 Locations"},
     ], "source_facts": {"jobPostingInfo": {

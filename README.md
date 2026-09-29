@@ -29,10 +29,12 @@ yourself. Venator never presses submit for you.
   qualifications. Preferred extras stay separate.
 - **Apply** checks the live Posting and drafts a résumé and letter PDF from confirmed
   facts. You can edit the drafts; each edit makes a new reviewed version.
-- **Fill** opens the employer's form in a visible browser. On Greenhouse it reads
-  questions, fills confirmed answers and uploads only the reviewed, hash-checked
-  PDFs. You check the form and press Submit yourself. When Greenhouse shows a
-  confirmation, Venator records that the Application was sent.
+- **Fill** opens the employer's form in a visible browser. On Greenhouse and
+  Ashby it fills confirmed answers and uploads only reviewed, hash-checked PDFs
+  when the form belongs to the Posting. Ashby questions are remembered per employer
+  for the next Apply. Lever stays manual. You check the form and press Submit
+  yourself. Greenhouse confirmation can be recorded automatically; for Ashby,
+  use **I Applied** after submitting.
 
 Everything personal (your Profile, the Postings, every decision) stays in a folder on
 your computer, outside this repository.
@@ -113,7 +115,9 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   doesn't change the Profile or rerun Hard Filters. The picker and the location
   Hard Filter use the same offline GeoNames place lookup
   ([attribution](docs/geonames-attribution.md)). It recognises US-prefixed cities,
-  counties, foreign remote sites and campus labels.
+  counties, foreign remote sites and campus labels. A remote site tied to a state
+  counts only in that state; only a physical local site can vouch for an unreadable
+  site from the same employer.
 - The last-checked line below Employers shows when Discover last checked your boards,
   including checks run from the command line. It says **Not checked yet** until
   a board check has been recorded.
@@ -179,10 +183,11 @@ filters:
     regions: [MA, RI, NH, CT, VT, ME]
 ```
 
-Use all six codes, once each. A Posting with any readable New England site
-passes. Remote, US-wide and unclear sites pass too; a Posting is excluded only
-when all its readable sites are outside New England. This is a Hard Filter on
-Postings, separate from the location choice above a dashboard list.
+Use all six codes, once each. A Posting with a New England site passes. A remote
+site tied to a state counts only in that state, not everywhere. Only a physical
+local site can vouch for an unreadable site from the same employer. A Posting is
+excluded when its sites clearly fall outside New England. This is a Hard Filter
+on Postings, separate from the location choice above a dashboard list.
 
 `education_fit` treats “<2 years experience” as a ceiling, not a two-year
 minimum. Required advanced degrees count only when the wording clearly asks for
@@ -210,8 +215,23 @@ configured model metadata go to Modal. The Posting join stays local.
 
 `uv run python -m venator.score.run --profile NAME --estimate` runs a bounded CPU
 preflight. `--execute` checks the estimate against the $0.50 cap and scores missing
-or stale passes. Scores append under `data/keep-scores`. Nothing trains or downloads
-weights.
+or stale passes. Scores append under `data/keep-scores`. Score does not train or
+download weights.
+
+To retrain your own keep model, supply your private label CSV (`posting key` and
+`decision` columns, with `keep` or `skip` values). A preview names what would
+leave your machine and gives counts, byte sizes and a hash of the payload:
+anonymous training labels, Posting excerpts and confirmed résumé facts. Posting keys, contact details, reasons and holdout labels stay local.
+Nothing uploads until you approve the exact preview hash. The newest labels form
+a holdout; compare the old and candidate models there, then pick **old** or **new**.
+Only picking new changes the active adapter. No label CSV or model is shipped in
+this repository.
+
+```bash
+uv run python -m venator.score.train --profile NAME --labels /path/to/labels.csv
+uv run python -m venator.score.train --profile NAME --labels /path/to/labels.csv --approve-sha256 HASH
+uv run python -m venator.score.train --profile NAME --comparison /path/to/keep-training-comparison.json --pick new
+```
 
 ## Environment variables
 

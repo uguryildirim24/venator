@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import type { RunKind, RunState } from "../../shared/runs.ts";
 import { Sheet } from "../components/sheet.tsx";
+import { TrainStatus } from "./train-status.tsx";
 import { formatMoment } from "../format.ts";
 import { scorePauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";
 import { FIRST_RUN } from "../views/onboarding/copy.ts";
@@ -187,13 +188,16 @@ export function ScoreStatus({ scorePause, onSettled }: ScoreStatusProps) {
 	const sorted = run?.kind === "score" && run.phase === "succeeded" ? run.endedAt : null;
 	const note = planError?.message ?? (scorePause !== null ? scorePauseLabel(scorePause.reason) : sorted !== null ? `Sorted ${formatMoment(sorted)}` : null);
 	return (
-		<RunRow
-			kind="score"
-			control={control}
-			idle={[]}
-			off={plan === null || !plan.startable}
-			note={note}
-			press={{ kind: "capsule", label: runKindLabel("score"), prominent: true }}
-		/>
+		<>
+			<RunRow
+				kind="score"
+				control={control}
+				idle={[]}
+				off={plan === null || !plan.startable}
+				note={note}
+				press={{ kind: "capsule", label: runKindLabel("score"), prominent: true }}
+			/>
+			<TrainStatus onSettled={onSettled} />
+		</>
 	);
 }

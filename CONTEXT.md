@@ -43,8 +43,9 @@ _Avoid_: job, listing, opportunity
 A fixed rule that kills a Posting outright. The rules are `work_authorization`,
 `education_fit`, `role_target`, `eligibility` and `location`, with wording from
 the Profile. Location kills only when all readable sites are outside the
-Profile's New England regions; remote, US-wide and unreadable sites pass.
-When the wording is unclear, the Posting passes. Killing a good Posting by mistake
+Profile's New England regions. A remote site tied to a state counts only in
+that state. Only physical local sites vouch for unreadable sites from their
+employer. When the wording is unclear, the Posting passes. Killing a good Posting by mistake
 is the failure to avoid.
 _Avoid_: rule, blacklist
 
@@ -116,8 +117,9 @@ _Avoid_: form data, answers, payload
 **Dry Run**
 Filling a form with no way to send it. State-changing requests are aborted, submit
 events are cancelled and counted, file fields are skipped, and no code clicks Apply.
-This is `venator.browser.fill`. The visible handoff is a separate tool: it fills
-confirmed fields and uploads files for the Owner to review and submit. A Dry Run is
+This is `venator.browser.fill`. The visible handoff is a separate tool: on trusted Greenhouse and Ashby
+forms bound to the Posting, it fills confirmed fields and uploads reviewed
+files for the Owner to check and submit. Lever remains manual. A Dry Run is
 evidence, not a Submission.
 _Avoid_: test run, simulation, preview
 

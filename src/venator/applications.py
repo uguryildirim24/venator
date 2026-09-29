@@ -248,7 +248,8 @@ def perform(args: argparse.Namespace) -> dict:
         return start_handoff(posting, profile, resume_file, directory,
                              letter_file=document_path(directory, record, "letter.pdf")
                              if isinstance(record.get("letterText"), str) else None,
-                             questions=record.get("formQuestions", []))
+                             questions=record.get("formQuestions", []),
+                             form_memory=stores["data_dir"] / "answers" / "forms")
 
     from venator.discover.refresh import refresh_posting
     from venator.discover.store import append_observations
@@ -284,22 +285,27 @@ def perform(args: argparse.Namespace) -> dict:
 
     if args.action == "apply":
         from venator.answers.store import latest
-        from venator.apply.form import greenhouse_questions, review_questions
+        from venator.apply.form import ashby_questions, greenhouse_questions, review_questions
         from venator.tailor.prepare import prepare_application
         question_rows: list[dict] = []
         pins: list[dict] = []
         read_form = False
-        if refreshed.get("source") == "greenhouse":
+        if refreshed.get("source") in {"greenhouse", "ashby"}:
             try:
-                questions = greenhouse_questions(refreshed)
-                question_rows, pins = review_questions(refreshed, profile, stores["data_dir"] / "answers", questions)
-                read_form = True
+                questions = (greenhouse_questions(refreshed) if refreshed.get("source") == "greenhouse"
+                             else ashby_questions(stores["data_dir"] / "answers" / "forms",
+                                                  refreshed, profile.identifier))
+                if questions:
+                    question_rows, pins = review_questions(refreshed, profile, stores["data_dir"] / "answers", questions)
+                    read_form = True
             except (ValueError, OSError, TimeoutError):
                 pass
         library = latest(stores["data_dir"] / "answers", profile.identifier)
         statements = [row for row in library.values() if row.get("kind") == "statement" and row.get("answer")]
-        needs_letter = not read_form or any(row["kind"] == "file" and "letter" in row["label"].casefold()
-                                            for row in question_rows)
+        # Ashby form memory describes another Posting, not necessarily this one's uploads.
+        needs_letter = (refreshed.get("source") == "ashby" or not read_form
+                        or any(row["kind"] == "file" and "letter" in row["label"].casefold()
+                               for row in question_rows))
         result = prepare_application(refreshed, profile, directory, provider="claude", cover_letter=needs_letter,
                                      form_questions=question_rows, answer_pins=pins, statements=statements)
         _verify_freshness(result, refreshed, profile)

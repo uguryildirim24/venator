@@ -203,11 +203,11 @@ def run(
         and latest.get((key, "hard_filter"), {}).get("filters_version") == version
     }
     settled = settled_decisions(latest, already_decided)
-    # An unreadable campus label is kept only when this employer has a readable
-    # New England site in its current corpus. Use the same snapshot for replay.
+    # Only a physical New England site can vouch for this employer's unreadable
+    # sites. A state-specific remote Posting stays in, but vouches for nobody.
     local_employers = {
         str(posting.get("company") or posting.get("board") or "").casefold()
-        for posting in postings if location_scope(posting) in {"ma", "new_england"}
+        for posting in postings if location_scope(posting, physical_only=True) in {"ma", "new_england"}
     }
     scoped_postings = [
         {**posting, "_employer_has_local":

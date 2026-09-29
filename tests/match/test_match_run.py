@@ -109,6 +109,25 @@ def test_location_kill_replays_when_profile_removes_scope(tmp_path: Path) -> Non
     assert run(postings, decisions, profile=unrestricted)["pass"] == 1
 
 
+def test_remote_ma_keeps_its_posting_but_not_employers_empty_sites(tmp_path: Path) -> None:
+    postings = tmp_path / "postings"
+    decisions = tmp_path / "decisions"
+    write_jsonl(postings / "2026-08-18.jsonl", [
+        {"key": "syneos:remote-ma", "company": "Syneos Health", "title": "CRA", "location": "USA-MA-Remote"},
+        {"key": "syneos:remote-co", "company": "Syneos Health", "title": "CRA", "location": "Remote Colorado"},
+        {"key": "syneos:empty", "company": "Syneos Health", "title": "Safety specialist", "location": "", "locations": []},
+        {"key": "other:physical", "company": "Local Lab", "title": "Technician", "location": "Boston, MA"},
+        {"key": "other:empty", "company": "Local Lab", "title": "Technician II", "location": "", "locations": []},
+    ])
+    profile = profile_at(tmp_path / "profiles" / "local", "filters:\n  enabled: [location]\n  location:\n    regions: [MA, RI, NH, CT, VT, ME]\n")
+    run(postings, decisions, profile=profile)
+    rows = [json.loads(line) for path in decisions.glob("*.jsonl") for line in path.read_text().splitlines()]
+    assert {row["posting_key"]: row["verdict"] for row in rows} == {
+        "syneos:remote-ma": "pass", "syneos:remote-co": "kill", "syneos:empty": "kill",
+        "other:physical": "pass", "other:empty": "pass",
+    }
+
+
 def profile_at(directory: Path, targeting: str = "") -> Profile:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "targeting.yaml").write_text(targeting, encoding="utf-8")

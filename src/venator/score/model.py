@@ -30,10 +30,21 @@ class KeepModel:
         return {key: getattr(self, key) for key in ('base_path', 'adapter_path', 'adapter_sha256', 'question')}
 
 
-def load_model(install: Path) -> KeepModel | None:
+def swap_model(install: Path, candidate: KeepModel) -> None:
+    """Write the active adapter only after the Owner chooses the new comparison."""
     path = install / 'keep-model.json'
-    if not path.is_file():
-        return None
+    temporary = path.with_name('.keep-model.json.tmp')
+    temporary.write_text(json.dumps({**candidate.__dict__, 'model_id': candidate.model_id},
+                                    indent=2) + '\n', encoding='utf-8', newline='\n')
+    try:
+        # Reuse the active model's validation before an atomic replacement.
+        load_model_from_path(temporary)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def load_model_from_path(path: Path) -> KeepModel:
     metadata = json.loads(path.read_text(encoding='utf-8'))
     model_id = metadata.pop('model_id')
     model = KeepModel(**metadata)
@@ -50,3 +61,10 @@ def load_model(install: Path) -> KeepModel | None:
     if set(model.question) != {'keep'} or model.question['keep'].get('type') != 'noul':
         raise ValueError('Keep scoring requires one binary keep question')
     return model
+
+
+def load_model(install: Path) -> KeepModel | None:
+    path = install / 'keep-model.json'
+    if not path.is_file():
+        return None
+    return load_model_from_path(path)
