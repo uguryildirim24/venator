@@ -11,9 +11,7 @@ from venator.discover.store import posting_revision, load_postings
 from venator.match.store import load_latest_decisions, verify_decisions_dir
 from venator.paths import InstallStores
 from venator.profile import Profile
-from venator.qualify.jev_effective import current_filter_version, jev_promotion_state
-from venator.qualify.jev_release import JEV_RELEASE
-from venator.qualify.store import promotion_events
+from venator.match.store import filters_version
 from venator.score.compact import CompactStateBuilder, input_hash
 from venator.score.model import KeepModel, load_model
 from venator.score.store import Score, read_scores
@@ -27,11 +25,8 @@ class Input:
     score: Score | None
 
 
-def filter_version(profile: Profile, qualifications_dir: Path) -> str:
-    # Keep the existing Hard Filter version contract until its Jev dependency is
-    # removed separately. Jev results themselves never select or route this work.
-    promotion = jev_promotion_state(promotion_events(qualifications_dir), profile.identifier)
-    return current_filter_version(profile, promotion, JEV_RELEASE)
+def filter_version(profile: Profile) -> str:
+    return filters_version(profile.constraints_path, profile.targeting_path)
 
 
 def inputs_for_passes(
@@ -68,7 +63,7 @@ def select_inputs(profile: Profile, stores: InstallStores, as_of: str) -> tuple[
     hard = {key: row for (key, stage), row in latest.items() if stage == 'hard_filter'}
     model = load_model(stores.path)
     inputs = inputs_for_passes(load_postings(stores.postings_dir), hard, profile, as_of[:7],
-                              filter_version(profile, stores.qualifications_dir), model,
+                              filter_version(profile), model,
                               stores.data_dir / 'keep-scores')
     return model, inputs
 

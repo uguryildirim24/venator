@@ -62,10 +62,11 @@ test("site suffixes, boilerplate, case and punctuation resolve to the same city"
 	}
 });
 
-test("joined places split, but ambiguous cities and unnamed campuses are not guessed", () => {
+test("joined places split and New England readings of ambiguous cities remain", () => {
 	const keys = locationChoices("Boston, MA | Springfield, IL; Seattle, WA / Boston Job Posting Location").map(({ key }) => key);
 	assert.deepEqual(keys, ["state:MA", "city:boston,MA", "state:IL", "city:springfield,IL", "state:WA", "city:seattle,WA"]);
-	assert.ok(locationChoices("Springfield").some(({ key }) => key === "other"));
+	assert.ok(locationChoices("Springfield").some(({ key }) => key === "city:springfield,MA"));
+	assert.ok(locationChoices("South Waltham, Middlesex County").some(({ key }) => key === "state:MA"));
 	assert.ok(locationChoices("Springfield, MA").some(({ key }) => key === "city:springfield,MA"));
 	assert.ok(locationChoices("University Medical Campus").some(({ key }) => key === "other"));
 });

@@ -89,7 +89,7 @@ def append_decisions(decisions_dir: Path, decisions: Iterable[dict], *, day: dat
 # 23 adds employer exclusion. 24 reads excluded functions in title context;
 # 30 reads New England sites and named US territories. Every Profile replays
 # when filter code changes.
-FILTERS_REVISION = b"33-new-england-historical-source-sites"
+FILTERS_REVISION = b"35-offline-place-lookup-employer-sites"
 
 #: Blocks that live in a hashed Profile file but reach no decision, keyed by
 #: **which positional argument** of ``filters_version`` the file is — not by its
@@ -197,7 +197,7 @@ def _hashed_bytes(path: Path, excluded: tuple[str, ...]) -> bytes:
     return json.dumps(kept, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
 
 
-def filters_version(*paths: Path, promotion_state_revision: str = "", jev_release_hash: str = "") -> str:
+def filters_version(*paths: Path) -> str:
     """Stamp a Filter Decision with everything that produced it.
 
     The Hard Filters read their wording from the Profile's targeting policy, so
@@ -224,10 +224,6 @@ def filters_version(*paths: Path, promotion_state_revision: str = "", jev_releas
     is not "does the code touch it" but "can it change a verdict".
     """
     digest = hashlib.sha256(FILTERS_REVISION)
-    if promotion_state_revision:
-        digest.update(b"\0promotion_state_revision\0" + promotion_state_revision.encode("ascii"))
-    if jev_release_hash:
-        digest.update(b"\0jev_release_hash\0" + jev_release_hash.encode("ascii"))
     for index, path in enumerate(paths):
         excluded = NON_DECIDING_BLOCKS[index] if index < len(NON_DECIDING_BLOCKS) else ()
         digest.update(b"\0" + path.name.encode("utf-8") + b"\0")

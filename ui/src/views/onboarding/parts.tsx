@@ -3,9 +3,7 @@ import { useCallback, useState, type KeyboardEvent, type ReactNode } from "react
 
 import { ExternalLink } from "../../components/external-link.tsx";
 import { resumeFieldLabel } from "../../labels.ts";
-import { OnboardingRequestError, storeJevKey } from "../../onboarding/api.ts";
 import type { ProficiencyEntry, SectionKey } from "../../onboarding/draft.ts";
-import { CONNECT } from "./copy.ts";
 
 /** A native menu drawn as the kit's popup button. */
 export function Popup({ label, value, onChange, children }: {
@@ -78,58 +76,6 @@ export function OutsideLink({ href, children }: { readonly href: string; readonl
 		<ExternalLink href={href} className="text-link" title={href}>
 			{children}
 		</ExternalLink>
-	);
-}
-
-/**
- * The Jev key field: paste, Save Key, and it goes to this Mac's Keychain.
- *
- * The key is sent once, to `POST /api/onboarding/settings`, and never read back — the server
- * answers only whether one is present. The field is cleared the moment the save answers.
- */
-export function JevKeyField({ present, onSaved }: {
-	readonly present: boolean;
-	readonly onSaved: () => void;
-}) {
-	const [key, setKey] = useState("");
-	const [saving, setSaving] = useState(false);
-	const [refusal, setRefusal] = useState<string | null>(null);
-	const save = useCallback(() => {
-		if (key.trim() === "" || saving) return;
-		setSaving(true);
-		setRefusal(null);
-		storeJevKey(key)
-			.then(() => {
-				setKey("");
-				onSaved();
-			})
-			.catch((error: Error) => {
-				setRefusal(error instanceof OnboardingRequestError ? error.message : "The key could not be saved.");
-			})
-			.finally(() => setSaving(false));
-	}, [key, onSaved, saving]);
-	return (
-		<>
-			<div className="key-box">
-				<input
-					className="text-field"
-					type="password"
-					autoComplete="off"
-					spellCheck={false}
-					aria-label="TypeSafe key"
-					placeholder={present ? CONNECT.keyReplacePlaceholder : CONNECT.keyPlaceholder}
-					value={key}
-					onChange={(event) => setKey(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter") save();
-					}}
-				/>
-				<button type="button" className="button" data-size="large" disabled={key.trim() === "" || saving} onClick={save}>
-					{CONNECT.saveKey}
-				</button>
-			</div>
-			{refusal === null ? null : <p className="setup-caption" role="alert">{refusal}</p>}
-		</>
 	);
 }
 

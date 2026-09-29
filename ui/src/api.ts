@@ -10,7 +10,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type {
-	JevTriageResponse,
 	PostingDetail,
 	PostingsResponse,
 	SummaryResponse,
@@ -178,9 +177,7 @@ export function usePostingDetail(key: string | null, reloadToken: number): Reque
 	return useApi<PostingDetail>(key === null ? null : `/postings/${encodeURIComponent(key)}`, reloadToken);
 }
 
-export function useJevTriage(query: string | null, reloadToken: number): RequestState<JevTriageResponse> {
-	return useApi<JevTriageResponse>(query === null ? null : `/jev-triage${query}`, reloadToken);
-}
+
 
 /** A counter the whole app shares so one keystroke refetches every open view. */
 export function useReloadToken(): readonly [number, () => void] {

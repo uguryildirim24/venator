@@ -7,7 +7,7 @@ from pathlib import Path
 from venator.profile import load_profile
 from venator.score.compact import CompactStateBuilder, input_hash, serialize
 
-FIXTURE = Path(__file__).parents[1] / 'qualify/fixtures/jev'
+FIXTURE = Path(__file__).parent / 'fixtures'
 
 
 def test_compact_input_contract() -> None:
@@ -15,7 +15,7 @@ def test_compact_input_contract() -> None:
     builder = CompactStateBuilder(profile, as_of_month='2026-09')
     posting = json.loads((FIXTURE / 'posting.json').read_text())
     state = builder.build(posting)
-    assert input_hash(state) == '17c8d654232cfd14dae595fa6eaf67cce4dae793582c5325470d96cf4cb0763b'
+    assert input_hash(state) == 'cde76fc9e40aee896eb3668de345182575c27930f6c299817f07ebb30329a73a'
     assert list(state) == ['title', 'employer', 'requirements_and_qualifications', 'confirmed_profile']
     for identity in builder.identity:
         assert identity.casefold() not in serialize(state).decode().casefold()

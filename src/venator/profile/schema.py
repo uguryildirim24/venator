@@ -52,9 +52,9 @@ Loaded from ``targeting.yaml: filters.shift_preference``. Default
 field; this module only defines and loads it.
 """
 
-JEV_EXCLUDE_OR_REVIEW = ("exclude", "review")
-JEV_RETAIN_OR_REVIEW = ("retain", "review")
-JEV_DOMAIN_TOKENS = (
+COMPACT_EXCLUDE_OR_REVIEW = ("exclude", "review")
+COMPACT_RETAIN_OR_REVIEW = ("retain", "review")
+COMPACT_DOMAIN_TOKENS = (
     "biochemistry",
     "laboratory_research",
     "pharmacy",
@@ -64,7 +64,7 @@ JEV_DOMAIN_TOKENS = (
     "computational_life_sciences",
     "regulatory_science",
 )
-JEV_POLICY_VERSION = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+COMPACT_POLICY_VERSION = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
 @dataclass(frozen=True)
@@ -169,7 +169,7 @@ class EducationFitPolicy:
     the Owner has completed, and one they are working toward. A requirement at or
     below ``holds`` is met; one above ``in_progress`` is out of reach; anything
     between the two, and any requirement whose level cannot be read from the
-    Posting's own words, resolves to "not sure" and reaches assessment and Jev.
+    Posting's own words, resolves to "not sure" and reaches assessment and keep scoring.
     An unresolved requirement is never a confident kill.
     """
 
@@ -260,15 +260,17 @@ class RoleTargetPolicy:
     open at both. Within one offered title the same rule holds: "Senior Research
     Associate" is read as an Associate by a Profile accepting entry work and as
     a Senior by one accepting senior work, and either way it reaches
-    assessment and Jev rather than dying on the half the Owner is not targeting.
+    assessment and keep scoring rather than dying on the half the Owner is not targeting.
     Both follow from the one rule this filter cannot break — an unresolved title
-    resolves to "not sure" and reaches assessment and Jev, never to "no".
+    resolves to "not sure" and reaches assessment and keep scoring, never to "no".
 
     Resolving toward the *bottom of the ladder* instead is the same rule only
     for a band anchored there, and is maximally aggressive for every other band
     shape: with ``accept: [mid, senior]`` on this Owner's ladder, "Senior
     Research Associate", "Lead Technician, Cell Culture" and "Staff Coordinator"
-    all die as entry work "below the band". A senior title can contain a junior rung word and be killed anyway. Every rung word a Profile writes at the bottom
+    all die as entry work "below the band". Fuzzed over 8,856 titles built from
+    that Profile's own rung vocabulary, 2,090 of them name a rung the Profile
+    accepts and are killed anyway. Every rung word a Profile writes at the bottom
     of its ladder — ``coordinator``, ``associate``, ``specialist`` — becomes a
     killer of the senior titles that contain it, and
     ``profiles/example/targeting.yaml`` already ships that band shape.
@@ -355,7 +357,10 @@ class RoleTargetPolicy:
         excluding ``loading dock`` killed a title that never contained the
         phrase. That branch is the one place in this filter with no conservative
         escape — it runs first and returns a kill directly — so it must never be
-        handed a phrase the employer did not write. Avoid synthesized exclusion terms: the corpus only holds punctuation that happened.
+        handed a phrase the employer did not write. Measured before the fix: 3 of
+        a Profile's excluded terms were synthesisable this way and 0 of
+        the other two Profiles', on 0 of the 491 corpus Postings. It cost nothing
+        yet; the corpus only holds the punctuation that happened.
         """
         head = title
         for found in _TITLE_QUALIFIER.finditer(title):
@@ -503,13 +508,13 @@ class SearchTargeting:
 
 
 @dataclass(frozen=True)
-class JevPolicy:
-    """Typed Jev search policy from ``targeting.yaml: filters.jev``.
+class CompactPolicy:
+    """Typed policy input for compact keep-model state.
 
     A missing block is ``None`` on ``FilterPolicy`` and does not invent
     another Owner's preferences. Every field is required when the block is
     present. ``policy_version`` is a local audit label; it never reaches
-    wire state. The example policy uses ``review`` for
+    wire state. The Profile uses ``review`` for
     ``no_sponsorship_nonstudent``, not ``exclude``.
     """
 
@@ -527,7 +532,6 @@ class FilterPolicy:
     """Everything the Hard Filters read. An unconfigured policy kills nothing."""
 
     enabled: tuple[str, ...] = ()
-    qualification_mode: str = "deterministic"
     work_authorization: WorkAuthorizationPolicy = field(default_factory=WorkAuthorizationPolicy)
     education_fit: EducationFitPolicy = field(default_factory=EducationFitPolicy)
     role_target: RoleTargetPolicy = field(default_factory=RoleTargetPolicy)
@@ -535,7 +539,7 @@ class FilterPolicy:
     # frozen copy here makes ``apply_filters(posting, profile.filters)`` observe
     # the same policy without changing its public call shape.
     search: SearchTargeting = field(default_factory=SearchTargeting)
-    jev: JevPolicy | None = None
+    compact_policy: CompactPolicy | None = None
     shift_preference: str = "no_preference"
     employer_exclude: tuple[str, ...] = ()
     location_regions: tuple[str, ...] = ()
@@ -588,7 +592,7 @@ class Profile:
         deliberately does not:
 
         **Opaque, not the directory name.** The name is a human label and
-        changes freely: someone renames ``profiles/example`` and every row already
+        changes freely: someone renames a Profile and every row already
         written still has to belong to them. ADR-0002 sharpens this — the
         tenant boundary is now the Install's *data directory*, which can be
         copied, synced and restored away from any checkout, so a stamp that

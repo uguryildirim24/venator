@@ -13,7 +13,7 @@ from venator.score.selection import filter_version
 from venator.score.store import Score, append_score
 from venator.view.build import build_database
 
-FIXTURE = Path(__file__).parents[1] / 'qualify/fixtures/jev'
+FIXTURE = Path(__file__).parent / 'fixtures'
 
 
 def test_view_never_materializes_a_score_for_changed_compact_input(tmp_path: Path, monkeypatch) -> None:
@@ -27,7 +27,7 @@ def test_view_never_materializes_a_score_for_changed_compact_input(tmp_path: Pat
     postings = data / 'postings'
     postings.mkdir(parents=True)
     view = tmp_path / 'build/venator.db'
-    version = filter_version(profile, data / 'qualifications')
+    version = filter_version(profile)
 
     def rebuild(row):
         with (postings / '2026-09-29.jsonl').open('a') as output:
@@ -36,7 +36,7 @@ def test_view_never_materializes_a_score_for_changed_compact_input(tmp_path: Pat
                          'verdict': 'pass', 'filters_version': version,
                          'posting_version': posting_revision(row), 'decided_at': '2026-09-29T00:00:00+00:00'}])
         build_database(postings, data / 'decisions', view, data / 'track', data / 'runs.jsonl',
-                       profile=profile, qualifications_dir=data / 'qualifications', as_of_month='2026-09')
+                       profile=profile, as_of_month='2026-09')
         with sqlite3.connect(view) as db:
             return db.execute('SELECT probability FROM keep_scores WHERE posting_key = ?', (row['key'],)).fetchone()
 

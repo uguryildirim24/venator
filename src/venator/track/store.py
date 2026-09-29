@@ -47,12 +47,12 @@ APPLICATION_PROGRESS = frozenset({
 
 
 def application_progress_keys(states: Mapping[str, dict]) -> set[str]:
-    """Postings whose Track standing takes precedence over Awaiting Jev."""
+    """Postings whose Track standing takes precedence over Awaiting keep scoring."""
     return {key for key, row in states.items() if row["state"] in APPLICATION_PROGRESS}
 
 
 def track_progress_keys(track_dir: Path, profile_id: str) -> set[str]:
-    """The same progress gate used by the Jev plan and its execution."""
+    """The same progress gate used by the keep scoring plan and its execution."""
     if track_dir.exists():
         verify_track_dir(track_dir, profile_id)
     return application_progress_keys(fold_states(load_events(track_dir), {}))

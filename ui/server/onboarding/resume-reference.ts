@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { MAXIMUM_PDF_BYTES } from "../../shared/onboarding.ts";
 import { pipelineWorkingDirectory, pythonInterpreter, type LocationContext } from "../locations.ts";
-import { nonJevInheritedEnvironment } from "../runs/environment.ts";
+import { inheritedToolEnvironment } from "../runs/environment.ts";
 import { OnboardingError } from "./errors.ts";
 import { asBoolean, asMapping, asText, at, parseJson } from "./json.ts";
 
@@ -20,7 +20,7 @@ function captureFailure(): OnboardingError {
 export const captureReference: ReferenceCapture = (source, directory, context) => new Promise((resolve, reject) => {
 	execFile(pythonInterpreter(context), ["-m", "venator.resume.reference", source, directory], {
 		cwd: pipelineWorkingDirectory(context), timeout: 30_000, maxBuffer: 64 * 1024,
-		env: nonJevInheritedEnvironment(context),
+		env: inheritedToolEnvironment(context),
 	}, (error, stdout) => {
 		if (error !== null) { reject(captureFailure()); return; }
 		try {

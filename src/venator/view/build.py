@@ -22,27 +22,8 @@ from pathlib import Path
 from venator.discover.run import DETAIL_REFRESH_AFTER
 from venator.discover.store import posting_revision
 from venator.match.assessment import assess_posting
-from venator.qualify.compile import compile_profile
-from venator.qualify.store import (
-    JEV_KIND,
-    as_of_month as parse_as_of_month,
-    promotion_events,
-    qualification_rows,
-    verify_store,
-)
 from venator.score.model import load_model
 from venator.score.selection import inputs_for_passes
-from venator.qualify.jev_effective import current_filter_version, jev_promotion_state
-from venator.qualify.jev_release import JEV_RELEASE
-from venator.qualify.jev_policy import _description_reason
-from venator.qualify.posting import canonical_posting
-from venator.view.jev import (
-    ASSESSMENTS_DDL,
-    JEV_TRIAGE_DDL,
-    jev_view_bindings,
-    materialize_triage,
-    selected_jev_shadow,
-)
 from venator.view.verify import verify_dashboard
 
 from venator.match.store import (
@@ -91,6 +72,26 @@ def _board_names(profile: Profile | None = None) -> dict[str, str]:
     """ATS board token -> employer display name, for Postings stored before the
     company field existed (and for adapters that never learn it)."""
     return dict(profile.sources.names) if profile is not None else {}
+
+
+ASSESSMENTS_DDL = """\
+CREATE TABLE assessments (
+  posting_key TEXT PRIMARY KEY,
+  status TEXT,
+  summary TEXT,
+  evidence TEXT,
+  conflicts TEXT,
+  unknowns TEXT,
+  listing_status TEXT,
+  last_verified_at TEXT,
+  description_kind TEXT,
+  apply_url TEXT,
+  opportunity_type TEXT,
+  input_version TEXT,
+  assessed_by TEXT NOT NULL DEFAULT 'deterministic'
+    CHECK (assessed_by IN ('deterministic')),
+  assessed_as_of TEXT
+);"""
 
 
 SCHEMA = """
@@ -142,9 +143,6 @@ CREATE TABLE runs (
   waiting INTEGER
 );
 """ + ASSESSMENTS_DDL + """
-""" + JEV_TRIAGE_DDL + """
-CREATE TABLE jev_selection (mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')));
-CREATE TABLE jev_skip (posting_key TEXT PRIMARY KEY, reason TEXT NOT NULL);
 CREATE TABLE keep_scores (
   posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
   probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
@@ -161,8 +159,6 @@ CREATE INDEX decisions_decided_at ON decisions (decided_at DESC);
 CREATE INDEX track_events_posting ON track_events (posting_key, at, id);
 CREATE INDEX postings_employer ON postings (source, board, company);
 CREATE INDEX runs_fetch ON runs (stage, status, at DESC);
-CREATE INDEX jev_triage_mode ON jev_triage (mode, decision, state);
-CREATE INDEX jev_triage_current ON jev_triage (state, mode);
 """
 
 
@@ -313,7 +309,7 @@ def _warn_about_unnamed_employers(
 
     The same line covers the narrower case where a Profile is selected but some
     board it collected from is not named in its registry. Healthy builds print
-    nothing when all boards are named.
+    nothing: the count can be 0.
 
     It is addressed to a person, so it goes to stderr. This command's stdout is
     a machine-readable channel — the `built ...` line and nothing else — and a
@@ -343,7 +339,6 @@ def build_database(
     runs_file: Path | None = None,
     *,
     profile: Profile | None = None,
-    qualifications_dir: Path | None = None,
     as_of_month: str | None = None,
 ) -> tuple[int, int]:
     """Build into a temporary database and atomically replace the old view.
@@ -366,15 +361,12 @@ def build_database(
     """
     requested = dict(postings_dir=postings_dir, decisions_dir=decisions_dir,
                      database_path=database_path, track_dir=track_dir, runs_file=runs_file)
-    if qualifications_dir is not None or as_of_month is not None:
-        requested["qualifications_dir"] = qualifications_dir
     stores = resolve_store_paths(**requested)
     postings_dir = stores["postings_dir"]
     decisions_dir = stores["decisions_dir"]
     database_path = stores["database_path"]
     track_dir = stores["track_dir"]
     runs_file = stores["runs_file"]
-    qualifications_dir = stores.get("qualifications_dir")
     if profile is not None:
         verify_decisions_dir(decisions_dir, profile.identifier)
         verify_track_dir(track_dir, profile.identifier)
@@ -382,48 +374,6 @@ def build_database(
     temporary_path = database_path.with_name(f".{database_path.name}.tmp")
     temporary_path.unlink(missing_ok=True)
     postings = load_postings(postings_dir)
-    qualification_versions: dict[str, str] = {}
-    promotion_revision = ""
-    promotion_state = None
-    shadow_qualifier: str | None = None
-    jev_mode = profile is not None and profile.filters.qualification_mode == "jev"
-    jev_triage_rows: list[tuple[object, ...]] = []
-    if jev_mode:
-        if as_of_month is None:
-            raise ValueError("jev qualification view requires --as-of")
-        assert profile is not None
-        assert qualifications_dir is not None
-        verify_store(qualifications_dir, profile.identifier)
-        compiled = compile_profile(profile, as_of_month=as_of_month)
-        qualification_history = qualification_rows(qualifications_dir)
-        promotion_state = jev_promotion_state(
-            promotion_events(qualifications_dir), profile.identifier
-        )
-        accepted, qualification_versions = jev_view_bindings(
-            profile, compiled, postings, as_of_month
-        )
-        active = (
-            promotion_state.current(accepted, qualifier_kind=JEV_KIND)
-            if accepted is not None
-            else None
-        )
-        if active is not None and active.qualifier_version != JEV_RELEASE.qualifier_version:
-            active = None
-        shadow_qualifier = selected_jev_shadow(qualification_history, profile.identifier)
-        posting_revisions = {
-            str(posting["key"]): posting_revision(posting) for posting in postings
-        }
-        jev_triage_rows = materialize_triage(
-            postings,
-            qualification_history,
-            profile_id=profile.identifier,
-            as_of_month=as_of_month,
-            posting_revisions=posting_revisions,
-            promoted_qualifier=active.qualifier_version if active else None,
-            shadow_qualifier=shadow_qualifier,
-            input_versions=qualification_versions,
-        )
-        promotion_revision = promotion_state.revision
     # Only the latest row per Posting/stage is needed in memory for assessment.
     # Replay the append-only store again when inserting into SQLite instead of
     # retaining hundreds of thousands of historical Filter Decisions as dicts.
@@ -437,19 +387,10 @@ def build_database(
     runs = list(_iter_jsonl_file(runs_file))
     folded_states = fold_states(track_events, latest_decisions)
     application_states = [folded_states[key] for key in sorted(folded_states)]
-    current_filters_version = None
-    if profile is not None:
-        if jev_mode:
-            current_filters_version = current_filter_version(
-                profile,
-                promotion_state,
-                JEV_RELEASE,
-            )
-        else:
-            current_filters_version = filters_version(
-                profile.constraints_path,
-                profile.targeting_path,
-            )
+    current_filters_version = (
+        filters_version(profile.constraints_path, profile.targeting_path)
+        if profile is not None else None
+    )
     latest_hard = {
         posting_key: decision
         for (posting_key, stage), decision in latest_decisions.items()
@@ -480,17 +421,7 @@ def build_database(
         except sqlite3.DatabaseError:
             # Older or damaged derived views can always be rebuilt from source.
             cached_assessments = {}
-    # Index materialized triage once; scanning it for every Posting is quadratic
-    # on the real corpus (two rows per Posting).
-    promoted_rows = {str(row[0]): row for row in jev_triage_rows if row[1] == "promoted"}
-    selected_rows = {str(row[0]): row for row in jev_triage_rows
-                     if row[1] == ("promoted" if jev_mode and active is not None else "shadow")}
     assessment_rows = []
-    # No private cohort index ships in the public distribution.
-    group_index: dict[str, object] = {}
-    groups = group_index.get("posting_to_group", {})
-    protected_hashes = set(JEV_RELEASE.protected_group_hashes) if jev_mode else set()
-    jev_skip_rows = []
     for posting in postings:
         decision = latest_hard.get(posting["key"])
         stale_decision = False
@@ -499,53 +430,12 @@ def build_database(
             or decision.get("posting_version") != posting_revision(posting)
         ):
             stale_decision = True
-            delegated_before = (isinstance(decision.get("facts"), dict) and
-                                any(value == "delegated" for value in decision["facts"].values()))
-            if (
-                decision.get("posting_version") != posting_revision(posting)
-                or not (jev_mode and delegated_before)
-            ):
-                decision = None
-        jev_row = promoted_rows.get(posting["key"])
-        selected_row = selected_rows.get(posting["key"])
-        if (jev_mode and posting.get("listing_status") != "closed"
-                and latest_hard.get(posting["key"], {}).get("verdict") == "pass"
-                and not (selected_row is not None and selected_row[2] == "current")):
-            key = str(posting["key"])
-            group = groups.get(key, key)
-            if (hashlib.sha256(key.encode("utf-8")).hexdigest() in protected_hashes
-                    or hashlib.sha256(group.encode("utf-8")).hexdigest() in protected_hashes):
-                jev_skip_rows.append((key, "protected"))
-            else:
-                if posting.get("description_kind") != "full":
-                    reason = "snippet" if posting.get("description_kind") == "snippet" else "missing"
-                else:
-                    try:
-                        reason = _description_reason(posting, canonical_posting(posting, group_index))
-                    except (TypeError, ValueError):
-                        reason = "missing"
-                if reason is not None:
-                    jev_skip_rows.append((key, reason))
-        if jev_mode and decision is not None and not stale_decision:
-            # SPEC-jev §10: a new Jev answer is never combined with a hard
-            # decision that was made against another one. The reserved pair
-            # names what the decision was bound to; the filters version stays
-            # static as responses arrive, so it cannot say this by itself.
-            current_jev = jev_row is not None and jev_row[2] == "current"
-            expected = (
-                (jev_row[11], jev_row[12]) if current_jev and jev_row is not None
-                else ("fallback", qualification_versions.get(posting["key"], "unavailable"))
-            )
-            facts = decision.get("facts") if isinstance(decision.get("facts"), dict) else {}
-            if (facts.get("jev"), facts.get("jev_input")) != expected or expected[1] == "unavailable":
-                stale_decision = True
-                if not current_jev:
-                    decision = None
+            decision = None
         input_version = hashlib.sha256(json.dumps(
             ["evidence-v15", current_filters_version, resume_version, posting_revision(posting), decision,
              bool(posting.get("last_verified_at")), posting.get("verification_status"),
              bool(posting.get("detail_verified_at")), posting.get("detail_verification_status"),
-             as_of_month, promotion_revision, shadow_qualifier, jev_row],
+             as_of_month],
             sort_keys=True, ensure_ascii=False,
         ).encode("utf-8")).hexdigest()
         cached = cached_assessments.get(posting["key"])
@@ -555,7 +445,6 @@ def build_database(
                 cached[name] for name in ("assessed_by", "assessed_as_of")
             )
         else:
-            # Résumé evidence is independent of Jev's list decision.
             assessment = assess_posting(posting, profile, decision)
             assessed_by = "deterministic"
             assessed_as_of = None
@@ -609,21 +498,12 @@ def build_database(
         # from the handler and demoting the original to __context__.
         with closing(sqlite3.connect(temporary_path)) as database, database:
             database.executescript(SCHEMA)
-            database.executemany("INSERT INTO jev_skip VALUES (?, ?)", jev_skip_rows)
             database.executemany("INSERT INTO keep_scores VALUES (?, ?, ?, ?, ?)", (
                 (row.posting_key, row.input_hash, model.model_id if model else None,
                  row.score.probability if row.score else None, row.score.scored_at if row.score else None)
                 for row in score_inputs
             ))
-            database.execute("INSERT INTO jev_selection (mode) VALUES (?)", (
-                "promoted" if jev_mode and active is not None else "shadow",
-            ))
             database.executemany("INSERT INTO assessments VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", assessment_rows)
-            if jev_triage_rows:
-                database.executemany(
-                    "INSERT INTO jev_triage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    jev_triage_rows,
-                )
             health_path = postings_dir / "source-health.json"
             health = {}
             if health_path.exists():
@@ -766,7 +646,6 @@ def build_database(
                 postings,
                 latest_hard,
                 current_filters_version,
-                jev_mode=jev_mode,
             )
         os.replace(temporary_path, database_path)
     except Exception:
@@ -847,13 +726,12 @@ def main() -> None:
     parser.add_argument("--database", type=Path, default=None, help=STORE_HELP)
     parser.add_argument("--track-dir", type=Path, default=None, help=STORE_HELP)
     parser.add_argument("--runs-file", type=Path, default=None, help=STORE_HELP)
-    parser.add_argument("--qualifications-dir", type=Path, default=None, help=STORE_HELP)
     parser.add_argument("--as-of")
     add_profile_argument(parser)
     args = parser.parse_args()
     today = args.as_of or date.today().isoformat()
     try:
-        month = parse_as_of_month(today)
+        month = date.fromisoformat(today).strftime("%Y-%m")
     except ValueError as error:
         parser.error(str(error))
     profile = _profile_for_view(args, parser)
@@ -864,7 +742,6 @@ def main() -> None:
             database_path=args.database,
             track_dir=args.track_dir,
             runs_file=args.runs_file,
-            qualifications_dir=args.qualifications_dir,
         )
     except StoreRootError as error:
         parser.error(str(error))
@@ -877,7 +754,7 @@ def main() -> None:
             stores["track_dir"],
             stores["runs_file"],
             profile=profile,
-            qualifications_dir=stores["qualifications_dir"], as_of_month=month,
+            as_of_month=month,
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))

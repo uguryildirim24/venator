@@ -31,10 +31,8 @@ Nothing is dropped silently.
 The code half of `filters_version` is `FILTERS_REVISION` in
 `src/venator/match/store.py`. Bump it when filter code changes.
 
-Hard Filter pass rows may carry `facts`. In Jev mode, every new pass or kill also
-carries two reserved facts: `jev` (the assessment key, or a fallback token) and
-`jev_input` (the input version, or an unavailable token). Other facts are extra
-evidence on a pass. None of them change `filters_version`.
+Hard Filter pass rows may carry `facts` as extra evidence. None of them change
+`filters_version`.
 
 Track events are `approve`, `reject`, `prepare`, `fill`, `submit`, `restore`,
 `outcome` and `withdraw`. They fold into the states `approved`, `rejected`,
@@ -56,25 +54,6 @@ key endpoint shows as `configured` without being contacted. Child processes get 
 allowlisted environment. Text from a provider's response never goes into the
 append-only store.
 
-TypeSafe System One is not a lane. Only an explicit Jev execute reads
-`TYPESAFE_API_KEY`.
-
-## Qualification and Jev
-
-Jev rows are appended under `data/qualifications/`. Shadow rows record how Jev
-sorted a Posting. They never change a Filter Decision. A Jev-only assessment can't
-say `suitable`: prioritize and review become `needs_review`, and a policy exclusion
-becomes `not_suitable`.
-
-A result counts as current only when the typed output validated, the input and the
-release still match, and it has an assessment key. An older compatible result can be
-stale. It is never relabelled current. Raw bodies from failed HTTP calls are not
-saved.
-
-Invariant I10: only the student projection, the Posting title and description, and
-allowed spans go over the wire to Jev. Policy is sent as closed enums, never free
-text.
-
 ## View schema
 
 `python -m venator.view.build` rebuilds the SQLite view in one atomic step. The
@@ -89,6 +68,7 @@ CREATE TABLE postings (
   company TEXT,
   title TEXT,
   location TEXT,
+  location_places TEXT,
   url TEXT,
   posted_at TEXT,
   discovered_at TEXT,
@@ -131,7 +111,7 @@ CREATE TABLE runs (
 );
 ```
 
-The assessment and Jev tables:
+The assessment and keep-score tables:
 
 ```sql
 CREATE TABLE assessments (
@@ -148,43 +128,13 @@ CREATE TABLE assessments (
   opportunity_type TEXT,
   input_version TEXT,
   assessed_by TEXT NOT NULL DEFAULT 'deterministic'
-    CHECK (assessed_by IN ('deterministic', 'jev')),
+    CHECK (assessed_by IN ('deterministic')),
   assessed_as_of TEXT
 );
-CREATE TABLE jev_triage (
-  posting_key TEXT NOT NULL,
-  mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')),
-  state TEXT NOT NULL CHECK (state IN ('current', 'stale', 'unavailable')),
-  decision TEXT NOT NULL
-    CHECK (decision IN ('prioritize', 'review', 'exclude', 'unassessed')),
-  fit_probability REAL
-    CHECK (fit_probability IS NULL OR fit_probability BETWEEN 0.0 AND 1.0),
-  fit_score REAL
-    CHECK (fit_score IS NULL OR fit_score BETWEEN 0.0 AND 1.0),
-  primary_rule TEXT,
-  exclusions TEXT NOT NULL,
-  review_flags TEXT NOT NULL,
-  diagnostic_flags TEXT NOT NULL,
-  qualifier_version TEXT,
-  assessment_key TEXT,
-  input_version TEXT,
-  policy_hash TEXT,
-  model_id TEXT,
-  as_of_month TEXT NOT NULL,
-  decided_at TEXT,
-  reason TEXT,
-  PRIMARY KEY (posting_key, mode),
-  CHECK (decision <> 'unassessed' OR
-         (fit_probability IS NULL AND fit_score IS NULL AND primary_rule IS NULL)),
-  CHECK (state <> 'current' OR
-         (decision <> 'unassessed' AND fit_probability IS NOT NULL AND
-          fit_score IS NOT NULL AND assessment_key IS NOT NULL AND
-          qualifier_version IS NOT NULL AND input_version IS NOT NULL))
+CREATE TABLE keep_scores (
+  posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
+  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
 );
--- Exactly one row: activation is release-wide, even when no promoted results are current.
-CREATE TABLE jev_selection (mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')));
--- One reason per Posting Jev cannot select; generated during view build.
-CREATE TABLE jev_skip (posting_key TEXT PRIMARY KEY, reason TEXT NOT NULL);
 ```
 
 ```sql
@@ -211,10 +161,10 @@ The dashboard works out one status per Posting (`STATUS_SQL` in
 5. Any other pass: `unscored`. This is Awaiting Score.
 6. No Hard Filter pass at all: `not-filtered`.
 
-Scores bind to a Posting, its compact input hash and model identity. Jev rows remain
-historical and never route a list. Closed Postings stay searchable in the filter
-inspector and on the Employers page. The résumé assessment is a margin note.
-Lists sort by verification recency, not by probability.
+Scores bind to a Posting, its compact input hash and model identity. Closed
+Postings stay searchable in the filter inspector and on the Employers page.
+The résumé assessment is a margin note. For you and Explore sort by keep
+probability, highest first, then verification recency.
 
 ## Dashboard HTTP surfaces
 
@@ -233,6 +183,10 @@ so if `/api` came first it would answer every write path's preflight with
 
 Each action surface needs its own header (`X-Venator-Run`, `X-Venator-Application`,
 `X-Venator-Onboarding`, `X-Venator-Location`) and an allowed local `Origin`.
+
+The location Hard Filter and dashboard picker use the same offline GeoNames
+lookup ([attribution](../docs/geonames-attribution.md)). It covers US-prefixed
+cities, counties, foreign remote sites and campus labels.
 
 Onboarding writes one Profile at a time inside a server process. It refuses lone
 surrogates and symbolic links, stages the YAML, loads it back through

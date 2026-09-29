@@ -23,7 +23,6 @@ use std::time::{Duration, Instant};
 
 use tauri::path::BaseDirectory;
 #[cfg(target_os = "macos")]
-use tauri::menu::{Menu, MenuItem, MenuItemKind};
 use tauri::{Manager, RunEvent};
 
 mod install;
@@ -289,27 +288,6 @@ fn show_window_when_ready(app: tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
-    #[cfg(target_os = "macos")]
-    let builder = builder
-        .menu(|app| {
-            let menu = Menu::default(app)?;
-            let diagnostics = MenuItem::with_id(app, "jev-diagnostics", "Jev Diagnostics", true, None::<&str>)?;
-            // Keep the default View menu's Full Screen item and add this route to it.
-            let view = menu.items()?.into_iter().find_map(|item| match item {
-                MenuItemKind::Submenu(view) if view.text().ok().as_deref() == Some("View") => Some(view),
-                _ => None,
-            }).expect("the default macOS menu has a View submenu");
-            view.append(&diagnostics)?;
-            Ok(menu)
-        })
-        .on_menu_event(|app, event| {
-            if event.id().as_ref() == "jev-diagnostics" {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.eval("window.location.hash = '#/triage'");
-                    let _ = window.set_focus();
-                }
-            }
-        });
     let app = builder
         .setup(|app| {
             // Registered in every build, and that is a deliberate change from registering it

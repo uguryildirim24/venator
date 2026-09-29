@@ -38,7 +38,7 @@ import {
 	systemContext,
 	type LocationContext,
 } from "../locations.ts";
-import { nonJevInheritedEnvironment } from "../runs/environment.ts";
+import { inheritedToolEnvironment } from "../runs/environment.ts";
 import { OnboardingError } from "./errors.ts";
 import { asBoolean, asList, asMapping, asNumber, asText, at, parseJson } from "./json.ts";
 import type { JsonMapping, JsonValue } from "./json.ts";
@@ -103,7 +103,7 @@ function runResolver(url: string, context: LocationContext): Promise<ResolverPro
 		const child = spawn(pythonInterpreter(context), [RESOLVER_SCRIPT, url], {
 			cwd: pipelineWorkingDirectory(context),
 			stdio: ["ignore", "pipe", "pipe"],
-			env: nonJevInheritedEnvironment(context),
+			env: inheritedToolEnvironment(context),
 		});
 		let stdout = "";
 		let stderr = "";

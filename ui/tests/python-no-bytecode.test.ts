@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { nonJevInheritedEnvironment, runEnvironment } from "../server/runs/environment.ts";
+import { inheritedToolEnvironment, runEnvironment } from "../server/runs/environment.ts";
 import type { LocationContext } from "../server/locations.ts";
 import { removeBytecode } from "../tools/python-staging.ts";
 
@@ -22,7 +22,7 @@ const context: LocationContext = {
 
 test("every Python child environment disables bytecode even when inherited as disabled", () => {
 	assert.equal(runEnvironment(context).PYTHONDONTWRITEBYTECODE, "1");
-	assert.equal(nonJevInheritedEnvironment(context).PYTHONDONTWRITEBYTECODE, "1");
+	assert.equal(inheritedToolEnvironment(context).PYTHONDONTWRITEBYTECODE, "1");
 });
 
 // These are all server launches of Python: Refresh/Hard Filters/View, Score, view recovery,
@@ -30,12 +30,12 @@ test("every Python child environment disables bytecode even when inherited as di
 // Keep the list exhaustive: adding a new spawn path requires choosing its environment here.
 const PYTHON_SITES = {
 	"applications/routes.ts": ["env: environment"],
-	"onboarding/boards.ts": ["env: nonJevInheritedEnvironment(context)"],
-	"onboarding/resume-pdf.ts": ["env: nonJevInheritedEnvironment(context)"],
-	"onboarding/resume-reference.ts": ["env: nonJevInheritedEnvironment(context)"],
-	"onboarding/runtime.ts": ["env: nonJevInheritedEnvironment(context)"],
-	"onboarding/verify.ts": ["env: nonJevInheritedEnvironment(context)"],
-	"onboarding/profile-edit.ts": ["env: nonJevInheritedEnvironment(context)"],
+	"onboarding/boards.ts": ["env: inheritedToolEnvironment(context)"],
+	"onboarding/resume-pdf.ts": ["env: inheritedToolEnvironment(context)"],
+	"onboarding/resume-reference.ts": ["env: inheritedToolEnvironment(context)"],
+	"onboarding/runtime.ts": ["env: inheritedToolEnvironment(context)"],
+	"onboarding/verify.ts": ["env: inheritedToolEnvironment(context)"],
+	"onboarding/profile-edit.ts": ["env: inheritedToolEnvironment(context)"],
 	"runs/plan.ts": ["env: runEnvironment(context)"],
 	"runs/runner.ts": ["env: runEnvironment(context)", "env: environment"],
 } satisfies Record<string, readonly string[]>;

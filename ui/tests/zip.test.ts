@@ -241,13 +241,13 @@ test("extraction writes every file, and a refusal writes nothing after it", () =
 		const archive = zip([
 			member("python.exe", "MZ"),
 			member("Lib/site-packages/pkg/__init__.py", "x = 1\n"),
-			member("src/venator/qualify/schemas/qualify-output-2.json", "{}\n", STORE),
+			member("src/venator/sample.json", "{}\n", STORE),
 		]);
 		assert.equal(extractZip(archive, destination), 3, "returns how many files it wrote");
 		assert.deepEqual(readdirSync(destination).sort(), ["Lib", "python.exe", "src"]);
 		assert.equal(readFileSync(resolve(destination, "python.exe"), "utf8"), "MZ");
 		assert.equal(
-			readFileSync(resolve(destination, "src", "venator", "qualify", "schemas", "qualify-output-2.json"), "utf8"),
+			readFileSync(resolve(destination, "src", "venator", "sample.json"), "utf8"),
 			"{}\n",
 		);
 	} finally {

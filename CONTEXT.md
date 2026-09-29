@@ -11,8 +11,7 @@ avoid saying instead.
 **Owner**
 The person a Profile applies for. One Owner per Profile. Refer to the Owner as
 "they"; never guess pronouns.
-_Avoid_: user, candidate. Also avoid "applicant", except in the questions sent to
-Jev, which describe the Owner the way an employer would see them.
+_Avoid_: user, candidate, applicant.
 
 **Profile**
 The Owner's facts: résumé, work authorization, locations, the roles they want, and
@@ -66,7 +65,7 @@ Owner never applies twice.
 A keep probability from a person's own model configured in their Install. A score
 binds to the compact Posting input and model identity. No model ships with Venator.
 For you starts at 0.5; below 0.014 is Excluded; Explore is between those cuts.
-Jev's historical results do not route the lists.
+For you and Explore show the highest keep probability first.
 
 **Refresh and Score**
 Refresh fetches Postings, records Filter Decisions and rebuilds View without
@@ -74,7 +73,8 @@ inference. Hard Filter passes without a current score wait in Awaiting Score.
 Stale passes wait in Awaiting Hard Filters instead. Only pressing Score runs the
 configured model; a pause keeps earlier scores for the next press.
 The sidebar's location choice narrows what is displayed; unlike the Profile's
-location Hard Filter, it never changes a Filter Decision.
+location Hard Filter, it never changes a Filter Decision. Both use the same
+offline GeoNames place lookup ([attribution](docs/geonames-attribution.md)).
 
 ## Applying
 

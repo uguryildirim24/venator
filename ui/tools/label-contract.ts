@@ -17,7 +17,7 @@
  */
 
 import { APPLICATION_STATE_NAMES, type ApplicationStateName } from "../shared/contracts.ts";
-import { applicationStateLabel, assessmentStatusLabel, earlyReviewLabel, homeListLabel, jevDecisionLabel, statusLabel } from "../src/labels.ts";
+import { applicationStateLabel, assessmentStatusLabel, homeListLabel, statusLabel } from "../src/labels.ts";
 
 type StatePin = {
 	readonly state: ApplicationStateName;
@@ -126,18 +126,7 @@ export function checkLabelContract(): readonly string[] {
 		if (rendered !== expected) failures.push(`assessment label "${rendered}" must be "${expected}"; potential relevance does not confirm eligibility`);
 	}
 
-	const jevLabels = [
-		[jevDecisionLabel("prioritize"), "Look first"],
-		[jevDecisionLabel("review"), "Review"],
-		[jevDecisionLabel("exclude"), "Skip"],
-		[jevDecisionLabel("unassessed"), "Unavailable"],
-		[earlyReviewLabel(), "Jev diagnostics"],
-	] as const;
-	for (const [rendered, expected] of jevLabels) {
-		if (rendered !== expected) {
-			failures.push(`Jev label "${rendered}" must be "${expected}"`);
-		}
-	}
+
 
 	const pinned = new Set(PINS.map((pin) => pin.state));
 

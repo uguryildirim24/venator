@@ -5,7 +5,7 @@
  * Server and screen compile against the same shape, the way `onboarding.ts` works for setup.
  * `GET /api/onboarding/existing-profile` answers with one of these read out of the three
  * files, and `POST` takes one back. **It is a view of the files, not a second Profile
- * schema.** Everything the form does not name — the Jev policy, `qualification_mode`, the
+ * schema.** Everything the form does not name — the compact policy, the
  * wording patterns, `timing`, `option_aliases`, `profile.id`, an entry's `primary` or
  * `include` flag — stays in the file untouched, because the server patches what changed
  * rather than re-emitting what it read (`server/onboarding/profile-form.ts`).

@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 
 import type { Funnel } from "../../shared/contracts.ts";
-import { earlyReviewLabel, homeListLabel } from "../labels.ts";
+import { homeListLabel } from "../labels.ts";
 import { queueHash, type HomeList } from "../router.ts";
 
 /** Why a list other than For you is empty, in its own terms. */
@@ -13,9 +13,8 @@ const REASONS = {
 	saved: "Nothing is saved. Save a Posting from its toolbar and it waits here.",
 	dismissed: "Nothing is dismissed. A dismissed Posting keeps its place here and can be restored.",
 	filtered: "No Posting was excluded by a Hard Filter.",
-	triage: "No unavailable or out-of-date Jev results to diagnose.",
 	inspector: "No Posting matches these filters. Every Posting keeps its decision, so widening them finds it.",
-} satisfies Record<HomeList | "triage" | "inspector", string>;
+} satisfies Record<HomeList | "inspector", string>;
 
 type Destination = { readonly label: string; readonly hash: string; readonly count: number; readonly what: string };
 
@@ -37,7 +36,7 @@ function destinations(funnel: Funnel): readonly Destination[] {
 }
 
 type EmptyListProps = {
-	readonly source: HomeList | "triage" | "inspector";
+	readonly source: HomeList | "inspector";
 	readonly search: string;
 	/** The list has Postings, just not on this page. */
 	readonly beyond: boolean;
@@ -63,7 +62,7 @@ export function EmptyList({ source, search, beyond, funnel, onReload }: EmptyLis
 		);
 	}
 	const elsewhere = source === "queued" && funnel !== null ? destinations(funnel) : [];
-	const title = source === "triage" ? `${earlyReviewLabel()} is empty` : source === "inspector" ? "No Posting matches" : `${homeListLabel(source)} is empty`;
+	const title = source === "inspector" ? "No Posting matches" : `${homeListLabel(source)} is empty`;
 	return (
 		<div className="empty">
 			<p className="empty-title">{title}</p>

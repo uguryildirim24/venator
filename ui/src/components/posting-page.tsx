@@ -388,7 +388,6 @@ function FitLedger({ fit, fallback, onJump }: { readonly fit: Margin["fit"]; rea
 			<span className="note-title">{group.title}</span>
 			{group.clauses.map((clause) => <span key={clause} className="note-subtitle" title={clause}>{clause}</span>)}
 		</button>)}
-		{fit.jev === null ? null : <div className="note"><span className="note-title">{fit.jev.title}</span></div>}
 	</div>;
 }
 

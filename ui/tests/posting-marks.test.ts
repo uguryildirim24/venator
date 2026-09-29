@@ -17,7 +17,7 @@ const detail: PostingDetail = {
 	status: "hard-killed",
 	descriptionHtml: `<li>${sentence}</li>`,
 	page: [{ kind: "item", text: sentence }],
-	decisions: [], trackEvents: [], application: null, jev: null,
+	decisions: [], trackEvents: [], application: null,
 	assessment: {
 		status: "suitable", summary: "", assessedBy: "deterministic", assessedAsOf: null,
 		evidence: [{ requirement: "Microsoft Office Application (Word, Excel, Outlook)", candidateEvidence: "", source: "resume" }],

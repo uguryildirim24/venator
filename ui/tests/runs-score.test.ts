@@ -12,7 +12,7 @@ import { resetPlansForTest, type DescribeRun } from "../server/runs/tokens.ts";
 import { RUN_REQUEST_HEADER } from "../shared/runs.ts";
 
 const made: string[] = [];
-const SENTINEL = "typesafe-key-must-not-enter-score";
+const SENTINEL = "unlisted-secret-must-not-enter-score";
 
 function setup() {
 	const home = mkdtempSync(join(tmpdir(), "venator-score-"));
@@ -23,7 +23,7 @@ function setup() {
 	writeFileSync(join(profile, "targeting.yaml"), "profile:\n  id: synthetic\n");
 	const location: LocationContext = {
 		platform: "linux", home, workingDirectory: process.cwd(), checkoutRoot: null,
-		environment: (name) => name === "XDG_DATA_HOME" ? home : name === "TYPESAFE_API_KEY" ? SENTINEL : name === "PATH" ? process.env.PATH : undefined,
+		environment: (name) => name === "XDG_DATA_HOME" ? home : name === "UNLISTED_SECRET" ? SENTINEL : name === "PATH" ? process.env.PATH : undefined,
 	};
 	return { location, root, profile };
 }
@@ -48,7 +48,7 @@ afterEach(() => {
 	for (const path of made.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-test("Score runs the fixed inference command then View, without a TypeSafe key or model metadata in its plan", async () => {
+test("Score runs the fixed inference command then View, without a unlisted secret or model metadata in its plan", async () => {
 	const { location, root, profile } = setup();
 	const describe: DescribeRun = async () => ({ outcome: "plan", plan: {
 		profileName: "search", profileDirectory: profile, storeRoot: root,
@@ -74,10 +74,9 @@ test("Score runs the fixed inference command then View, without a TypeSafe key o
 		["-m", "venator.score.run", "--execute", "--as-of", "2026-09-29", "--profile", "search"],
 		["-m", "venator.view.build", "--profile", "search"],
 	]);
-	assert.ok(started.every((row) => row.options.env?.TYPESAFE_API_KEY === undefined));
+	assert.ok(started.every((row) => row.options.env?.UNLISTED_SECRET === undefined));
 	assert.equal(recentRuns(1)[0]?.viewRebuilt, true);
 	assert.equal((await routes.request(post("/", { token: plan.token }))).status, 409);
-	assert.equal((await routes.request(post("/plan", { kind: "jev-it" }))).status, 400);
 });
 
 test("a Score plan expires when exact inputs change at the same count", async () => {

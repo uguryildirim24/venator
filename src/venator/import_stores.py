@@ -64,7 +64,7 @@ def import_stores(source: Path, target: Path) -> tuple[int, int]:
     changed: list[tuple[Path, Path]] = []
     snapshots: list[tuple[Path, dict[str, object]]] = []
     # Preflight collisions and syntax before the first write. Ignore identical
-    # files; the Jev response cache alone can contain thousands of them.
+    # files; the keep scoring response cache alone can contain thousands of them.
     for path in files:
         relative = path.relative_to(source)
         destination = target / relative

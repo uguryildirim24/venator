@@ -18,16 +18,16 @@ import yaml
 
 from venator.profile.schema import (
     DEGREE_LEVELS,
-    JEV_DOMAIN_TOKENS,
-    JEV_EXCLUDE_OR_REVIEW,
-    JEV_POLICY_VERSION,
-    JEV_RETAIN_OR_REVIEW,
+    COMPACT_DOMAIN_TOKENS,
+    COMPACT_EXCLUDE_OR_REVIEW,
+    COMPACT_POLICY_VERSION,
+    COMPACT_RETAIN_OR_REVIEW,
     REMOTE_PREFERENCES,
     SHIFT_PREFERENCES,
     BoardRegistry,
     EducationFitPolicy,
     FilterPolicy,
-    JevPolicy,
+    CompactPolicy,
     Matcher,
     Profile,
     RoleLevel,
@@ -373,7 +373,7 @@ def _role_target_policy(value: object, at: _Field) -> RoleTargetPolicy:
     )
 
 
-_JEV_FIELDS = (
+_COMPACT_FIELDS = (
     "policy_version",
     "restricted_roles",
     "temporary_student_authorization_exclusion",
@@ -390,18 +390,18 @@ def _closed(value: object, at: _Field, allowed: tuple[str, ...]) -> str:
     return str(value)
 
 
-def _jev_policy(value: object, at: _Field) -> JevPolicy | None:
+def _compact_policy(value: object, at: _Field) -> CompactPolicy | None:
     if value is None:
         return None
     config = _mapping(value, at)
     for key in config:
-        if key not in _JEV_FIELDS:
-            raise at.child(key).reject("is not a Jev policy field", config[key])
-    for name in _JEV_FIELDS:
+        if key not in _COMPACT_FIELDS:
+            raise at.child(key).reject("is not a compact policy field", config[key])
+    for name in _COMPACT_FIELDS:
         if name not in config:
-            raise at.child(name).reject("is required when filters.jev is present")
+            raise at.child(name).reject("is required when a compact policy is present")
     version = _text(config.get("policy_version"), at.child("policy_version"))
-    if not JEV_POLICY_VERSION.fullmatch(version):
+    if not COMPACT_POLICY_VERSION.fullmatch(version):
         raise at.child("policy_version").reject("must match [A-Za-z0-9._-]{1,64}", version)
     raw_domains = config.get("domains")
     if not isinstance(raw_domains, list) or not raw_domains:
@@ -412,32 +412,32 @@ def _jev_policy(value: object, at: _Field) -> JevPolicy | None:
         token_at = at.child("domains").child(str(index))
         if not isinstance(item, str):
             raise token_at.reject("must be a domain token", item)
-        if item not in JEV_DOMAIN_TOKENS:
-            raise token_at.reject(f"must be one of {list(JEV_DOMAIN_TOKENS)}", item)
+        if item not in COMPACT_DOMAIN_TOKENS:
+            raise token_at.reject(f"must be one of {list(COMPACT_DOMAIN_TOKENS)}", item)
         if item in seen:
             raise token_at.reject("must not repeat a domain token", item)
         seen.add(item)
         tokens.append(item)
-    return JevPolicy(
+    return CompactPolicy(
         policy_version=version,
         restricted_roles=_closed(
-            config.get("restricted_roles"), at.child("restricted_roles"), JEV_EXCLUDE_OR_REVIEW,
+            config.get("restricted_roles"), at.child("restricted_roles"), COMPACT_EXCLUDE_OR_REVIEW,
         ),
         temporary_student_authorization_exclusion=_closed(
             config.get("temporary_student_authorization_exclusion"),
-            at.child("temporary_student_authorization_exclusion"), JEV_EXCLUDE_OR_REVIEW,
+            at.child("temporary_student_authorization_exclusion"), COMPACT_EXCLUDE_OR_REVIEW,
         ),
         no_sponsorship_student=_closed(
             config.get("no_sponsorship_student"), at.child("no_sponsorship_student"),
-            JEV_RETAIN_OR_REVIEW,
+            COMPACT_RETAIN_OR_REVIEW,
         ),
         no_sponsorship_nonstudent=_closed(
             config.get("no_sponsorship_nonstudent"), at.child("no_sponsorship_nonstudent"),
-            JEV_EXCLUDE_OR_REVIEW,
+            COMPACT_EXCLUDE_OR_REVIEW,
         ),
         unmet_completed_degree=_closed(
             config.get("unmet_completed_degree"), at.child("unmet_completed_degree"),
-            JEV_EXCLUDE_OR_REVIEW,
+            COMPACT_EXCLUDE_OR_REVIEW,
         ),
         domains=tuple(tokens),
     )
@@ -445,11 +445,6 @@ def _jev_policy(value: object, at: _Field) -> JevPolicy | None:
 
 def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None = None) -> FilterPolicy:
     config = _mapping(value, at)
-    qualification_mode = config.get("qualification_mode", "deterministic")
-    if qualification_mode not in ("deterministic", "jev"):
-        raise at.child("qualification_mode").reject(
-            "must be deterministic or jev", qualification_mode
-        )
     enabled = _strings(config.get("enabled"), at.child("enabled"))
     for index, rule in enumerate(enabled):
         if rule not in KNOWN_RULES:
@@ -469,9 +464,7 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
     )
     education_fit = _education_fit_policy(config.get("education_fit"), at.child("education_fit"))
     role_target = _role_target_policy(config.get("role_target"), at.child("role_target"))
-    jev = _jev_policy(config.get("jev"), at.child("jev"))
-    if qualification_mode == "jev" and jev is None:
-        raise at.child("jev").reject("is required when qualification_mode is jev")
+    compact_policy = _compact_policy(config.get("compact_policy", config.get("jev")), at.child("compact_policy"))
     employer = _mapping(config.get("employer"), at.child("employer"))
     employer_exclude = _strings(employer.get("exclude"), at.child("employer").child("exclude"))
     shift_preference = config.get("shift_preference", "no_preference")
@@ -490,12 +483,11 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
         )
     return FilterPolicy(
         enabled=enabled,
-        qualification_mode=qualification_mode,
         work_authorization=work_authorization,
         education_fit=education_fit,
         role_target=role_target,
         search=search or SearchTargeting(),
-        jev=jev,
+        compact_policy=compact_policy,
         shift_preference=shift_preference,
         employer_exclude=employer_exclude,
         location_regions=regions,

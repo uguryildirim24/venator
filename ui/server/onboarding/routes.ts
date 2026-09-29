@@ -41,7 +41,7 @@
  *   subscription: only on the path a person selected by name, only for one completion, and
  *   never by default, by fallback or by retry. See the route itself.
  * - Profile writes stay inside `<application data directory>/profiles/`; settings stay in
- *   the Install and the Jev key stays in Keychain. An existing Profile edit keeps its other
+ *   the Install. An existing Profile edit keeps its other
  *   files and assets. A same-named checkout Profile cannot supersede an Install Profile.
  * - Nothing here fabricates a Profile fact. A screening answer with no value stays null, an
  *   EEO field is never defaulted to a decline, and a sponsorship answer is refused unless the
@@ -78,7 +78,7 @@ import {
 } from "../../shared/onboarding.ts";
 import { checkLocalAction, LOCAL_ACTION_ORIGINS } from "../http/local-action-guard.ts";
 import { hostPlatform } from "../platform.ts";
-import { documentRuntime, jevKey, saveDocumentRuntime, saveJevKey } from "../install-settings.ts";
+import { documentRuntime, saveDocumentRuntime } from "../install-settings.ts";
 import { resolveBoards } from "./boards.ts";
 import { MAXIMUM_EMPLOYERS_PER_REQUEST, registerEmployers } from "./employers.ts";
 import { OnboardingError } from "./errors.ts";
@@ -593,7 +593,7 @@ export function createOnboardingRoutes(): Hono {
 
 	onboarding.get("/settings", async (context) => {
 		requireOnboardingHeader(context.req.header(ONBOARDING_REQUEST_HEADER), context.req.header("origin"));
-		return context.json({ runtime: documentRuntime(), jevKeyPresent: (await jevKey()) !== null });
+		return context.json({ runtime: documentRuntime() });
 	});
 
 	onboarding.post("/settings", async (context) => {
@@ -601,18 +601,9 @@ export function createOnboardingRoutes(): Hono {
 		refuseOversizedBody(context.req.header("content-length"), 8192, null);
 		const body = readJsonBody(await context.req.text());
 		const runtime = at(body, "runtime");
-		const key = at(body, "jevKey");
-		if (runtime !== undefined && runtime !== "claude" && runtime !== "codex") {
-			throw new OnboardingError("bad_request", "Choose Claude or ChatGPT.", null, "runtime");
-		}
-		const keyText = asText(key);
-		if (key !== undefined && (keyText === null || keyText.length > 4096 || !keyText.trim())) {
-			throw new OnboardingError("bad_request", "Enter one TypeSafe key.", null, "jevKey");
-		}
-		if (runtime === undefined && key === undefined) throw new OnboardingError("bad_request", "Choose a setting to save.");
-		if (keyText !== null) await saveJevKey(keyText);
+		if (runtime === undefined) throw new OnboardingError("bad_request", "Choose a setting to save.");
 		if (runtime === "claude" || runtime === "codex") await saveDocumentRuntime(runtime);
-		return context.json({ runtime: documentRuntime(), jevKeyPresent: (await jevKey()) !== null });
+		return context.json({ runtime: documentRuntime() });
 	});
 
 	/**

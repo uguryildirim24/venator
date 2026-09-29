@@ -70,7 +70,6 @@ allowlist refuse a page from some other site.
 | `/api/summary` | list counts, source health, and which database is open |
 | `/api/postings?q=&status=&application=&rule=&sort=&limit=&offset=` | Postings with their latest decision per stage, and whether each is new since the last check |
 | `/api/postings/:key` | one Posting: the reading page (sanitised text), the employer HTML for the sandboxed frame, the full decision history including replays, and its TrackEvents |
-| `/api/jev-triage?decision=&q=&limit=&offset=` | eligible Postings with failed or stale Jev results for the selected release, most recently verified first. No probability or score leaves the server |
 | `/api/onboarding/state` | whether this Install has a Profile yet, and which one is in use |
 
 `GET /api/locations` returns available location choices and the saved selection.
@@ -78,7 +77,9 @@ States and countries group their cities. Boston spellings share one city choice;
 campus names and job-posting labels use their city, and joined lists split into
 places. Remote spellings share one Remote choice. Several locations, No location
 and Other places are separate choices. A Posting with several places counts in
-each place it lists. `POST /api/locations` takes `{ "selected": ["…"] }` and saves
+each place it lists. The picker and the location Hard Filter share an offline
+GeoNames lookup ([attribution](../docs/geonames-attribution.md)); it reads US-prefixed
+cities, counties, foreign remote sites and campus labels. `POST /api/locations` takes `{ "selected": ["…"] }` and saves
 the choice in the Install; it doesn't change a Profile or the view.
 
 ### Application routes
@@ -134,7 +135,6 @@ only ever written to `<data directory>/profiles`.
 | `#/queue?list=applied` | **Applications**: prepared, handed off, applied, and what came back |
 | `#/queue?list=saved`, `?list=dismissed` | **Saved** and **Dismissed** |
 | `#/queue?list=filtered` | **Excluded**: Hard Filter kills and keep probabilities below 0.014 |
-| `#/triage` | **Jev Diagnostics**, under **View**: eligible Postings with failed or stale Jev results |
 | `#/postings/<url-encoded key>?from=` | the same window with one Posting open |
 | `#/inspector` | filter inspector: every Posting and its Filter Decision, as a table |
 | `#/inspector?status=hard-killed&rule=education_fit` | everything one rule excluded |
@@ -147,10 +147,11 @@ only ever written to `<data directory>/profiles`.
 The sidebar groups lists, records and sources. The last-checked caption and
 Refresh sit below Employers, including checks run from the command line. It says
 **Not checked yet** if no check has been recorded. Score sits above the Profile
-account row. Jev Diagnostics remains in the View menu for historical results.
+account row.
 
 The main screen keeps two columns even at the smallest opening window size.
-The desktop window opens at 1440×900. Lists sort by when a Posting was last verified, not by its score. The Posting page's margin is one ledger. It starts
+The desktop window opens at 1440×900. For you and Explore sort by keep
+probability, highest first, then verification recency. The Posting page's margin is one ledger. It starts
 with **Meets N of M** and a requirements tally, then shows one-line facts from
 the résumé assessment and Hard Filters. Press a requirement line to open the
 description at that line. **Open Listing** appears there when Venator can't
@@ -165,7 +166,7 @@ the view, without fetching or scoring. The location choice above the lists filte
 Postings, page counts and pagination without changing the view database.
 
 Score is a separate press above the Profile account row. It uses the person's own
-keep model configured in their Install, not Jev. Refresh remains a fetch-and-filter action. Lists and the
+keep model configured in their Install. Refresh remains a fetch-and-filter action. Lists and the
 inspector use lighter transitions, with reduced motion respected. Switching Postings
 fades and raises the new page. The description opens with eight faded lines;
 **Read More** unfolds it and **Read Less** folds it back. Highlighted words stay whole.
@@ -175,7 +176,7 @@ The first-run states (No jobs yet, Updating your job list) are in
 
 ## Keyboard
 
-`1` For you, `2` filter inspector, `3` Jev diagnostics, `j`/`k` or `↓`/`↑` next and
+`1` For you, `2` filter inspector, `j`/`k` or `↓`/`↑` next and
 previous Posting, `g`/`G` first and last, `enter` open the selected Posting, `/`
 search, `esc` leave or clear the search, `r` reload, `?` show the shortcuts.
 
@@ -311,7 +312,7 @@ server/     Hono API
   app.ts              the five mounts, in order
   locations.ts        where everything lives
   db.ts               opening the view and checking its schema
-  queries.ts          SQL; rows.ts decodes it; jev.ts decodes Jev rows
+  queries.ts          SQL; rows.ts decodes it
   routes.ts           the read-only /api routes
   install-settings.ts the assistant choice
   http/               the header and origin check the action routes share

@@ -21,7 +21,7 @@ const detail: PostingDetail = {
 		{ kind: "item", text: "Standing and lifting 25 lb" },
 		{ kind: "item", text: "Specimen handling" },
 	],
-	decisions: [], trackEvents: [], application: null, jev: null,
+	decisions: [], trackEvents: [], application: null,
 	assessment: {
 		status: "needs_review", summary: "", assessedBy: "deterministic", assessedAsOf: null,
 		evidence: [{ requirement: "Specimen handling", candidateEvidence: "Lab Technician (Feb – May 2026)", source: "profile.resume.experience[0].role" }],

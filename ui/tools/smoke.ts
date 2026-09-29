@@ -25,7 +25,7 @@
  * Then the fixture twice more as the desktop host, once as a Mac and once as Windows, for the
  * one property of the window that is not words: the frame.
  *
- * Every check in every pass is also held to one rule the design makes absolute: **no Jev
+ * Every check in every pass is also held to one rule the design makes absolute: **no score
  * number and no score, anywhere.** The view still holds both, so the values are read out of the
  * database the pass serves and looked for on every screen, and the first pass also asks the
  * API for every Posting and proves neither number crosses the wire. See `HELD_NUMBERS`.
@@ -143,9 +143,6 @@ const FORBIDDEN_ON_SCREEN: readonly string[] = [
 	"fit_score",
 	"primary_rule",
 	"as_of_month",
-	"typesafe_jev",
-	"jev-assessment",
-	"jev_triage",
 	"qualifier_kind",
 ];
 
@@ -192,23 +189,7 @@ function leakedBoardTokens(text: string): readonly string[] {
 	return SCANNED_BOARD_TOKENS.filter((token) => haystack.includes(folded(token)));
 }
 
-/**
- * The numbers the view holds that no screen may show.
- *
- * Jev writes `fit_probability` and `fit_score` for every Posting it assessed, and a historical
- * `llm_score` row carries a Match Score. The view keeps all three, because the data is
- * append-only and a view is a projection of it. None of them may be rendered (ui/DESIGN.md:
- * "No Jev number and no score is rendered anywhere"). So they are read out of the database
- * this run is about to serve — not typed out, for the reason the board tokens are not — and
- * every way one could be written is looked for in visible text:
- *
- * - any fraction written as a decimal, and any percentage, whatever the fixture holds: no
- *   screen here has a reason to print either;
- * - every held score, and every held probability as a whole number out of 100, as a bare
- *   number or "out of 100", wherever it is not part of a longer number, a time or a date.
- *
- * A dollar amount is not a probability. Plan counts are not model results.
- */
+/** Historical decision scores stay off screen. */
 type HeldNumbers = {
 	readonly fractions: readonly number[];
 	readonly scores: readonly number[];
@@ -217,13 +198,7 @@ type HeldNumbers = {
 function readHeldNumbers(path: string): HeldNumbers {
 	const database = new DatabaseSync(path, { readOnly: true });
 	try {
-		const fractions = database
-			.prepare(
-				"SELECT fit_probability AS value FROM jev_triage WHERE fit_probability IS NOT NULL " +
-					"UNION SELECT fit_score AS value FROM jev_triage WHERE fit_score IS NOT NULL",
-			)
-			.all()
-			.map((row) => Number(row.value));
+		const fractions: number[] = [];
 		const scores = database
 			.prepare("SELECT DISTINCT score AS value FROM decisions WHERE score IS NOT NULL")
 			.all()
@@ -255,11 +230,11 @@ function numbersOnScreen(text: string, wholes: readonly number[]): readonly stri
 }
 
 /**
- * Every key the API could name a Jev number or a score by, in either spelling, as it appears in
+ * Every key the API could name a score by, in either spelling, as it appears in
  * the body: a quoted name followed by a colon. Scanning the text rather than a parsed value is
  * the point — a field nothing on screen reads is still on the wire.
  */
-const NUMBER_FIELD = /"(?:fit_?probability|fit_?score|score|probability)"\s*:/giu;
+const NUMBER_FIELD = /"(?:score|probability)"\s*:/giu;
 
 /**
  * The entries of `ordered` that are missing, or that arrive before the one meant to precede
@@ -320,7 +295,7 @@ const CHECKS: readonly RouteCheck[] = [
 			"Read More",
 		],
 		// A browser tab draws its own window; only the desktop host is native.
-		absent: ["Jev diagnostics", "app-native", "Match strength", "Priority rank", "An estimate, not a verdict", "Hard Filters passed"],
+		absent: ["app-native", "Match strength", "Priority rank", "An estimate, not a verdict", "Hard Filters passed"],
 	},
 	{
 		hash: "#/queue?page=1",
@@ -343,7 +318,7 @@ const CHECKS: readonly RouteCheck[] = [
 	},
 	{
 		hash: "#/queue?list=saved",
-		label: "Saved: the saved Posting, with résumé evidence and early review in the margin",
+		label: "Saved: the saved Posting, with résumé evidence and confirmed evidence in the margin",
 		expected: [
 			"1 Posting",
 			"Undergraduate Summer Research Program 2027 (Housing Provided)",
@@ -370,18 +345,6 @@ const CHECKS: readonly RouteCheck[] = [
 			"The employer listing is closed.",
 		],
 		absent: ["Prepare Application…", ">Open Application<"],
-	},
-	{
-		hash: "#/triage",
-		label: "Jev diagnostics: only unavailable and stale results, without a score",
-		expected: [
-			"Jev diagnostics",
-			"2 Postings",
-			"Out of date",
-			"Jev failed",
-			"Intern, Gene Writing Analytics",
-		],
-		absent: ["Match strength", "Priority rank"],
 	},
 	{
 		hash: "#/inspector",
@@ -445,9 +408,9 @@ const CHECKS: readonly RouteCheck[] = [
 	},
 	{
 		hash: `#/postings/${TESSERA_KEY}`,
-		label: "Posting: résumé evidence and an unavailable early review, with no score",
+		label: "Posting: résumé evidence and a review, with no score",
 		expected: ["Intern, Gene Writing Analytics", "On your résumé", "QC reporting in Excel"],
-		absent: ["Jev unavailable", "An estimate, not a verdict"],
+		absent: ["An estimate, not a verdict"],
 	},
 	{
 		hash: `#/postings/${WORKDAY_KEY}`,
@@ -460,7 +423,7 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: [
 			PROFILE.contact, 'value="Avery Example"', PROFILE.history, "Backend Engineer", "Example University", PROFILE.skills, "TypeScript",
 			TARGETING.jobs, "backend engineer", TARGETING.employers, "Cloudflare", PROFILE.filters, "Education fit", "Role target",
-			"Mid level to Senior", "Bachelor’s degree", PROFILE.answers, "Not answered", PROFILE.install, CONNECT.keySaved, PROFILE.save,
+			"Mid level to Senior", "Bachelor’s degree", PROFILE.answers, "Not answered", PROFILE.install, PROFILE.save,
 		],
 		absent: [
 			"Connect an assistant", "Use Claude", "Use ChatGPT", "Set Up Venator", "<textarea", "name: Avery", "qualification_mode",
@@ -469,9 +432,9 @@ const CHECKS: readonly RouteCheck[] = [
 	},
 	{
 		hash: "#/queue?list=unscored",
-		label: "Awaiting Score keeps Postings readable without a TypeSafe key",
+		label: "Awaiting Score keeps Postings readable without a key",
 		expected: ["Awaiting Score", 'role="listbox"', 'aria-selected="true"'],
-		absent: ["Jev needs a key", "Add your TypeSafe key"],
+		absent: ["Score needs a key"],
 	},
 ];
 
@@ -484,7 +447,7 @@ const CHECKS: readonly RouteCheck[] = [
 const ONBOARDING_CHECKS: readonly RouteCheck[] = [
 	{
 		hash: "#/onboarding",
-		label: "setup: connect an assistant, with the key optional and nothing checked on render",
+		label: "setup: connect an assistant, and nothing checked on render",
 		expected: [
 			"Set Up Venator",
 			"Step 1 of 3",
@@ -496,12 +459,6 @@ const ONBOARDING_CHECKS: readonly RouteCheck[] = [
 			"Use ChatGPT",
 			"Claude Code, signed in with your Claude plan.",
 			"Codex, signed in with your ChatGPT plan.",
-			"Jev key",
-			"Optional",
-			"Paste your TypeSafe key",
-			"Save Key",
-			"The key stays in this Mac’s Keychain.",
-			"Get a key",
 			// About this starts closed.
 			"About this",
 			'aria-expanded="false"',
@@ -589,7 +546,7 @@ const EMPTY_CHECKS: readonly RouteCheck[] = [
 			'aria-label="Refresh jobs"',
 		],
 		// Nothing discovered yet: no diagnostics or Score run.
-		absent: ["Jev diagnostics", ">Score<", "could not be read"],
+		absent: [">Score<", "could not be read"],
 	},
 ];
 
@@ -732,7 +689,7 @@ function judge(check: RouteCheck, markup: string): void {
 		process.stdout.write(`  FAIL  ${check.label}: board tokens on screen — ${boards.join(" | ")}\n`);
 	}
 	if (numbers.length > 0) {
-		process.stdout.write(`  FAIL  ${check.label}: a Jev number or a score on screen — ${numbers.join(" | ")}\n`);
+		process.stdout.write(`  FAIL  ${check.label}: a score on screen — ${numbers.join(" | ")}\n`);
 	}
 }
 
@@ -822,9 +779,9 @@ function fixtureScoreCount(path: string): number {
 const SCORE_POSTING_COUNT = fixtureScoreCount(FIXTURE_DATABASE_PATH);
 const SCORE_PLAN_CHECK: RouteCheck = {
 	hash: "#/queue",
-	label: "runs: Score is the footer's prominent press without a TypeSafe key",
+	label: "runs: Score is the footer's prominent press without a key",
 	expected: ['<button type="button" class="button" data-size="large" data-tone="prominent">Score</button>'],
-	absent: ["spend allowance", "Jev it", "Jev needs a key"],
+	absent: ["spend allowance", "Score needs a key"],
 };
 
 async function checkScoreEmpty(renderer: RouteRenderer): Promise<void> {
@@ -890,7 +847,7 @@ async function runProbedChecks(renderer: RouteRenderer, checks: readonly ProbedC
 }
 
 /** What the settings route answers in smoke: Claude chosen, and no key in any Keychain. */
-const SETTINGS = JSON.stringify({ runtime: "claude", jevKeyPresent: false });
+const SETTINGS = JSON.stringify({ runtime: "claude" });
 
 /** The fixture answers every request that would otherwise consult the checkout's stores or Profile. */
 /** The scaffold Profile the repository ships, as the Profile screen's fixture: every group has something in it. */
@@ -918,7 +875,7 @@ function fixtureAnswer(view: "fixture" | "empty"): FixtureResponse {
 			}));
 		}
 		// Never the real Keychain: the settings read answers "no key" for every pass.
-		if (method === "GET" && path === "/api/onboarding/settings") return json(smokeProfile ? '{"runtime":"codex","jevKeyPresent":true}' : SETTINGS);
+		if (method === "GET" && path === "/api/onboarding/settings") return json(smokeProfile ? '{"runtime":"codex"}' : SETTINGS);
 		if (method === "GET" && path === "/api/onboarding/existing-profile") return json(JSON.stringify({ documents: EXAMPLE_PROFILE, form: formOf(EXAMPLE_PROFILE) }));
 		if (method === "GET" && /^\/api\/applications\/[^/]+$/u.test(path)) return json('{"prepared":false}');
 		if (method === "GET" && path === "/api/runs/current") return json('{"run":null}');
@@ -1053,7 +1010,7 @@ type PassOptions = {
 };
 
 /**
- * The other half of "no Jev number and no score": neither leaves the server.
+ * The other half of "no score": neither leaves the server.
  *
  * A screen that shows no number can still be one render away from showing one if the number
  * is on the wire, so every read route a screen uses is asked for everything it has — every
@@ -1065,7 +1022,6 @@ async function checkWireCarriesNoNumber(origin: string): Promise<void> {
 	const paths = [
 		"/api/summary",
 		"/api/postings?limit=1000",
-		"/api/jev-triage?limit=1000",
 		...POSTING_PAGES.map((page) => `/api/postings/${page.hash.slice("#/postings/".length)}`),
 	];
 	const found: string[] = [];
@@ -1078,11 +1034,11 @@ async function checkWireCarriesNoNumber(origin: string): Promise<void> {
 		for (const match of (await response.text()).matchAll(NUMBER_FIELD)) found.push(`${path} ${match[0]}`);
 	}
 	if (found.length === 0) {
-		process.stdout.write("  ok    wire: no Jev number and no score leaves the API\n");
+		process.stdout.write("  ok    wire: no score leaves the API\n");
 		return;
 	}
 	failed += 1;
-	process.stdout.write(`  FAIL  wire: a Jev number or a score crossed the wire — ${found.join(" | ")}\n`);
+	process.stdout.write(`  FAIL  wire: a score crossed the wire — ${found.join(" | ")}\n`);
 }
 
 async function pass(

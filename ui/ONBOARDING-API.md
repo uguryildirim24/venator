@@ -5,7 +5,7 @@ The routes behind **Set Up Venator**. The setup screens are built against this f
 Setup has three steps and ends with a Profile the pipeline can run:
 
 1. **Connect an assistant.** Find out which assistant CLIs this machine has, save
-   the one you pick, and optionally save a Jev key.
+   the one you pick.
 2. **Add a résumé.** Read what can be read from it and show it back so you can correct
    every field. Nothing is written in this step. There are three ways to read it:
    pasted text, a PDF read on this machine, or a PDF read by your assistant. Only the
@@ -34,8 +34,8 @@ settings`, `runtime/probe`, `resume/import`, `boards/resolve`, `profile` and
 read-only `/api` router.
 
 - It writes only inside `<application data directory>/profiles/`, plus
-  `<application data directory>/settings.json` for the assistant choice. The Jev key
-  goes into the macOS Keychain. It never writes to the checkout, `data/` or `build/`.
+  `<application data directory>/settings.json` for the assistant choice. It never
+  writes to the checkout, `data/` or `build/`.
 - Only `boards/resolve` makes a request of its own, and it is a `GET`.
 - `runtime/probe`, and `resume/import` when you ask for the assistant reading, start
   an assistant CLI that talks to its own vendor on your own plan. That goes through
@@ -136,32 +136,25 @@ How the screens use it:
 
 ## `GET` and `POST /api/onboarding/settings`
 
-The assistant used for résumé reading and application documents, and whether a Jev
-key is saved.
+The assistant used for résumé reading and application documents.
 
 **`GET`** answers:
 
 ```json
-{ "runtime": "claude", "jevKeyPresent": false }
+{ "runtime": "claude" }
 ```
 
-**`POST`** takes either field or both (body up to 8 KiB):
+**`POST`** takes the runtime (body up to 8 KiB):
 
 ```json
-{ "runtime": "codex", "jevKey": "…" }
+{ "runtime": "codex" }
 ```
 
 - `runtime` is `claude` or `codex`. It is saved as `{"runtime": …}` in
   `<data directory>/settings.json` and becomes `VENATOR_LLM_RUNTIME` for every child
   the server starts. With no file, it is `claude`.
-- `jevKey` is saved in the macOS Keychain, under an account tied to this Install's
-  data directory. It is passed to `security` on stdin, never as an argument, and never
-  appears in a file, log or response. It must be one line of at most 4,096 characters.
-  Saving a key works on macOS only. Elsewhere, set `TYPESAFE_API_KEY` in the server's
-  environment.
-
-It answers with the same shape as `GET`. An unknown runtime, an empty key or an empty
-body is `400 bad_request`. A Keychain failure is `500 write_failed`.
+It answers with the same shape as `GET`. An unknown runtime or an empty body is
+`400 bad_request`.
 
 ## `POST /api/onboarding/runtime/probe`
 
@@ -528,9 +521,8 @@ layout](#the-résumé-layout)).
 
 All three mappings are optional. A missing one is written as an empty file, so the
 directory always has all three. The mappings use the Profile files' own shapes; see
-`profiles/example/` for a commented example of each. A new Profile whose `targeting`
-sets neither `filters.qualification_mode` nor `filters.jev` gets the cautious shadow
-Jev policy added. An existing Profile's policy is never changed.
+`profiles/example/` for a commented example of each. Editing a Profile keeps fields
+outside the form. New Profiles use only the filter choices in the form.
 
 **201 Created**, or **200 OK** when an existing Profile was replaced:
 

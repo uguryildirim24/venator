@@ -1,7 +1,7 @@
 import { RotateCw, Square } from "lucide-react";
 import { useState } from "react";
 
-import type { PlanKind, RunKind, RunState } from "../../shared/runs.ts";
+import type { RunKind, RunState } from "../../shared/runs.ts";
 import { Sheet } from "../components/sheet.tsx";
 import { formatMoment } from "../format.ts";
 import { scorePauseLabel, runKindLabel, runStageLabel, runStageResultLabel } from "../labels.ts";

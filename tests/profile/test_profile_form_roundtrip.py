@@ -8,7 +8,7 @@ interpreter that matters, that what it writes is what PyYAML reads:
 * a word YAML 1.1 resolves to something other than text (``no``, ``12:30``) comes
   back as the text that was typed;
 * a form nobody changed writes nothing at all;
-* everything the form does not model — the Jev policy, an entry's ``primary``
+* everything the form does not model — the keep scoring policy, an entry's ``primary``
   flag, the wording patterns, ``option_aliases`` — is still there afterwards;
 * and the result loads through ``venator.profile.load_profile`` and hashes through
   ``filters_version``, which are the two claims only Python can make.
@@ -150,8 +150,8 @@ def test_what_the_screen_writes_is_what_the_loader_reads(tmp_path: Path) -> None
     assert constraints["volume"] == before["constraints.yaml"]["volume"]
     assert constraints["screening"]["eeo"] == before["constraints.yaml"]["screening"]["eeo"]
     assert targeting["profile"] == before["targeting.yaml"]["profile"]
-    assert targeting["filters"]["jev"] == before["targeting.yaml"]["filters"]["jev"]
-    assert targeting["filters"]["qualification_mode"] == "jev"
+    assert targeting["filters"]["compact_policy"] == before["targeting.yaml"]["filters"]["compact_policy"]
+    assert targeting["filters"]["compact_policy"]["policy_version"] == "example-compact-1"
     assert targeting["filters"]["work_authorization"] == before["targeting.yaml"]["filters"]["work_authorization"]
     assert targeting["filters"]["role_target"]["levels"] == before["targeting.yaml"]["filters"]["role_target"]["levels"]
     assert targeting["search"]["seniority"] == before["targeting.yaml"]["search"]["seniority"]
@@ -166,8 +166,8 @@ def test_what_the_screen_writes_is_what_the_loader_reads(tmp_path: Path) -> None
     assert profile.filters.education_fit.experience_years_kill is None
     assert profile.filters.role_target.accept == ("senior",)
     assert profile.sources.names["yes"] == "Yes Corp"
-    assert profile.filters.jev is not None
-    assert profile.filters.jev.policy_version == "example-shadow-1"
+    assert profile.filters.compact_policy is not None
+    assert profile.filters.compact_policy.policy_version == "example-compact-1"
     assert filters_version(tmp_path / "targeting.yaml", tmp_path / "constraints.yaml") != filters_version(
         EXAMPLE / "targeting.yaml", EXAMPLE / "constraints.yaml"
     )

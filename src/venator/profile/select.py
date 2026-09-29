@@ -18,7 +18,7 @@ Guessing is refused literally, and that costs two rules worth stating:
   than resolved. ``--profile ""`` used to resolve to the working directory and
   load a nameless Profile with no Hard Filter, which `apply_filters` then
   reports as "no Hard Filter is configured; passed": every Posting through to
-  assessment and Jev, silently.
+  assessment and keep scoring, silently.
 * ``--profile-dir`` is the escape hatch for a Profile directory anywhere else,
   inside a checkout or well outside one — the boundary between people is the
   Install's data directory, not a checkout (ADR-0002), so containment in a
@@ -31,7 +31,7 @@ route: ``--profile-dir``, ``--profile``, ``$VENATOR_PROFILE``, and the implied
 single Profile alike. ``targeting.yaml`` is the file that decides it because it
 is where the Hard Filter wording lives; without it a Profile loads with
 ``filters.enabled == ()``, kills nothing, and passes every Posting to
-assessment and Jev on the Owner's budget. Two ways in made that reachable: an
+assessment and keep scoring on the Owner's budget. Two ways in made that reachable: an
 ``<application data directory>/profiles/<name>/`` that the shipped onboarding
 creates before it writes the first file — a crash in between leaves exactly that
 — and a ``profiles/`` beside whatever directory a command was started in, which

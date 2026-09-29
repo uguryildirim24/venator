@@ -55,7 +55,7 @@ from venator.profile.schema import FilterPolicy
     ("Frankfurt am Main", "outside"),
     ("Ljubljana", "outside"),
     ("Montevideo", "outside"),
-    ("Grenzach", "outside"),
+    ("Grenzach", "unreadable"),
     ("Kaiseraugst", "outside"),
     ("Vitry-sur-Seine", "outside"),
     ("City of Singapore", "outside"),
@@ -65,10 +65,14 @@ from venator.profile.schema import FilterPolicy
     ("Winchester Hospital", "ma"),
     ("Maddock Alumni Center", "new_england"),
     ("Mount Auburn Hospital", "ma"),
-    ("Cambridge", "unreadable"),
-    ("London", "unreadable"),
-    ("Lisbon", "unreadable"),  # also a town in Maine
-    ("Berlin", "unreadable"),  # also a New England town
+    ("Cambridge", "ma"),
+    ("London", "outside"),
+    ("Lisbon", "new_england"),  # also a town in Maine
+    ("Berlin", "ma"),  # also a New England town
+    ("Boston Job Posting Location", "ma"),
+    ("South Waltham, Middlesex County", "ma"),
+    ("US, Lenexa KCIB (PRA)", "outside"),
+    ("Remote, Korea, Republic of", "outside"),
     ("USA", "remote"),
     ("", "unreadable"),
     ("Cambridge, UK; Concord NH", "new_england"),
@@ -120,3 +124,8 @@ def test_structured_sites_and_unconfigured_profile() -> None:
     assert location_reading({"location": "Exeter Hospital"}, policy).verdict == "pass"
     assert location_reading({"location": "2 Locations"}, policy).fact == "unreadable"
     assert location_reading({"location": "Remote"}, policy).fact == "remote"
+    assert location_scope({"location": "Washington University Medical Campus"}, employer_has_local=False) == "outside"
+    assert location_scope({"location": "Washington University Medical Campus"}, employer_has_local=True) == "unreadable"
+    assert location_scope({"location": "11 Locations"}, employer_has_local=False) == "unreadable"
+    assert location_scope({"location": "Boston-MA"}) == "ma"
+    assert location_scope({"location": "MA-Boston"}) == "ma"

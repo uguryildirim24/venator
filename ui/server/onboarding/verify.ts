@@ -31,7 +31,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { nonJevInheritedEnvironment } from "../runs/environment.ts";
+import { inheritedToolEnvironment } from "../runs/environment.ts";
 import { pipelineWorkingDirectory, pythonInterpreter, systemContext, type LocationContext } from "../locations.ts";
 import { OnboardingError } from "./errors.ts";
 import { asMapping, asText, at, parseJson } from "./json.ts";
@@ -125,7 +125,7 @@ function runVerifier(directory: string, context: LocationContext): Promise<Verif
 		const child = spawn(pythonInterpreter(context), [VERIFIER_SCRIPT, "--directory", directory], {
 			cwd: pipelineWorkingDirectory(context),
 			stdio: ["ignore", "pipe", "pipe"],
-			env: nonJevInheritedEnvironment(context),
+			env: inheritedToolEnvironment(context),
 		});
 		let stdout = "";
 		let stderr = "";

@@ -1,9 +1,9 @@
 /**
  * What each list asks the API for. Every list is ordered the one way the queue is: most
- * recently verified first (ui/DESIGN.md, "List"). No Jev number and no score orders anything.
+ * recently verified first (ui/DESIGN.md, "List"). No score orders anything.
  */
 
-import type { JevTriageDecision, PostingEntry } from "../shared/contracts.ts";
+import type { PostingEntry } from "../shared/contracts.ts";
 import { PAGE_SIZE, type HomeList, type InspectorFilters } from "./router.ts";
 
 /** The home list's query: its status or application state, the search, and the page. */
@@ -26,14 +26,7 @@ export function homeListQuery(list: HomeList, search: string, offset = 0, limit 
 	return `?${parameters.toString()}`;
 }
 
-export function triageListQuery(decision: JevTriageDecision | null, search: string, offset = 0, limit = PAGE_SIZE): string {
-	const parameters = new URLSearchParams();
-	if (decision !== null) parameters.set("decision", decision);
-	if (search !== "") parameters.set("q", search);
-	parameters.set("limit", String(limit));
-	parameters.set("offset", String(offset));
-	return `?${parameters.toString()}`;
-}
+
 
 export function inspectorQuery(filters: InspectorFilters, offset = 0, limit = PAGE_SIZE): string {
 	const parameters = new URLSearchParams();

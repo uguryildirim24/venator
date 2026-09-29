@@ -17,7 +17,7 @@ export function decodeAssessment(row: SqlRow): JobAssessment {
 	if (evidence === null) throw new ViewDataError("Invalid assessment evidence.");
 	return {
 		status: memberColumn(row, "assessment_status", ["suitable", "needs_review", "not_suitable", "unassessed"]),
-		assessedBy: memberColumn(row, "assessed_by", ["deterministic", "jev"]),
+		assessedBy: memberColumn(row, "assessed_by", ["deterministic"]),
 		assessedAsOf: optionalTextColumn(row, "assessed_as_of"),
 		summary: textColumn(row, "assessment_summary"),
 		evidence: evidence.map((item) => {

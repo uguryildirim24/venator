@@ -112,14 +112,13 @@ sources:
 # Hard Filter policy. Everything here is data the filters read; the filters
 # themselves stay generic.
 filters:
-  # Shadow Jev checks Hard Filter passes when a key is available. The packaged
+  # The compact policy is model input for Hard Filter passes. The packaged
   # release only knows these life-sciences domains; for this engineering example
   # domain mismatches go to review, not automatic exclusion. Change the domain
   # policy only within the release's closed vocabulary. Promotion requires this
   # Profile's own final check; copying this scaffold does not inherit one.
-  qualification_mode: jev
-  jev:
-    policy_version: example-shadow-1
+  compact_policy:
+    policy_version: example-compact-1
     restricted_roles: review
     temporary_student_authorization_exclusion: review
     no_sponsorship_student: review
@@ -138,7 +137,7 @@ filters:
   # To stop fetching an employer and exclude its stored Postings, add:
   # employer:
   #   exclude: ["CVS Health"]  # display name in sources.names, or a board token
-  # This operational Hard Filter does not change Jev's Profile or policy hash.
+  # This operational Hard Filter does not change the compact policy.
 
   # Which Hard Filters run, in order. Remove one and it stops running — it
   # does not silently pass; it is simply not part of the policy.

@@ -1,11 +1,11 @@
 import { ChevronDown, CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import type { RuntimeLane, RuntimeProbeResponse, RuntimeState } from "../../../shared/onboarding.ts";
 import { runtimeStateLabel } from "../../labels.ts";
-import { chooseDocumentRuntime, OnboardingRequestError, probeRuntimes, readInstallSettings } from "../../onboarding/api.ts";
+import { chooseDocumentRuntime, OnboardingRequestError, probeRuntimes } from "../../onboarding/api.ts";
 import { CONNECT, LINKS } from "./copy.ts";
-import { JevKeyField, OutsideLink } from "./parts.tsx";
+import { OutsideLink } from "./parts.tsx";
 import { readyLane } from "./runtime-selection.ts";
 
 /**
@@ -105,7 +105,7 @@ type ConnectStepProps = {
 };
 
 /**
- * Step one: connect an assistant, add the Jev key, or skip both.
+ * Step one: connect an assistant or skip.
  *
  * **Nothing here runs on render.** A check starts the program and spends a few words of the
  * person's own plan, so it happens only from a press. A check that answers ready saves that
@@ -115,16 +115,8 @@ type ConnectStepProps = {
  */
 export function ConnectStep({ onRuntime, connected }: ConnectStepProps) {
 	const [outcomes, setOutcomes] = useState<Readonly<Record<string, Outcome>>>({});
-	const [keyPresent, setKeyPresent] = useState(false);
 	const [aboutOpen, setAboutOpen] = useState(false);
 	const busy = Object.values(outcomes).some((outcome) => outcome.kind === "checking");
-
-	const readSettings = useCallback(() => {
-		readInstallSettings()
-			.then((settings) => setKeyPresent(settings.jevKeyPresent))
-			.catch(() => setKeyPresent(false));
-	}, []);
-	useEffect(readSettings, [readSettings]);
 
 	const settle = useCallback((lane: string, outcome: Outcome) => {
 		// One assistant is the choice. A ready answer for this one retires the other's
@@ -192,17 +184,6 @@ export function ConnectStep({ onRuntime, connected }: ConnectStepProps) {
 					);
 				})}
 			</div>
-
-			<section className="setup-section" aria-label={CONNECT.jevKey}>
-				<h2 className="group-header">
-					{CONNECT.jevKey}
-					<span className="group-aside">{keyPresent ? CONNECT.keySaved : CONNECT.optional}</span>
-				</h2>
-				<JevKeyField present={keyPresent} onSaved={readSettings} />
-				<p className="setup-caption">
-					{CONNECT.keyCaption} <OutsideLink href={LINKS.typesafeKeys}>{CONNECT.getKey}</OutsideLink>
-				</p>
-			</section>
 
 			<section className="setup-section">
 				<button type="button" className="disclosure-button" aria-expanded={aboutOpen} onClick={() => setAboutOpen((open) => !open)}>

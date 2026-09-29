@@ -179,10 +179,10 @@ test("a Profile replay starts immediately when the runner is idle", async () => 
 });
 
 test("the child is given a built environment, not this process's", async () => {
-	const typesafeSentinel = "typesafe-key-for-fetch-containment";
+	const secretSentinel = "unlisted-secret";
 	const context: LocationContext = {
 		...CONTEXT,
-		environment: (name) => (name === "TYPESAFE_API_KEY" ? typesafeSentinel : CONTEXT.environment(name)),
+		environment: (name) => (name === "UNLISTED_SECRET" ? secretSentinel : CONTEXT.environment(name)),
 	};
 	const { spawn: spawnChild, started } = scripted([SUCCEEDS]);
 	startRun(PLAN, context, spawnChild);
@@ -190,10 +190,10 @@ test("the child is given a built environment, not this process's", async () => {
 
 	const environment = started[0]?.options.env ?? {};
 	assert.equal(environment["PYTHONUNBUFFERED"], "1");
-	// The Install's chosen document runtime is explicit; Refresh receives no Jev credential.
+	// The Install's chosen document runtime is explicit; Refresh receives only named variables.
 	assert.equal(environment["VENATOR_LLM_RUNTIME"], "claude");
-	assert.equal(environment["TYPESAFE_API_KEY"], undefined);
-	assert.ok(!Object.values(environment).includes(typesafeSentinel));
+	assert.equal(environment["UNLISTED_SECRET"], undefined);
+	assert.ok(!Object.values(environment).includes(secretSentinel));
 	// `$GIT_DIR` would send the loop's commit stage at whatever repository the environment
 	// named, past its own work-tree gate.
 	assert.equal(environment["GIT_DIR"], undefined);

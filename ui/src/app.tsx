@@ -16,7 +16,6 @@ import {
 	onboardingHash,
 	queueHash,
 	replaceRoute,
-	triageHash,
 	useRoute,
 } from "./router.ts";
 import { SHORTCUTS } from "./shortcuts.ts";
@@ -82,7 +81,6 @@ export function App() {
 		() => [
 			{ keys: ["1"], label: "1", description: "For you", run: () => navigate(queueHash()) },
 			{ keys: ["2"], label: "2", description: "filter inspector", run: () => navigate(inspectorHash(EMPTY_FILTERS)) },
-			{ keys: ["3"], label: "3", description: "early review", run: () => navigate(triageHash()) },
 			{ keys: ["/"], label: "/", description: "search", run: () => searchField.current?.focus() },
 			{ keys: ["r"], label: "r", description: "reload", run: reload },
 			{ keys: ["?"], label: "?", description: "keyboard shortcuts", run: () => setHelpOpen((open) => !open) },
@@ -96,7 +94,6 @@ export function App() {
 						return;
 					}
 					if (route.name === "queue" && route.search !== "") replaceRoute(queueHash(route.list));
-					if (route.name === "triage" && route.search !== "") replaceRoute(triageHash(route.decision));
 					if (route.name === "inspector" && route.filters.search !== "") replaceRoute(inspectorHash({ ...route.filters, search: "" }));
 				},
 			},

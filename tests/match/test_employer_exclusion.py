@@ -1,4 +1,4 @@
-"""Employer exclusions are operational Hard Filters, not Jev inputs."""
+"""Employer exclusions are operational Hard Filters, not keep scoring inputs."""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -12,7 +12,6 @@ from venator.match.filters import apply_filters
 from venator.match.store import FILTERS_REVISION, _hashed_bytes, filters_version
 from venator.profile import load_profile
 from venator.qualify.compile import compile_profile
-from venator.qualify.versions import jev_accepted_profile_hash, jev_policy_hash
 
 EXAMPLE = Path(__file__).parents[2] / "profiles" / "example"
 
@@ -61,10 +60,8 @@ def test_hash_stability_and_replay(tmp_path):
     def hashes():
         profile = load_profile(directory)
         compiled = compile_profile(profile, as_of_month="2026-09")
-        policy = jev_policy_hash(profile.filters.jev)
         return (filters_version(profile.constraints_path, profile.targeting_path),
-                compiled.profile_hash, policy,
-                jev_accepted_profile_hash(compiled.profile_hash, policy))
+                compiled.profile_hash)
 
     original = hashes()
     # Every Profile moves with the filter-code revision, with or without exclusions.

@@ -19,12 +19,11 @@
  *   no note; a failed one carries its rule and reason.
  */
 
-import type { FilterDecision, JevTriage, JobAssessment, ReaderBlock } from "../shared/contracts.ts";
+import type { FilterDecision, JobAssessment, ReaderBlock } from "../shared/contracts.ts";
 import {
 	assessmentNoteLabel,
 	assessmentNotePlace,
 	evidenceSourceLabel,
-	jevDecisionLabel,
 	requirementFinding,
 	ruleLabel,
 } from "./labels.ts";
@@ -63,7 +62,7 @@ export type MarkedBlock = ReaderBlock & {
 };
 
 export type Margin = {
-	readonly fit: { readonly count: string | null; readonly tally: readonly NoteTone[]; readonly groups: readonly { readonly tone: NoteTone; readonly title: string; readonly clauses: readonly string[]; readonly at: number | null }[]; readonly jev: MarginNote | null } | null;
+	readonly fit: { readonly count: string | null; readonly tally: readonly NoteTone[]; readonly groups: readonly { readonly tone: NoteTone; readonly title: string; readonly clauses: readonly string[]; readonly at: number | null }[]; } | null;
 	readonly requirementsAt: number | null;
 	readonly header: readonly MarginNote[];
 	readonly blocks: readonly MarkedBlock[];
@@ -75,7 +74,6 @@ export type MarginInput = {
 	readonly page: readonly ReaderBlock[];
 	readonly decisions: readonly FilterDecision[];
 	readonly assessment?: JobAssessment | undefined;
-	readonly jevTriage?: JevTriage | undefined;
 };
 
 /* --------------------------------------------------------------- matching */
@@ -174,17 +172,6 @@ function hardFilterNote(decisions: readonly FilterDecision[]): MarginNote | null
 		};
 	}
 	return null;
-}
-
-function earlyReviewNote(triage: JevTriage): MarginNote | null {
-	if (triage.state !== "current" || triage.decision === "unassessed") return null;
-	const label = jevDecisionLabel(triage.decision);
-	return {
-		key: "early-review",
-		tone: "neutral",
-		title: `Jev: ${label.charAt(0).toLowerCase()}${label.slice(1)}`,
-		subtitle: null,
-	};
 }
 
 function unique(notes: readonly MarginNote[]): MarginNote[] {
@@ -318,10 +305,9 @@ export function buildMargin(input: MarginInput): Margin {
 	const filter = hardFilterNote(input.decisions);
 	if (filter !== null) sectionNotes.push(filter);
 	sectionNotes.push(...filterNotes);
-	const jev = input.jevTriage === undefined ? null : earlyReviewNote(input.jevTriage);
 	const read = assessment?.requirementsRead;
 	const validRead = read !== undefined && Number.isSafeInteger(read) && read >= met.length + gaps.length ? read : null;
-	const fit = met.length + gaps.length === 0 && jev === null ? null : {
+	const fit = met.length + gaps.length === 0 ? null : {
 		count: assessment === undefined || assessment.status === "unassessed" ? null
 			: validRead === null ? `${met.length} on your résumé` : `Meets ${met.length} of ${validRead}`,
 		tally: [...met.map(() => "green" as const), ...gaps.map((gap) => gap.tone),
@@ -334,7 +320,6 @@ export function buildMargin(input: MarginInput): Margin {
 			})).filter((group) => group.clauses.length > 0),
 			...(met.length ? [{ tone: "green" as const, title: "On your résumé", clauses: met, at: metAt[0] ?? null }] : []),
 		],
-		jev,
 	};
 
 	if (firstSection === null) {

@@ -83,7 +83,6 @@ test("no run kind the dashboard can start commits", () => {
 test("every unknown or malformed kind is refused", async () => {
 	const routes = createRunRoutes();
 	const hostile = [
-		'{"kind":"jev-it"}',
 		'{"kind":"judge"}',
 		'{"kind":"commit"}',
 		'{"kind":"Judge"}',

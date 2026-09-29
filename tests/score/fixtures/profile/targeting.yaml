@@ -1,19 +1,18 @@
 profile:
-  name: jev-fixture
+  name: compact-fixture
   synthetic: true
 search:
   timing:
-    expected_graduation: "2029-05"
+    expected_graduation: "2027-05"
     expected_graduation_confirmed: true
     enrollment: current
 filters:
   enabled: [education_fit]
-  qualification_mode: jev
   shift_preference: no_weekends
   education_fit:
     in_progress: bachelor
-  jev:
-    policy_version: fictional-student-1
+  compact_policy:
+    policy_version: owner-triage-2
     restricted_roles: exclude
     temporary_student_authorization_exclusion: review
     no_sponsorship_student: retain

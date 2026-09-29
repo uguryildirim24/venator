@@ -56,7 +56,7 @@ def test_refresh_resumes_details_and_publishes_evidence_without_manual_correctio
     def view():
         build.build_database(postings, decisions, database, track, heartbeat, profile=profile)
 
-    actions = {"discover": discover, "filters": lambda: run_filters(postings, decisions, profile=profile), "jev": lambda: {}, "view": view}
+    actions = {"discover": discover, "filters": lambda: run_filters(postings, decisions, profile=profile), "view": view}
 
     def statuses():
         with sqlite3.connect(database) as db:

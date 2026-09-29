@@ -1,7 +1,7 @@
 """Conservative New England location reading for a Profile's Hard Filter.
 
-A site with no recognizable jurisdiction is not evidence of an outside site.
-Never infer a state from a shared town name (Cambridge, Concord, Burlington).
+A city with several readings keeps its New England reading. Unreadable sites
+are outside only when the employer's current Postings have no readable local site.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import Literal
 
 from venator.countries import country_code
 from venator.discover.common import STATE_CODES, normalize_locations
+from venator.place_lookup import readings
 
 Scope = Literal["ma", "new_england", "remote", "unreadable", "outside"]
 NEW_ENGLAND = frozenset({"MA", "RI", "NH", "CT", "VT", "ME"})
@@ -26,28 +27,6 @@ _REMOTE = re.compile(r"\bremote\b|\b(?:US|USA|United States)(?:[ -]?wide| nation
 _COUNT = re.compile(r"^\d+\s+locations?$", re.I)
 _US = {"us", "usa", "united states", "united states of america"}
 
-# Exact, unambiguous site labels seen in the View, plus major world cities.
-# Do not infer from a shared city name (e.g. Cambridge, London, Paris, Dublin).
-_FOREIGN_CITIES = frozenset(name.casefold() for name in (
-    "Tokyo", "Tokyo (NPKK Sales)", "Seoul", "Basel", "Basel (City)",
-    "Beijing", "Frankfurt am Main", "Ljubljana", "Montevideo",
-    "Grenzach", "Kaiseraugst", "Vitry-sur-Seine", "City of Singapore",
-    "Shanghai", "Hyderabad", "Hyderabad (Office)", "Budapest",
-    "Petaling Jaya", "Schaftenau", "Penzberg", "Warsaw", "Taipei",
-    "Mengeš", "Sant Cugat del Vallès", "Barcelona", "Mississauga",
-    "Mannheim", "Bengaluru India", "Prague", "Sao Paulo", "Rotkreuz",
-    "Moscow (City)", "Guangzhou", "Qingdao Site",
-    "Bogota", "Riga", "Taguig City", "Toranomon (NPKK Head Office)",
-    "Beijing Yizhuang", "Singapore Manufacturing - Tuas", "Central Singapore",
-    "Kundl", "Welwyn", "Shanghai China", "Shanghai Jing'An Office",
-    "Otemachi-JP", "Warsaw-WeWork-PL", "Barcelona Gran Vía",
-    "Gangnam-gu, Korea, Republic of", "Seoul, Korea, Republic of",
-    "Seoul, Republic of Korea", "London (The Westworks)", "Dublin (NOCC)",
-    "Mexico City", "Munich", "Zurich",
-    "Osaka", "Singapore", "Hong Kong", "Mumbai", "Jakarta",
-    "Auckland", "Buenos Aires", "Tianjin",
-    "Wulumuqi", "Wroclaw", "Le Trait", "Brasilia", "Chengdu",
-))
 # Known New England facilities without a town in the source location. The
 # Other explicit site labels can name a facility rather than a city
 # (Maddock Alumni Center is at Brown in Providence).
@@ -87,7 +66,7 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
         # Country-labelled remote locations are outside, not US-wide remote.
         # Remove only the remote marker, then read exact country tokens.
         without_remote = re.sub(r"\bremote\b(?:\s+location)?", "", name, flags=re.I)
-        remote_parts = [part.strip(" ,-/") for part in re.split(r"[,;]|\s+[-–—]\s+", without_remote)]
+        remote_parts = [without_remote.strip(" ,-/"), *[part.strip(" ,-/") for part in re.split(r"[,;]|\s+[-–—]\s+", without_remote)]]
         # A city can share a country name (Lebanon, NH). A leading country
         # only counts when the following component is not a US region.
         trailing = parts[-1].casefold()
@@ -123,17 +102,39 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
         return "ma" if state == "MA" else "new_england" if state in NEW_ENGLAND else "outside"
     if re.search(r"\b(?:Puerto Rico|Guam|American Samoa|Northern Mariana Islands|US Virgin Islands)\b", name, re.I):
         return "outside"
-    if code == "US" or _REMOTE.fullmatch(name):
-        return "remote"
-    if name.casefold() in _FOREIGN_CITIES:
-        return "outside"
     if local := _LOCAL_FACILITIES.get(name.casefold()):
         return local
+    if _REMOTE.fullmatch(name):
+        return "remote"
+    # County readings outrank an unknown neighborhood or employer site label.
+    for county in re.findall(r"\b[\w ]+?\s+County\b", name, flags=re.I):
+        places = readings("county:" + county.strip())
+        if places:
+            if "MA" in places:
+                return "ma"
+            if NEW_ENGLAND.intersection(places):
+                return "new_england"
+            return "outside"
+    # US is a prefix, not a city: "US, Lenexa KCIB (PRA)" reads Lenexa.
+    city = re.sub(r"^(?:US|USA|United States)\s*[,\-]\s*", "", name, flags=re.I)
+    city = re.sub(r"^City of ", "", city, flags=re.I)
+    city = re.sub(r"\s*\([^)]*\)$|\s+(?:office|site|campus)$", "", city, flags=re.I).strip()
+    city = re.sub(r"\s+(?:KCIB|Affiliate|Job Posting Location|Posting Location|Job Location)\b.*$", "", city, flags=re.I).strip()
+    for candidate in (city, city.split(",")[0].strip()):
+        places = readings(candidate)
+        if places:
+            if "MA" in places:
+                return "ma"
+            if NEW_ENGLAND.intersection(places):
+                return "new_england"
+            return "outside"
+    if code == "US":
+        return "remote" if not city else "unreadable"
     return "unreadable"
 
 
-def location_scope(posting: Mapping[str, object]) -> Scope:
-    """Keep any New England site; do not kill a wholly unreadable site."""
+def location_scope(posting: Mapping[str, object], *, employer_has_local: bool | None = None) -> Scope:
+    """Keep any New England site; a wholly unreadable employer is outside."""
     sites: list[Scope] = []
     raw = posting.get("locations")
     structured_sites = False
@@ -171,5 +172,10 @@ def location_scope(posting: Mapping[str, object]) -> Scope:
         sites.extend(_site(part) for part in re.split(r"\s*[;|]\s*", display))
     for value in ("ma", "new_england", "remote", "unreadable", "outside"):
         if value in sites:
+            if value == "unreadable" and employer_has_local is False and not (display_is_count and not structured_sites):
+                return "outside"
             return value  # type: ignore[return-value]
-    return "unreadable"
+    # A count does not name a site. Do not apply the employer rule to it.
+    if display_is_count and not structured_sites:
+        return "unreadable"
+    return "outside" if employer_has_local is False else "unreadable"

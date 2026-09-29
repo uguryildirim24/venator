@@ -5,7 +5,7 @@ import { checkLocalAction, LOCAL_ACTION_ORIGINS } from "../http/local-action-gua
 import { pipelineWorkingDirectory, pythonInterpreter, systemContext } from "../locations.ts";
 import { asBoolean, asMapping, asText, parseJson, type JsonValue } from "../onboarding/json.ts";
 import { readOnboardingState } from "../onboarding/state.ts";
-import { runEnvironment, TYPESAFE_API_KEY_ENVIRONMENT } from "../runs/environment.ts";
+import { runEnvironment } from "../runs/environment.ts";
 import { currentRun, signalTree } from "../runs/runner.ts";
 import { applicationIsActive, setApplicationActive } from "./activity.ts";
 
@@ -31,7 +31,7 @@ export function applicationCommand(argv: readonly string[], options?: { readonly
 		if (value !== undefined) environment[name] = value;
 	}
 	const keyName = environment.VENATOR_LLM_API_KEY_VAR;
-	if (keyName !== undefined && keyName !== TYPESAFE_API_KEY_ENVIRONMENT && /^[A-Za-z_][A-Za-z0-9_]*$/.test(keyName)) {
+	if (keyName !== undefined && /^[A-Za-z_][A-Za-z0-9_]*$/.test(keyName)) {
 		const key = context.environment(keyName);
 		if (key !== undefined) environment[keyName] = key;
 	}

@@ -52,7 +52,7 @@ test("the example Profile reads as fields, with the flags and policy the form do
 	assert.deepEqual(validateProfileForm(form), []);
 });
 
-test("excluded employers round-trip without removing registered boards or changing Jev policy", () => {
+test("excluded employers round-trip without removing registered boards or changing compact policy", () => {
 	const original = example();
 	const form = formOf(original);
 	assert.deepEqual(form.targeting.filters.employer_exclude, []);
@@ -60,7 +60,7 @@ test("excluded employers round-trip without removing registered boards or changi
 	const patched = patchProfileDocuments(original, excluded);
 	assert.deepEqual(formOf(patched).targeting.filters.employer_exclude, ["Cloudflare"]);
 	assert.match(patched["targeting.yaml"], /cloudflare: Cloudflare/u);
-	assert.match(patched["targeting.yaml"], /policy_version: example-shadow-1/u);
+	assert.match(patched["targeting.yaml"], /policy_version: example-compact-1/u);
 	assert.deepEqual(profileFormFromBody(JSON.parse(JSON.stringify(formOf(patched)))).targeting.filters.employer_exclude, ["Cloudflare"]);
 	const restored = patchProfileDocuments(patched, { ...formOf(patched), targeting: { ...formOf(patched).targeting, filters: { ...formOf(patched).targeting.filters, employer_exclude: [] } } });
 	assert.deepEqual(formOf(restored).targeting.filters.employer_exclude, []);
@@ -131,7 +131,7 @@ test("what changed is written into the same document, and what the form does not
 	assert.match(targeting, /names:\n {4}cloudflare: Cloudflare, Inc\.\n {4}linear: Linear\n {4}"yes": Yes Corp/u);
 	assert.doesNotMatch(targeting, /duolingo/u);
 	assert.match(targeting, /workday:\n {6}- "yes"/u);
-	assert.match(targeting, /qualification_mode: jev\n {2}jev:\n {4}policy_version: example-shadow-1/u, "the Jev policy is untouched");
+	assert.match(targeting, /compact_policy:\n {4}policy_version: example-compact-1/u, "the compact policy is untouched");
 	assert.match(targeting, /enabled:\n {4}- education_fit\n {4}- role_target\n {4}- work_authorization/u);
 	assert.match(targeting, /accept:\n {6}- senior/u);
 	assert.match(targeting, /terms: \[\]/u);

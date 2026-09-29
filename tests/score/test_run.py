@@ -11,9 +11,9 @@ from venator.score.run import run_score
 from venator.score.selection import Input, inputs_for_passes
 from venator.score.store import read_scores
 
-FIXTURE = Path(__file__).parents[1] / 'qualify/fixtures/jev'
-MODEL = KeepModel('test', 'test', 'sample-model', '/vol/sample-model/base',
-                  '/vol/sample-model/adapter', 'a' * 64,
+FIXTURE = Path(__file__).parent / 'fixtures'
+MODEL = KeepModel('test', 'test', 'venator-decider-test', '/vol/venator-decider-test/base',
+                  '/vol/venator-decider-test/adapter', 'a' * 64,
                   {'keep': {'type': 'noul', 'instructions': 'Keep?',
                             'criteria': {'false': 'Skip', 'true': 'Keep'}}})
 
