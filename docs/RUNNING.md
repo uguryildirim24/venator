@@ -44,8 +44,9 @@ uv run python -m venator.schedule.loop \
   --only discover,filters,view --profile NAME --interactive-discover
 ```
 
-Score is a separate run (see step 3). Neither Refresh nor Score prepares
-documents, opens a browser or submits anything.
+Score is a separate press (see step 3). The daily run includes Score, rechecks
+new picks and saved Postings, rebuilds View and notifies you. Neither run submits
+anything.
 
 ### 1. Discover
 
@@ -121,8 +122,8 @@ foreign remote sites and campus labels without a network request.
 
 Score uses the person's own keep model in their Install's private `keep-model.json`.
 It sends compact, identity-stripped inputs and configured model metadata to Modal.
-No model, adapter, question or Modal account comes with the repository. Score only
-runs on a press or an explicit command:
+No model, adapter, question or Modal account comes with the repository. Score
+runs on a press, the daily run or an explicit command:
 
 ```bash
 uv run python -m venator.score.run --profile NAME --estimate
@@ -131,7 +132,8 @@ uv run python -m venator.score.run --profile NAME --execute
 
 The estimate is a bounded CPU preflight. Execute uses that receipt, checks the $0.50
 cap, then appends scores under `data/keep-scores`. A partial run resumes without
-rescoring current inputs. Refresh does not run inference.
+rescoring current inputs. The daily run also has daily and monthly spend limits.
+Refresh does not run inference.
 
 ### 4. Build the view
 
@@ -173,39 +175,40 @@ uv run python -m venator.applications applied POSTING_KEY --profile NAME
 
 `applied` records that you applied. It sends nothing to the employer.
 
-To prepare documents, pick the runtime explicitly:
+Apply checks the live Posting and reruns Hard Filters. It reads Greenhouse form
+questions when available, drafts a résumé and a letter if the form asks for one,
+and checks drafted passages against confirmed Profile facts. You can edit the text;
+each edit makes a new version. Reviewed files are hashed under `data/applications/`.
 
 ```bash
-uv run python -m venator.applications prepare POSTING_KEY \
-  --profile NAME --provider claude
-# add --cover-letter if you want one
+uv run python -m venator.applications apply POSTING_KEY --profile NAME
 ```
 
-Preparing checks the employer's listing again and reruns the Hard Filters. Then one
-completion drafts résumé bullets (and a cover letter if asked) from confirmed Profile
-facts, and a second completion checks every drafted passage against those facts.
-A rewritten bullet that fails the check goes back to your original wording, and a
-cover-letter paragraph that fails it is removed. Files are versioned and hashed under
-`data/applications/`. If the Posting, the Profile or a file has changed, the old
-bundle is refused rather than reused.
+The answer library under `data/answers/` holds answers you wrote for one employer
+or for all employers. Profile `screening:` is no longer used. Greenhouse questions
+about authorization, sponsorship, consent and other reserved subjects stay for you
+to answer. Essays cite statements you wrote in the library; Venator does not make
+up your reasons. Changing an answer or statement used by an Application requires a
+new Apply before Fill.
 
-To get a prepared file back (`resume.pdf`, `resume.txt` or `letter.txt`):
+To get a prepared file back (`resume.pdf`, `resume.txt` or `letter.pdf`):
 
 ```bash
 uv run python -m venator.applications file POSTING_KEY \
   --profile NAME --file resume.pdf
 ```
 
-Handoff needs a current, verified bundle:
+Fill needs a current, hash-verified bundle:
 
 ```bash
-uv run python -m venator.applications handoff POSTING_KEY --profile NAME
+uv run python -m venator.applications fill POSTING_KEY --profile NAME
 ```
 
-It opens a visible browser with its own saved profile, so logins stick. For
-Greenhouse it fills confirmed fields and uploads the prepared files. Other sources
-open for you to fill in by hand. Either way you review the form, answer what's
-missing, deal with any CAPTCHA, and press submit yourself.
+It opens a visible browser with its own saved profile, so logins stick. On
+Greenhouse it fills confirmed fields and uploads only the reviewed PDFs. Other
+sources open for you to fill in by hand. Review the form, answer what's missing,
+deal with any CAPTCHA and press Submit yourself. A detected Greenhouse confirmation
+records an applied Application; use `applied` if you submitted without detection.
 
 ## Dry Run browser tools
 
@@ -263,7 +266,8 @@ environment, and provider text is never copied into the stores.
 | `data/keep-scores/` | Score | append-only |
 | `data/track/<date>.jsonl` | Track | append-only |
 | `data/runs.jsonl` | the loop | append-only |
-| `data/applications/` | preparation | versioned bundles |
+| `data/applications/` | Apply and edits | versioned bundles |
+| `data/answers/` | answer library | append-only |
 | `build/venator.db` | view build | disposable |
 | `build/fill/` | Dry Run tools | disposable |
 
@@ -284,14 +288,11 @@ directory. It only appends what is missing.
 uv run python -m venator.schedule.loop --dry-run --profile NAME
 ```
 
-The loop knows four stages, in this order: `discover, filters, view, commit`.
-With no `--only` it runs `discover,filters,view`. `--only` picks a subset but can't
-change the order. `commit` runs only when you name
-it and `data/` is inside a Git work tree, which an Install normally isn't. The loop
-never pushes.
-
-To run it every six hours on a Mac, see [ops/README.md](../ops/README.md). Nothing in
-this repository loads a launchd job for you.
+The loop's daily stages are `discover, filters, score, recheck, view, notify`.
+`--only` picks a subset in that order; Refresh runs only Discover, Hard Filters and
+View. `commit` runs only when named and `data/` is inside a Git work tree. The loop
+never pushes. A cross-process lock keeps two runs from writing together. On a Mac,
+the installed app owns a daily launchd agent; see [ops/README.md](../ops/README.md).
 
 ## Checks
 

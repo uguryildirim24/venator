@@ -5,13 +5,16 @@ import { checkLocalAction, LOCAL_ACTION_ORIGINS } from "../http/local-action-gua
 import { pipelineWorkingDirectory, pythonInterpreter, systemContext } from "../locations.ts";
 import { asBoolean, asMapping, asText, parseJson, type JsonValue } from "../onboarding/json.ts";
 import { readOnboardingState } from "../onboarding/state.ts";
+import { readProfileDocuments } from "../onboarding/profile-edit.ts";
+import { formOf, saveProfileForm } from "../onboarding/profile-form.ts";
+import { queueProfileReplay } from "../runs/runner.ts";
 import { runEnvironment } from "../runs/environment.ts";
 import { currentRun, signalTree } from "../runs/runner.ts";
 import { applicationIsActive, setApplicationActive } from "./activity.ts";
+import { takePipelineLock } from "../pipeline-lock.ts";
 
 const HEADER = "X-Venator-Application";
-const ACTIONS = ["prepare", "save", "dismiss", "restore", "applied", "handoff"];
-const PROVIDERS = ["claude", "codex", "api"];
+const ACTIONS = ["apply", "edit", "save", "dismiss", "restore", "applied", "fill", "answer", "retract", "replace", "promote", "authorization"];
 const children = new Set<ChildProcess>();
 
 export function shutdownApplications(): void {
@@ -63,7 +66,7 @@ export function applicationCommand(argv: readonly string[], options?: { readonly
 				const result = parseJson(output);
 				if (code !== 0) {
 					const error = asMapping(result);
-					reject(new Error(error === null ? "Application preparation failed." : asText(error.error) ?? "Application preparation failed."));
+					reject(new Error(error === null ? "Application action failed." : asText(error.error) ?? "Application action failed."));
 				} else resolve(result);
 			} catch { reject(new Error("The application service did not return a result.")); }
 		});
@@ -72,7 +75,7 @@ export function applicationCommand(argv: readonly string[], options?: { readonly
 
 function profileArgs(): readonly string[] {
 	const profile = readOnboardingState().implied;
-	if (profile === null) throw new Error("Choose a profile before preparing an application.");
+	if (profile === null) throw new Error("Choose a Profile before applying.");
 	return ["--profile", profile];
 }
 
@@ -87,7 +90,7 @@ export function createApplicationRoutes(command: ApplicationCommand = applicatio
 	const queue: Array<() => void> = [];
 	async function slot(signal: AbortSignal): Promise<() => void> {
 		if (signal.aborted) throw new Error("Application status was cancelled.");
-		if (running >= 2) {
+		if (running >= 1) {
 			if (queue.length >= 16) throw new Error("Too many application status checks. Try again shortly.");
 			await new Promise<void>((resolve, reject) => {
 				const wake = () => { signal.removeEventListener("abort", cancel); resolve(); };
@@ -112,8 +115,16 @@ export function createApplicationRoutes(command: ApplicationCommand = applicatio
 			const controller = new AbortController();
 			const promise = (async () => {
 				const release = await slot(controller.signal);
-				try { return await command(args, { signal: controller.signal, timeoutMs: 4_000 }); }
-				finally { release(); }
+				try {
+					// Status may record an employer confirmation, so it is a writer too.
+					while (applicationIsActive() || currentRun() !== null) {
+						if (controller.signal.aborted) throw new Error("Application status was cancelled.");
+						await new Promise((done) => setTimeout(done, 50));
+					}
+					setApplicationActive(true);
+					try { return await command(args, { signal: controller.signal, timeoutMs: 4_000 }); }
+					finally { setApplicationActive(false); }
+				} finally { release(); }
 			})();
 			flight = { controller, promise, readers: 0 };
 			flights.set(identity, flight);
@@ -143,29 +154,71 @@ export function createApplicationRoutes(command: ApplicationCommand = applicatio
 		if (refusal !== null) return context.json({ error: refusal.message }, 403);
 		if (applicationIsActive() || currentRun() !== null) return context.json({ error: "Wait for the current operation to finish." }, 409);
 		const raw = await context.req.text();
-		if (raw.length > 4096) return context.json({ error: "Request too large." }, 413);
+		// DRAFT_SCHEMA: 250 bullets + 5 paragraphs, 1800 text + 200 ID each.
+		if (raw.length > 255 * (1800 + 200 + 48) + 1000) return context.json({ error: "Request too large." }, 413);
 		const body = asMapping(parseJson(raw));
 		const action = body === null ? null : asText(body.action);
 		const key = body === null ? null : asText(body.key);
-		const provider = body === null ? null : asText(body.provider);
 		if (action === null || !ACTIONS.includes(action) || !key || key.length > 1000) {
 			return context.json({ error: "Choose a job and an application action." }, 400);
 		}
-		if (action === "prepare" && (provider === null || !PROVIDERS.includes(provider))) {
-			return context.json({ error: "Choose which AI connection will prepare the documents." }, 400);
+		if (action !== "edit" && raw.length > 4096) return context.json({ error: "Request too large." }, 413);
+		if (action === "authorization") {
+			const value = asBoolean(body?.authorized);
+			const name = readOnboardingState().implied;
+			if (value === null || name === null) return context.json({ error: "Choose Yes or No for work authorization." }, 400);
+			setApplicationActive(true);
+			try {
+				const documents = readProfileDocuments(name);
+				const form = formOf(documents);
+				const previous = form.constraints.work_authorization.authorized_to_work;
+				const answer = value ? "yes" : "no";
+				if (previous !== "unanswered" && previous !== answer) return context.json({ error: "Work authorization has already been answered in the Profile." }, 409);
+				if (previous === "unanswered") {
+					await saveProfileForm(name, { ...form, constraints: { ...form.constraints,
+						work_authorization: { ...form.constraints.work_authorization, authorized_to_work: answer } } }, documents);
+					try { queueProfileReplay(name); } catch (error) { process.stderr.write(`Profile replay could not be queued: ${String(error)}\n`); }
+				}
+				return jsonResponse({ saved: true });
+			} finally { setApplicationActive(false); }
 		}
 		const args = [action, key, ...selectedProfile()];
-		if (action === "prepare" && provider !== null) args.push("--provider", provider);
-		if (body !== null && asBoolean(body.coverLetter) === true) args.push("--cover-letter");
+		if (action === "answer") {
+			const text = asText(body?.text);
+			const kind = asText(body?.kind);
+			const answer = asText(body?.answer) ?? asBoolean(body?.answer);
+			const universal = asBoolean(body?.universal);
+			const eeo = asBoolean(body?.eeo) ?? false;
+			if (text === null || kind === null || answer === null || universal === null) return context.json({ error: "Choose a question and its answer." }, 400);
+			args.push("--answer", JSON.stringify({ text, kind, answer, universal, eeo }));
+		}
+		if (action === "retract" || action === "replace" || action === "promote") {
+			const id = asText(body?.id);
+			const answer = asText(body?.answer) ?? asBoolean(body?.answer);
+			if (id === null || action === "replace" && answer === null) return context.json({ error: "Choose an answer to change." }, 400);
+			args.push("--answer", JSON.stringify({ id, answer: action === "retract" ? null : answer }));
+		}
+		if (action === "edit") {
+			const version = body === null ? null : asText(body.version);
+			const edits = body?.edits;
+			if (version === null || !/^[a-zA-Z0-9]+$/u.test(version) || !Array.isArray(edits) || edits.length < 1 || edits.length > 255 ||
+				edits.some((row) => { const entry = asMapping(row); const id = entry === null ? null : asText(entry.draft_id); const text = entry === null ? null : asText(entry.text); return entry === null || Object.keys(entry).length !== 2 || id === null || id.length > 200 || text === null || text.length > 1800 || !text.trim() || /[\r\n]/u.test(text); })) {
+				return context.json({ error: "Choose bounded reviewed passages to edit." }, 400);
+			}
+			args.push("--version", version, "--edits", JSON.stringify(edits));
+		}
 		if (applicationIsActive() || currentRun() !== null) return context.json({ error: "Wait for the current operation to finish." }, 409);
+		const releaseLock = takePipelineLock();
+		if (releaseLock === null) return context.json({ error: "Wait for the current operation to finish." }, 409);
 		setApplicationActive(true);
 		try { return jsonResponse(await command(args)); }
-		finally { setApplicationActive(false); }
+		finally { setApplicationActive(false); releaseLock(); }
 	});
+	routes.get("/answers", async (context) => jsonResponse(await status(["answers", "_", ...selectedProfile()], context.req.raw.signal)));
 	routes.get("/:key", async (context) => jsonResponse(await status(["status", context.req.param("key"), ...selectedProfile()], context.req.raw.signal)));
 	routes.get("/:key/files/:name", async (context) => {
 		const name = context.req.param("name");
-		if (!["resume.pdf", "resume.txt", "letter.txt"].includes(name)) return context.json({ error: "Unknown document." }, 404);
+		if (!["resume.pdf", "resume.txt", "letter.txt", "letter.pdf"].includes(name)) return context.json({ error: "Unknown document." }, 404);
 		const result = asMapping(await command(["file", context.req.param("key"), "--file", name, ...selectedProfile()]));
 		const content = result === null ? null : asText(result.base64);
 		if (content === null) return context.json({ error: "Document unavailable." }, 404);

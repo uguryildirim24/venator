@@ -23,6 +23,7 @@ import type { PlanDocument } from "../server/runs/plan.ts";
 import { issuePlan, redeemPlan, resetPlansForTest, type DescribeRun } from "../server/runs/tokens.ts";
 import { createRunRoutes } from "../server/runs/routes.ts";
 import { resetRunsForTest } from "../server/runs/runner.ts";
+import { takePipelineLock } from "../server/pipeline-lock.ts";
 import { RUN_REQUEST_HEADER } from "../shared/runs.ts";
 
 const DESKTOP_ORIGIN = "tauri://localhost";
@@ -280,6 +281,20 @@ test("a start with no plan behind it is refused before anything is spawned", asy
 	assert.equal(body.error.field, "token");
 	// A run nobody was shown a plan for is not expressible, and this is where that is enforced.
 	assert.match(body.error.message, /A run is started against a plan/u);
+});
+
+test("a loop holding the Install lock makes POST /api/runs answer 409", async () => {
+	const context = machine([{ name: "fixture" }]);
+	const routes = createRunRoutes({ location: context, describe: answers, spawnChild: () => assert.fail("busy lock spawned a child") });
+	const planned = await routes.request(post("/plan", JSON.stringify({ kind: "fetch-and-filter" })));
+	assert.equal(planned.status, 200);
+	const body = await planned.json();
+	const release = takePipelineLock(context);
+	assert.ok(release);
+	try {
+		const result = await routes.request(post("/", JSON.stringify({ token: body.plan.token })));
+		assert.equal(result.status, 409);
+	} finally { release(); }
 });
 
 test("a start against a token this process never issued is refused as out of date", async () => {

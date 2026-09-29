@@ -1,8 +1,8 @@
 import { Check, ChevronRight, Loader, Lock } from "lucide-react";
-import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { FilterDecision, PostingDetail, TrackEvent } from "../../shared/contracts.ts";
-import { applicationFileUrl, type ApplicationManifest, type ApplicationProvider } from "../api.ts";
+import { applicationFileUrl, saveAnswer, saveAuthorization, type ApplicationEdit, type ApplicationManifest } from "../api.ts";
 import { preparation, type ApplicationControl } from "../application.ts";
 import { formatDay, formatMoment, hostOf } from "../format.ts";
 import { assessmentNoteLabel, decisionTitle, employerLabel, ruleLabel, sourceLabel, statusLabel, trackEventLabel } from "../labels.ts";
@@ -144,12 +144,6 @@ function FootLink({ label, count, noun, onPress }: { readonly label: string; rea
 
 /* ----------------------------------------------------------------- the application */
 
-const PROVIDERS: readonly { readonly value: ApplicationProvider; readonly label: string; readonly help: string }[] = [
-	{ value: "claude", label: "Claude", help: "Uses the installed Claude CLI with its local sign-in." },
-	{ value: "codex", label: "ChatGPT via Codex", help: "Uses the installed Codex CLI with its local sign-in." },
-	{ value: "api", label: "Configured API", help: "Uses the API configured on this machine." },
-];
-
 function ResumeThumb() {
 	return (
 		<span className="resume-thumb" aria-hidden="true">
@@ -164,11 +158,15 @@ function ResumeThumb() {
 	);
 }
 
-function QuickLook({ postingKey, manifest, open, onOpenChange }: { readonly postingKey: string; readonly manifest: ApplicationManifest; readonly open: boolean; readonly onOpenChange: (open: boolean) => void }) {
+function QuickLook({ postingKey, manifest, open, busy, error, onOpenChange, onEdit }: { readonly postingKey: string; readonly manifest: ApplicationManifest; readonly open: boolean; readonly busy: boolean; readonly error: string | null; readonly onOpenChange: (open: boolean) => void; readonly onEdit: (edits: readonly ApplicationEdit[]) => void }) {
 	const [view, setView] = useState<"pdf" | "text" | "letter">("pdf");
+	const [edits, setEdits] = useState<Record<string, string>>({});
+	const [answers, setAnswers] = useState<Record<string, string>>({});
+	const [answerError, setAnswerError] = useState<string | null>(null);
+	useEffect(() => setEdits({}), [manifest.version]);
 	const pdf = applicationFileUrl(postingKey, "resume.pdf");
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange} title="Tailored résumé" description="The prepared documents, as they will be uploaded." size="wide">
+		<Sheet open={open} onOpenChange={onOpenChange} title="Application" size="wide">
 			<div className="segmented" role="group" aria-label="Document">
 				<button type="button" aria-pressed={view === "pdf"} onClick={() => setView("pdf")}>
 					Résumé
@@ -184,76 +182,34 @@ function QuickLook({ postingKey, manifest, open, onOpenChange }: { readonly post
 			</div>
 			{view === "pdf" ? <iframe key={manifest.version} src={pdf} title="Prepared résumé" className="sheet-frame" /> : null}
 			{view === "text" ? <pre className="sheet-text">{manifest.resumeText ?? "The résumé text is not available."}</pre> : null}
-			{view === "letter" ? <pre className="sheet-text">{manifest.letterText}</pre> : null}
-			{manifest.changes?.length ? (
-				<div className="sheet-notes">
-					<span className="margin-count">What was tailored</span>
-					{manifest.changes.map((change) => (
-						<div key={change} className="note">
-							<span className="note-subtitle">{change}</span>
-						</div>
-					))}
+			{view === "letter" ? <iframe key={manifest.version} src={applicationFileUrl(postingKey, "letter.pdf")} title="Cover letter" className="sheet-frame" /> : null}
+			{manifest.formQuestions?.filter((row) => row.kind !== "file").map((row) => (
+				<div key={row.name} className="form-row">
+					<span>{row.label}</span>
+					{row.answer === null ? row.category === "authorization" ? <div className="empty-actions">
+						{([true, false] as const).map((answer) => <button key={String(answer)} type="button" className="button" onClick={() => {
+							void saveAuthorization(postingKey, answer).then(() => setAnswerError(null)).catch((failure: Error) => setAnswerError(failure.message));
+						}}>{answer ? "Yes" : "No"}</button>)}
+					</div> : row.bucket === "reserved" && row.category !== "eeo" ? null : <>
+						<input className="text-field" value={answers[row.name] ?? ""} onChange={(event) => setAnswers((previous) => ({ ...previous, [row.name]: event.target.value }))} />
+						<button type="button" className="button" disabled={!answers[row.name]?.trim()} onClick={() => {
+							void saveAnswer(postingKey, { text: row.label, kind: row.kind === "select" || row.kind === "textarea" ? row.kind : "text",
+								answer: answers[row.name] ?? "", universal: false, eeo: row.category === "eeo" }).then(() => setAnswerError(null)).catch((error: Error) => setAnswerError(error.message));
+						}}>Keep</button>
+					</> : <strong>{row.answer}</strong>}
 				</div>
-			) : null}
+			))}
+			{manifest.draftProvenance?.filter((row) => row.final !== null).map((row) => (
+				<label key={row.draft_id} className="form-row">
+					<span>{row.kind === "resume_bullet" ? "Résumé bullet" : row.kind === "essay_answer" ? "Essay" : "Letter paragraph"}</span>
+					<textarea maxLength={1800} value={edits[row.draft_id] ?? row.final ?? ""} onChange={(event) => setEdits((previous) => ({ ...previous, [row.draft_id]: event.target.value }))} />
+				</label>
+			))}
+			{error || answerError ? <p role="alert">{error ?? answerError}</p> : null}
+			{Object.keys(edits).length ? <button type="button" className="button" disabled={busy} onClick={() => onEdit(Object.entries(edits).map(([draft_id, text]) => ({ draft_id, text })))}>Save edits</button> : null}
 			<div className="empty-actions">
-				<a className="button" href={pdf} download>
-					Download the PDF
-				</a>
-			</div>
-		</Sheet>
-	);
-}
-
-function PrepareSheet({
-	detail,
-	control,
-	open,
-	onOpenChange,
-}: {
-	readonly detail: PostingDetail;
-	readonly control: ApplicationControl;
-	readonly open: boolean;
-	readonly onOpenChange: (open: boolean) => void;
-}) {
-	const previous = control.manifest.status === "ready" ? control.manifest.value.provider : null;
-	const [provider, setProvider] = useState<ApplicationProvider>(PROVIDERS.find((entry) => entry.value === previous)?.value ?? "claude");
-	const [coverLetter, setCoverLetter] = useState(false);
-	const { allowed, note } = preparation(detail);
-	return (
-		<Sheet open={open} onOpenChange={onOpenChange} title="Prepare Application" description={note}>
-			<div className="form-group">
-				<label className="form-row">
-					<span>Prepare with</span>
-					<select value={provider} onChange={(event) => setProvider(PROVIDERS.find((entry) => entry.value === event.target.value)?.value ?? "claude")}>
-						{PROVIDERS.map((entry) => (
-							<option key={entry.value} value={entry.value}>
-								{entry.label}
-							</option>
-						))}
-					</select>
-				</label>
-				<label className="form-row form-check">
-					<input type="checkbox" checked={coverLetter} onChange={(event) => setCoverLetter(event.target.checked)} />
-					<span>Include a cover letter</span>
-				</label>
-			</div>
-			<p className="form-help">
-				{PROVIDERS.find((entry) => entry.value === provider)?.help} Preparing is one completion on that runtime. Nothing is sent to the employer.
-			</p>
-			<div className="sheet-actions">
-				<button
-					type="button"
-					className="button"
-					// Opening this sheet costs nothing; the press waits until the documents on
-					// record have been read, so it never prepares over ones it has not seen.
-					disabled={!allowed || control.busy !== null || control.manifest.status === "loading"}
-					onClick={() => {
-						control.run("prepare", { provider, coverLetter });
-						onOpenChange(false);
-					}}
-				>
-					Prepare
-				</button>
+				<a className="button" href={pdf} download>Download résumé</a>
+				{manifest.letterText ? <a className="button" href={applicationFileUrl(postingKey, "letter.pdf")} download>Download letter</a> : null}
 			</div>
 		</Sheet>
 	);
@@ -261,7 +217,19 @@ function PrepareSheet({
 
 function ApplicationMargin({ detail, control, onHistory }: { readonly detail: PostingDetail; readonly control: ApplicationControl; readonly onHistory: () => void }) {
 	const [quickLook, setQuickLook] = useState(false);
-	const [prepareOpen, setPrepareOpen] = useState(false);
+	const [kept, setKept] = useState<ReadonlySet<string>>(new Set());
+	const [captureError, setCaptureError] = useState<string | null>(null);
+	const [awaitingReview, setAwaitingReview] = useState(false);
+	useLayoutEffect(() => {
+		if (control.busy === "apply") setAwaitingReview(true);
+		if (!awaitingReview || control.busy !== null) return;
+		if (control.error !== null) { setAwaitingReview(false); return; }
+		if (control.reviewVersion !== null && control.manifest.status === "ready" &&
+			control.manifest.value.version === control.reviewVersion) {
+			setQuickLook(true);
+			setAwaitingReview(false);
+		}
+	}, [control.busy, control.manifest, control.error, control.reviewVersion, awaitingReview]);
 	const state = detail.application?.state ?? null;
 	const since = detail.application?.since ?? null;
 	const { allowed } = preparation(detail);
@@ -270,11 +238,11 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 	let body: ReactNode;
 	if (!allowed && state !== "submitted" && state !== "concluded") {
 		body = null;
-	} else if (control.busy === "prepare") {
+	} else if (control.busy === "apply") {
 		body = (
 			<div className="resume-state">
 				<Loader aria-hidden="true" className="glyph spinner" />
-				<span>Preparing…</span>
+				<span>Applying…</span>
 			</div>
 		);
 	} else if (state === "submitted" || state === "concluded") {
@@ -311,7 +279,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 				<div className="resume">
 					<ResumeThumb />
 					<div className="resume-text">
-						<strong>Tailored résumé</strong>
+						<strong>Application</strong>
 						<span className="resume-state">
 							<Check aria-hidden="true" className="glyph check" />
 							<span>Ready{since === null ? "" : ` · ${formatDay(since)}`}</span>
@@ -324,10 +292,8 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 					</button>
 					{control.busy === null ? <button type="button" className="button" onClick={() => control.run("applied")}>I Applied</button> : <span className="resume-state">Saving…</span>}
 				</div>
-				<button type="button" className="note-action" onClick={() => setPrepareOpen(true)} disabled={!allowed}>
-					Prepare again…
-				</button>
-				<QuickLook postingKey={detail.posting.key} manifest={manifest} open={quickLook} onOpenChange={setQuickLook} />
+				<button type="button" className="button" disabled={control.busy !== null} onClick={() => control.run("fill")}>{control.busy === "fill" ? "Opening…" : "Fill"}</button>
+				<QuickLook postingKey={detail.posting.key} manifest={manifest} open={quickLook} busy={control.busy !== null} error={control.failedAction === "edit" ? control.error : null} onOpenChange={setQuickLook} onEdit={(edits) => { if (manifest.version) control.run("edit", { version: manifest.version, edits }); }} />
 			</>
 		);
 	} else {
@@ -340,7 +306,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 					</div>
 				) : null}
 				<div className="margin-buttons">
-					{control.busy === null ? <button type="button" className="button" onClick={() => setPrepareOpen(true)}>Prepare Application…</button> : <span className="resume-state">Saving…</span>}
+					{control.busy === null && control.failedAction === "apply" ? <button type="button" className="button" onClick={() => { control.run("apply"); setAwaitingReview(true); }}>Retry Apply</button> : null}
 				</div>
 			</>
 		);
@@ -350,12 +316,21 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 		<div className="margin-application">
 			<ExternalLink className="button" size="large" href={detail.posting.url} title={detail.posting.url}>Open Listing</ExternalLink>
 			{body}
+			{manifest?.candidates?.some((candidate) => !kept.has(candidate.name)) ? <div className="note"><span className="note-title">Keep these answers?</span>
+				{manifest.candidates.filter((candidate) => !kept.has(candidate.name)).map((candidate) => <button key={candidate.name} type="button" className="note-action" onClick={() => {
+					void saveAnswer(detail.posting.key, { text: candidate.label, kind: "text", answer: candidate.value,
+						universal: false }).then(() => setKept((previous) => new Set([...previous, candidate.name])))
+						.catch((failure: Error) => setCaptureError(failure.message));
+				}}>{candidate.label}: {String(candidate.value)}</button>)}
+				{captureError === null ? null : <span role="alert">{captureError}</span>}
+			</div> : null}
 			{allowed && control.manifest.status === "error" ? (
 				<div className="note">
 					<span className="note-title">Documents could not be read</span>
 					<span className="note-subtitle">{control.manifest.message}</span>
 				</div>
 			) : null}
+			{allowed && control.busy === null && control.failedAction === "apply" && control.prepared ? <button type="button" className="button" onClick={() => { control.run("apply"); setAwaitingReview(true); }}>Retry Apply</button> : null}
 			{!allowed || control.error === null ? null : (
 				<div className="note" role="alert">
 					<span className="note-title">That did not go through</span>
@@ -372,7 +347,6 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 					<span className="note-subtitle">{warning}</span>
 				</div>
 			)) : null}
-			{allowed ? <PrepareSheet key={detail.posting.key} detail={detail} control={control} open={prepareOpen} onOpenChange={setPrepareOpen} /> : null}
 		</div>
 	);
 }

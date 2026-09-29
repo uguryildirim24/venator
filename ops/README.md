@@ -1,68 +1,36 @@
-# Running the pipeline on a timer (macOS)
+# Daily run on macOS
 
-If you want Venator to fetch on its own, you can install a launchd agent,
-`dev.venator.loop`, that runs the loop every six hours from your checkout. Nothing in
-this repository installs or loads it. Building or testing Venator never runs
-`launchctl`.
+The installed Mac app owns a launchd agent for the daily run. In the app's Profile
+settings, choose a time and daily and monthly Score limits and enable the run.
+Disabling it removes the agent. Building and testing Venator do not load it.
 
-The agent runs `uv run python -m venator.schedule.loop`, which does Discover, the Hard
-Filters and a view rebuild. It never scores and never commits or pushes anything.
+The agent runs the app's bundled Python, not a checkout. It uses the Install's data
+folder, starts at 06:30 by default, and does not run when first loaded. It runs
+Discover, Hard Filters, a capped batch of Score, rechecks new picks and saved
+Postings, rebuilds View and notifies you. If Score pauses, earlier scores stay;
+the other stages still run. A cross-process lock prevents the daily run and a
+manual run from writing at the same time. No stage submits an Application.
 
-The plist is generated, not committed. launchd gives a job no shell, no `PATH` and no
-working directory, so the plist needs absolute paths, and those are specific to your
-account. `venator.schedule.agent` fills them in from this checkout when you install
-it. It only works on macOS.
-
-## Look before you install
-
-From the repository root:
+The app generates the plist at `~/Library/LaunchAgents/dev.venator.loop.plist`.
+You can inspect its contents without installing it:
 
 ```sh
-uv run python -m venator.schedule.agent            # print the plist
-uv run python -m venator.schedule.agent --out /tmp/dev.venator.loop.plist && plutil -lint /tmp/dev.venator.loop.plist
-uv run python -m venator.schedule.loop --dry-run
+python -m venator.schedule.agent
+python -m venator.schedule.loop --dry-run --profile NAME
 ```
 
-If you have more than one Profile, add `--profile <name>` so the timer runs the one
-you mean instead of refusing to guess. `--uv`, `--home` and `--repository` override
-the paths the generator found, and `--interval` changes the six hours (in seconds).
+For a terminal run, use `uv run python` in place of `python`. The standalone
+agent command accepts `--interpreter`, `--install`, `--profile`, `--time HH:MM`,
+`--daily-usd` and `--monthly-usd` if you need to generate a plist yourself. The
+app manages its own agent when you change its settings; don't install a second
+copy for the same Install.
 
-## Install
-
-```sh
-mkdir -p "$HOME/Library/Logs/venator" "$HOME/Library/LaunchAgents" && uv run python -m venator.schedule.agent --out "$HOME/Library/LaunchAgents/dev.venator.loop.plist" && launchctl bootstrap "gui/$UID" "$HOME/Library/LaunchAgents/dev.venator.loop.plist"
-```
-
-The plist doesn't set `RunAtLoad`, so the first run happens six hours after you load
-it. If you move the checkout, the plist's `WorkingDirectory` is wrong. Generate it
-again and bootstrap it again.
-
-## Uninstall
-
-```sh
-launchctl bootout "gui/$UID" "$HOME/Library/LaunchAgents/dev.venator.loop.plist" && rm "$HOME/Library/LaunchAgents/dev.venator.loop.plist"
-```
-
-## Logs and health
-
-Follow both logs:
-
-```sh
-tail -F "$HOME/Library/Logs/venator/loop.stdout.log" "$HOME/Library/Logs/venator/loop.stderr.log"
-```
-
-See the loaded job and when it runs next:
+To check a loaded agent and its logs:
 
 ```sh
 launchctl print "gui/$UID/dev.venator.loop"
+tail -F "$HOME/Library/Logs/venator/loop.stdout.log" "$HOME/Library/Logs/venator/loop.stderr.log"
 ```
 
-Check the heartbeats after a run. They are in the Install's data directory (or in
-`$VENATOR_HOME/data/` if you set it):
-
-```sh
-tail -n 10 "$HOME/Library/Application Support/Venator/data/runs.jsonl"
-```
-
-Each stage that runs writes a line with `at`, `status` and `stage`. If a stage fails,
-its line has `status` `error` and names it, and the stages after it don't run.
+Run heartbeats are appended to the Install's `data/runs.jsonl`. Each stage writes
+`at`, `status` and `stage`; an error row names the failing stage.

@@ -480,7 +480,7 @@ def write_profile(home: Path, name: str, targeting: dict) -> dict:
             "python": sys.executable,
             "name": name,
             "resume": SETUP_RESUME,
-            "constraints": {"screening": {"how_heard": None}},
+            "constraints": {},
             "targeting": targeting,
         },
         ensure_ascii=True,

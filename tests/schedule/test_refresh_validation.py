@@ -62,7 +62,7 @@ def test_refresh_resumes_details_and_publishes_evidence_without_manual_correctio
         with sqlite3.connect(database) as db:
             return dict(db.execute("SELECT posting_key, status FROM assessments"))
 
-    assert run_loop(stage_callables=actions, heartbeat_path=heartbeat, repository=tmp_path) == 0
+    assert run_loop(only=('discover', 'filters', 'view'), stage_callables=actions, heartbeat_path=heartbeat, repository=tmp_path) == 0
     assert list(statuses().values()) == ["suitable", "needs_review", "needs_review", "needs_review"]
     with sqlite3.connect(database) as db:
         credential_unknowns = db.execute("SELECT unknowns FROM assessments WHERE posting_key = ?", (jobs[1]["key"],)).fetchone()[0]
@@ -70,7 +70,7 @@ def test_refresh_resumes_details_and_publishes_evidence_without_manual_correctio
         assert db.execute("SELECT status, known_jobs, full_verified_details, needs_detail_check FROM source_health").fetchone() == ("partial", 4, 2, 2)
 
     # No listing in this window: the stored detail backlog still makes progress.
-    assert run_loop(stage_callables=actions, heartbeat_path=heartbeat, repository=tmp_path) == 0
+    assert run_loop(only=('discover', 'filters', 'view'), stage_callables=actions, heartbeat_path=heartbeat, repository=tmp_path) == 0
     assert offsets == [0, 20]
     assert details == [job["key"] for job in jobs]
     assert get_source_progress(postings, f"workday:{board}")["next_offset"] == 40

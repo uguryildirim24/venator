@@ -46,7 +46,7 @@ The server mounts five routers, in this order (`server/app.ts`):
 | Mount | Methods | What it does | Contract |
 |---|---|---|---|
 | `/api/runs` | `POST`, plus `GET` for run state | starts Refresh or Score | [RUN-API.md](RUN-API.md) |
-| `/api/applications` | `POST`, plus `GET` for status and files | save, dismiss, restore, prepare, applied, handoff | below |
+| `/api/applications` | `POST`, plus `GET` for status and files | save, dismiss, restore, apply, edit, fill, applied and answers | below |
 | `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | setup and editing a saved Profile | [ONBOARDING-API.md](ONBOARDING-API.md) |
 | `/api/locations` | `GET`, `POST` | read and save this Install's list location choice | below |
 | `/api` | `GET` only | reads the view database | below |
@@ -84,9 +84,13 @@ the choice in the Install; it doesn't change a Profile or the view.
 
 ### Application routes
 
-`POST /api/applications` takes `{ "action", "key", "provider"?, "coverLetter"? }`.
-`action` is one of `prepare`, `save`, `dismiss`, `restore`, `applied` or `handoff`.
-`prepare` also needs `provider`: `claude`, `codex` or `api`. The server runs
+`POST /api/applications` takes `{ "action", "key" }` with any fields needed by
+that action. `apply` drafts a reviewed version; `edit` writes a new version.
+`fill` opens the employer's form and uploads only the hash-checked reviewed PDFs.
+`answer`, `replace`, `retract` and `promote` manage the per-employer answer library.
+Greenhouse questions are read before Apply; reserved questions stay for the person
+to answer, and essays use their saved statements. A Greenhouse confirmation records
+an applied Application after the person presses Submit. The server runs
 `python -m venator.applications <action> <key> --profile <name>` and returns its JSON.
 While another application action or a run is going, it answers `409`.
 
@@ -95,7 +99,7 @@ Posting revisions in an indexed table, so a status check does not load every Pos
 Concurrent checks for the same Posting share one child; status children have a short
 time limit and a bounded queue. Abandoned checks cancel their child.
 `GET /api/applications/:key/files/<name>` returns a prepared `resume.pdf`,
-`resume.txt` or `letter.txt`.
+`resume.txt` or `letter.pdf`.
 
 ## Where the data comes from
 
@@ -166,7 +170,10 @@ the view, without fetching or scoring. The location choice above the lists filte
 Postings, page counts and pagination without changing the view database.
 
 Score is a separate press above the Profile account row. It uses the person's own
-keep model configured in their Install. Refresh remains a fetch-and-filter action. Lists and the
+keep model configured in their Install. Refresh remains a fetch-and-filter action.
+The installed Mac app can also run the daily pipeline with Score limits. Postings
+for the same requisition at several sites fold into one list row; the sites remain
+visible on the Posting page. Lists and the
 inspector use lighter transitions, with reduced motion respected. Switching Postings
 fades and raises the new page. The description opens with eight faded lines;
 **Read More** unfolds it and **Read Less** folds it back. Highlighted words stay whole.
@@ -354,8 +361,7 @@ tools/      dev, smoke, snapshot, and the sidecar and Python staging scripts
   (`base: "./"`).
 - **Employer HTML is untrusted.** It renders inside a `sandbox=""` iframe. Keep it
   that way.
-- **The person submits.** Open Application fills what it can and stops, and "You press
-  submit" appears next to it wherever it shows up. A disabled button stays visibly
+- **The person submits.** Fill never presses Submit. A disabled button stays visibly
   disabled, with the reason written beside it.
 - **Light and dark** follow `prefers-color-scheme`. `data-theme="light"` or `"dark"`
   on `<html>` overrides it.

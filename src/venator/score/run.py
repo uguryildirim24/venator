@@ -1,16 +1,14 @@
-"""Score current Hard Filter passes on Modal, then resume only missing scores.
+"""Score current Hard Filter passes in bounded, resumable Modal batches.
 
     python -m venator.score.run --profile NAME --estimate
     python -m venator.score.run --profile NAME --execute
-
-Estimate authorizes a bounded CPU token audit. Execute reuses that receipt or
-prepares it first, then authorizes one bounded inference call. Neither trains.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -21,6 +19,10 @@ from venator.schedule.loop import append_heartbeat
 from venator.score.model import KeepModel
 from venator.score.selection import Input, select_inputs
 from venator.score.store import Score, append_score
+
+DAILY_USD = 1.0
+MONTHLY_USD = 10.0
+BATCH_SIZE = 500
 
 
 def pause_reason(error: Exception) -> str:
@@ -43,8 +45,24 @@ def receipt_key(model: KeepModel, inputs: list[Input]) -> str:
     return hashlib.sha256(json.dumps(value, separators=(',', ':')).encode()).hexdigest()
 
 
+def spent(path: Path, at: str) -> tuple[float, float]:
+    day = month = 0.0
+    if path.is_file():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            row = json.loads(line)
+            if row.get('stage') != 'score' or not isinstance(row.get('usd'), (float, int)):
+                continue
+            when = str(row.get('at', ''))[:10]
+            if when == at[:10]:
+                day += row['usd']
+            if when[:7] == at[:7]:
+                month += row['usd']
+    return day, month
+
+
 def run_score(model: KeepModel | None, inputs: list[Input], install: Path, *,
-              execute: bool, scored_at: str, runtime_factory=None) -> dict:
+              execute: bool, scored_at: str, runtime_factory=None,
+              daily_usd: float = DAILY_USD, monthly_usd: float = MONTHLY_USD) -> dict:
     from venator.score.modal_runtime import MAXIMUM_USD, RESERVED_USD, projected_usd
 
     waiting = [row for row in inputs if row.score is None]
@@ -56,51 +74,83 @@ def run_score(model: KeepModel | None, inputs: list[Input], install: Path, *,
     if runtime_factory is None:
         from venator.score.modal_runtime import ModalRuntime
         runtime_factory = ModalRuntime
-    key = receipt_key(model, waiting)
-    receipt_path = install / 'build/keep-estimates' / f'{key}.json'
+    runs = install / 'data/runs.jsonl'
+    day, month = spent(runs, scored_at)
+
+    def afford(usd: float) -> bool:
+        return day + usd <= daily_usd + 1e-9 and month + usd <= monthly_usd + 1e-9
+
+    def charge(usd: float, kind: str) -> None:
+        nonlocal day, month
+        append_heartbeat(runs, 'score', 'ok', {'usd': usd, 'batches': 1 if kind == 'batch' else 0,
+                                             'waiting': report['waiting']}, at=scored_at)
+        day += usd
+        month += usd
+
     try:
         runtime = runtime_factory(model)
-        if receipt_path.is_file():
-            receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-        else:
-            directory = f'/vol/{model.volume}/score/{uuid4().hex}'
-            anonymous = [{'id': f'r{i:06d}', 'state': row.state} for i, row in enumerate(waiting)]
-            receipt = runtime.prepare(anonymous, directory)
-            receipt.update(directory=directory, model_id=model.model_id,
-                           estimated_usd=projected_usd(receipt['padded_tokens']),
-                           reserved_usd=RESERVED_USD)
-            receipt_path.parent.mkdir(parents=True, exist_ok=True)
-            receipt_path.write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8', newline='\n')
-    except Exception as error:
-        return {**report, 'paused': pause_reason(error)}
-    report['estimate'] = receipt
-    if receipt['estimated_usd'] > MAXIMUM_USD or RESERVED_USD > MAXIMUM_USD:
-        return {**report, 'paused': 'cap-reached'}
-    if not execute:
-        return report
-    by_id = {f'r{i:06d}': row for i, row in enumerate(waiting)}
-    received: set[str] = set()
-    try:
-        for chunk in runtime.infer(receipt['directory'], receipt['items_sha256']):
-            if 'app_id' in chunk:
-                report['inference_app_id'] = chunk['app_id']
-            for result in chunk.get('scores', []):
-                ident = result['id']
-                if ident not in by_id or ident in received:
-                    raise ValueError('Unexpected score id')
-                row = by_id[ident]
-                score = Score(row.posting_key, row.input_hash, model.model_id,
-                              result['probability'], scored_at)
-                append_score(install / 'data/keep-scores', score)
-                received.add(ident)
-                report['scored'] += 1
-                report['waiting'] -= 1
-            if 'seconds' in chunk:
-                report['inference_seconds'] = chunk['seconds']
+        # Bound the first preparation as well as inference. The partition uses the
+        # complete selection so scores written on day 1 cannot renumber day 2.
+        for start in range(0, len(inputs), BATCH_SIZE):
+            group = [row for row in inputs[start:start + BATCH_SIZE] if row.score is None]
+            if not group:
+                continue
+            # A too-large receipt is split without preparing the successful half again.
+            pending = [group]
+            while pending:
+                batch = pending.pop(0)
+                key = receipt_key(model, batch)
+                receipt_path = install / 'build/keep-estimates' / f'{key}.json'
+                if receipt_path.is_file():
+                    receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+                else:
+                    if not afford(RESERVED_USD):
+                        report['paused'] = 'budget-reached'
+                        return report
+                    directory = f'/vol/{model.volume}/score/{uuid4().hex}'
+                    anonymous = [{'id': f'r{i:06d}', 'state': row.state} for i, row in enumerate(batch)]
+                    # Reserve before the paid call; a killed child cannot erase spend.
+                    charge(RESERVED_USD, 'estimate')
+                    receipt = runtime.prepare(anonymous, directory)
+                    receipt.update(directory=directory, model_id=model.model_id,
+                                   estimated_usd=projected_usd(receipt['padded_tokens']),
+                                   reserved_usd=RESERVED_USD)
+                    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+                    receipt_path.write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8', newline='\n')
+                report['estimate'] = receipt
+                if receipt['estimated_usd'] > MAXIMUM_USD:
+                    if len(batch) == 1:
+                        report['paused'] = 'cap-reached'
+                        return report
+                    middle = len(batch) // 2
+                    pending[:0] = [batch[:middle], batch[middle:]]
+                    continue
+                if not execute:
+                    continue
+                cost = receipt['estimated_usd']
+                if not afford(cost):
+                    report['paused'] = 'budget-reached'
+                    return report
+                charge(cost, 'batch')
+                by_id = {f'r{i:06d}': row for i, row in enumerate(batch)}
+                received: set[str] = set()
+                for chunk in runtime.infer(receipt['directory'], receipt['items_sha256']):
+                    for result in chunk.get('scores', []):
+                        ident = result['id']
+                        if ident not in by_id or ident in received:
+                            raise ValueError('Unexpected score id')
+                        row = by_id[ident]
+                        score = Score(row.posting_key, row.input_hash, model.model_id,
+                                      result['probability'], scored_at)
+                        append_score(install / 'data/keep-scores', score)
+                        received.add(ident)
+                        report['scored'] += 1
+                        report['waiting'] -= 1
+                if len(received) != len(batch):
+                    report['paused'] = 'connection-unavailable'
+                    return report
     except Exception as error:
         report['paused'] = pause_reason(error)
-    if report['waiting'] and report['paused'] is None:
-        report['paused'] = 'connection-unavailable'
     return report
 
 
@@ -108,16 +158,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     add_profile_argument(parser)
     parser.add_argument('--as-of')
+    parser.add_argument('--daily-usd', type=float, default=float(os.environ.get('VENATOR_SCORE_DAILY_USD', DAILY_USD)))
+    parser.add_argument('--monthly-usd', type=float, default=float(os.environ.get('VENATOR_SCORE_MONTHLY_USD', MONTHLY_USD)))
     actions = parser.add_mutually_exclusive_group(required=True)
     actions.add_argument('--estimate', action='store_true')
     actions.add_argument('--execute', action='store_true')
     args = parser.parse_args()
+    if not (0 < args.daily_usd < 1000 and 0 < args.monthly_usd < 10000):
+        parser.error('Score ceilings must be positive dollar amounts')
     now = datetime.now(timezone.utc)
     as_of = args.as_of or now.date().isoformat()
     profile = profile_from_arguments(args)
     stores = install_stores()
     model, inputs = select_inputs(profile, stores, as_of)
-    report = run_score(model, inputs, stores.path, execute=args.execute, scored_at=now.isoformat())
+    report = run_score(model, inputs, stores.path, execute=args.execute, scored_at=now.isoformat(),
+                       daily_usd=args.daily_usd, monthly_usd=args.monthly_usd)
     if args.execute:
         append_heartbeat(stores.runs_file, 'score', 'paused' if report['paused'] else 'ok',
                          pause_reason=report['paused'], waiting=report['waiting'])

@@ -5,8 +5,8 @@
  * and every field of it is something a person typed or ticked. Two rules shape the whole
  * module, and both are about what is *not* here:
  *
- * - **Nothing is fabricated.** `constraints.yaml` is written with every screening answer null,
- *   because a screening answer belongs to its Owner and stays blank until they supply one. No
+ * - **Nothing is fabricated.** `constraints.yaml` leaves unknown answers absent,
+ *   because an application answer belongs to its Owner. No
  *   EEO field is defaulted to a decline. `work_authorization.requires_sponsorship` is written
  *   null rather than `false`, because a sponsorship question is answered only when a Profile
  *   says outright that sponsorship is required, and "we did not ask" is not that.
@@ -401,20 +401,6 @@ export type ResumeFile = {
 /** Every value null, and that is the finished state of this file rather than a placeholder. */
 export type ConstraintsFile = {
 	readonly work_authorization: { readonly status: null; readonly requires_sponsorship: null };
-	readonly screening: {
-		readonly salary_expectations: null;
-		readonly resides_near_posting: null;
-		readonly prior_employment_at_company: null;
-		readonly relatives_at_company: null;
-		readonly how_heard: null;
-		readonly country: null;
-		readonly eeo: {
-			readonly gender: null;
-			readonly hispanic_latino: null;
-			readonly veteran_status: null;
-			readonly disability_status: null;
-		};
-	};
 	readonly option_aliases: Readonly<Record<string, never>>;
 };
 
@@ -537,7 +523,7 @@ function resumeMapping(draft: ResumeDraft): ResumeFile {
  * `constraints.yaml`.
  *
  * Every answer null, and that is the finished state of this file rather than a placeholder.
- * A screening answer is its Owner's to give; an EEO field is never defaulted to a decline; and
+ * An EEO answer is never defaulted to a decline; and
  * `requires_sponsorship` stays null rather than becoming `false`, because the fill planner
  * answers a sponsorship question only when a Profile says outright that sponsorship *is*
  * required, and is structurally unable to answer one "No".
@@ -545,15 +531,6 @@ function resumeMapping(draft: ResumeDraft): ResumeFile {
 function constraintsMapping(): ConstraintsFile {
 	return {
 		work_authorization: { status: null, requires_sponsorship: null },
-		screening: {
-			salary_expectations: null,
-			resides_near_posting: null,
-			prior_employment_at_company: null,
-			relatives_at_company: null,
-			how_heard: null,
-			country: null,
-			eeo: { gender: null, hispanic_latino: null, veteran_status: null, disability_status: null },
-		},
 		option_aliases: {},
 	};
 }

@@ -176,7 +176,7 @@ so if `/api` came first it would answer every write path's preflight with
 | Surface | Methods | What it does |
 |---|---|---|
 | `/api/runs` | `POST`, plus `GET` for this process's own run state | starts `fetch-and-filter` (`discover,filters,view`) or `score` (keep inference, then View) from a single-use plan token |
-| `/api/applications` | `POST`, plus `GET` for status and prepared files | status, file, prepare, save, dismiss, restore, applied and handoff through `venator.applications` |
+| `/api/applications` | `POST`, plus `GET` for status and prepared files | status, file, apply, edit, fill, answers, save, dismiss, restore and applied through `venator.applications` |
 | `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | creates or edits Profile files under the Install's application data directory, saves the assistant choice; its read and probe routes write nothing |
 | `/api/locations` | `GET`, `POST` | reads available locations and saves the list choice in this Install; does not change Filter Decisions |
 | `/api` | `GET` | reads `build/venator.db`; starts nothing and writes nothing |
@@ -199,9 +199,11 @@ signals the whole child process tree.
 
 ## Applications and the browser
 
-`venator.applications prepare` checks the exact Posting again, reruns the Hard
-Filters and writes a new versioned bundle. Every file that is opened or downloaded
-is checked against its hash and against the Posting and Profile input versions.
+`venator.applications apply` checks the exact Posting again, reruns Hard Filters,
+reads Greenhouse questions and writes a versioned résumé and, when requested, letter.
+Owner edits make new versions. Every opened or downloaded file is checked against its
+hash and the Posting and Profile inputs. Answers and statements pinned to a bundle
+must still be current before Fill. The library lives under `data/answers/`.
 
 `venator.browser.fill` is a Dry Run:
 
@@ -212,13 +214,14 @@ is checked against its hash and against the Posting and Profile input versions.
 - file fields are skipped;
 - a CAPTCHA is recorded, never solved.
 
-The visible handoff is separate. It may fill confirmed Greenhouse fields and upload
-verified prepared documents. It doesn't block the final submit, and no Venator code
-clicks it.
+Visible Fill is separate from the Dry Run. It fills confirmed Greenhouse fields and
+uploads only hash-verified, reviewed documents. The person presses Submit. Greenhouse
+confirmation detection can then record an applied Application.
 
-Screening answers come from confirmed Profile facts or stay empty. A sponsorship
-question is answered only when `work_authorization.requires_sponsorship: true`, and
-the planner can never answer it "No". EEO answers are never made up.
+The answer library holds the Owner's per-employer or shared answers and statements.
+Reserved form questions remain for the Owner; essays cite their statements. The
+Dry Run planner only answers sponsorship when `work_authorization.requires_sponsorship:
+true`, never "No". EEO answers are never made up.
 
 ## Command output
 

@@ -1,16 +1,15 @@
 import { Minus } from "lucide-react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { BoardEntry, DiscoveredProfile, OnboardingStateResponse } from "../../shared/onboarding.ts";
 import {
 	DEGREE_LEVELS,
-	EEO_FIELDS,
 	HARD_FILTER_RULES,
 	isDegreeLevel,
 	isRemotePreference,
 	isTriState,
 	issueAt,
-	SCREENING_FIELDS,
 	TRI_STATES,
 	validateProfileForm,
 	type EducationForm,
@@ -24,7 +23,8 @@ import {
 } from "../../shared/profile-form.ts";
 import { Sheet } from "../components/sheet.tsx";
 import { Toolbar } from "../components/toolbar.tsx";
-import { assistantLabel, degreeLevelLabel, eeoFieldLabel, extractedFieldLabel, hardFilterLine, ruleLabel, rungLabel, screeningFieldLabel, triStateLabel } from "../labels.ts";
+import { answerScopeLabel, assistantLabel, degreeLevelLabel, extractedFieldLabel, hardFilterLine, ruleLabel, rungLabel, triStateLabel } from "../labels.ts";
+import { promoteAnswer, replaceAnswer, retractAnswer, saveAnswer, useAnswers, type AnswerRow } from "../api.ts";
 import { chooseDocumentRuntime, OnboardingRequestError, readInstallSettings, readProfileForm, saveProfileForm, type InstallSettings } from "../onboarding/api.ts";
 import { lines, REMOTE_OPTIONS, type EducationEntry, type ExperienceEntry, type ProficiencyEntry } from "../onboarding/draft.ts";
 import { PROFILE, RESUME, TARGETING } from "./onboarding/copy.ts";
@@ -35,6 +35,7 @@ import { EDUCATION_FIELDS, EntryFields, EXPERIENCE_FIELDS, Popup, PROFICIENCY_FI
 const CONTACT_ORDER = ["name", "location", "email", "phone", "linkedin"] as const;
 
 type Loaded = { readonly form: ProfileForm; readonly documents: ProfileDocuments };
+type DailySettings = { enabled: boolean; time: string; dailyUsd: number; monthlyUsd: number };
 
 type Refusal = { readonly message: string; readonly remedy: string | null; readonly field: string | null };
 
@@ -109,6 +110,48 @@ function withFilters(form: ProfileForm, filters: Partial<TargetingForm["filters"
  * assistant are this Mac's settings, saved the moment they change, and are
  * never part of Save.
  */
+function AnswerEntry({ row, employers, onChanged }: { readonly row: AnswerRow; readonly employers: readonly EmployerForm[]; readonly onChanged: () => void }) {
+	const [text, setText] = useState(String(row.answer ?? ""));
+	const [error, setError] = useState<string | null>(null);
+	return <div className="setup-row">
+		<span className="setup-row-label">{row.text} · {answerScopeLabel(row.scope, employers)}</span>
+		<input className="text-field" value={text} onChange={(event) => setText(event.target.value)} />
+		<button type="button" className="button" disabled={!text.trim() || text === String(row.answer ?? "")} onClick={() => {
+			void replaceAnswer(row.id, text).then(onChanged).catch((failure: Error) => setError(failure.message));
+		}}>Save</button>
+		{row.scope !== "any" && !row.question.includes("{company}") && !/worked for|employed by|know anyone at|relatives at|interested in|previously worked at/u.test(row.question) ?
+			<button type="button" className="button" onClick={() => {
+				void promoteAnswer(row.id).then(onChanged).catch((failure: Error) => setError(failure.message));
+			}}>Same for every employer</button> : null}
+		<button type="button" className="button" onClick={() => {
+			void retractAnswer(row.id).then(onChanged).catch((failure: Error) => setError(failure.message));
+		}}>Remove</button>
+		{error === null ? null : <span role="alert">{error}</span>}
+	</div>;
+}
+
+function AnswersPanel({ employers }: { readonly employers: readonly EmployerForm[] }) {
+	const [revision, setRevision] = useState(0);
+	const [topic, setTopic] = useState("");
+	const [passage, setPassage] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const response = useAnswers(revision);
+	const refresh = () => setRevision((value) => value + 1);
+	return <div className="setup-group" data-labels="wide">
+		{response.status === "ready" ? response.value.answers.filter((row) => row.answer !== null).map((row) =>
+			<AnswerEntry key={row.id} row={row} employers={employers} onChanged={refresh} />) : null}
+		<div className="setup-row"><span className="setup-row-label">Statement topic</span>
+			<input className="text-field" value={topic} onChange={(event) => setTopic(event.target.value)} /></div>
+		<div className="setup-row"><span className="setup-row-label">Your statement</span>
+			<textarea className="text-field" maxLength={1800} value={passage} onChange={(event) => setPassage(event.target.value)} /></div>
+		<button type="button" className="button" disabled={!topic.trim() || !passage.trim()} onClick={() => {
+			void saveAnswer("_", { text: topic, kind: "statement", answer: passage, universal: true })
+				.then(() => { setTopic(""); setPassage(""); refresh(); }).catch((failure: Error) => setError(failure.message));
+		}}>Add statement</button>
+		{error === null ? null : <span role="alert">{error}</span>}
+	</div>;
+}
+
 export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSidebar }: {
 	readonly name: string;
 	/** The Profile chooser, when this Install holds more than one; sits in the toolbar. */
@@ -121,10 +164,22 @@ export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSideb
 	const [form, setForm] = useState<ProfileForm | null>(null);
 	const [checked, setChecked] = useState<ReadonlyMap<string, boolean>>(new Map());
 	const [settings, setSettings] = useState<InstallSettings | null>(null);
+	const [daily, setDaily] = useState<DailySettings | null>(null);
 	const [refusal, setRefusal] = useState<Refusal | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [editing, setEditing] = useState<Editing>(null);
+
+	useEffect(() => {
+		if (isTauri()) void invoke<DailySettings>("get_daily_settings").then(setDaily)
+			.catch((error: Error) => setRefusal({ message: error.message, remedy: null, field: null }));
+	}, []);
+
+	const saveDaily = (next: DailySettings) => {
+		void invoke("set_daily_settings", { settings: next, profile: name })
+			.then(() => setDaily(next))
+			.catch((error: Error) => setRefusal({ message: error.message, remedy: null, field: null }));
+	};
 
 	useEffect(() => {
 		let active = true;
@@ -522,23 +577,7 @@ export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSideb
 							</div>
 						</div>
 						<p className="setup-caption">{PROFILE.authorizationLine}</p>
-						<p className="setup-caption">{PROFILE.answersLine}</p>
-						<div className="setup-group" data-labels="wide">
-							{SCREENING_FIELDS.map((field) => (
-								<FieldRow key={field} label={screeningFieldLabel(field)} issue={issue(`constraints.screening.${field}`)}>
-									<input className="text-field" value={constraints.screening[field]} onChange={(event) => setConstraints({ screening: { ...constraints.screening, [field]: event.target.value } })} />
-								</FieldRow>
-							))}
-						</div>
-						<h3 className="group-header">{PROFILE.eeo}</h3>
-						<div className="setup-group" data-labels="wide">
-							{EEO_FIELDS.map((field) => (
-								<FieldRow key={field} label={eeoFieldLabel(field)} issue={issue(`constraints.screening.eeo.${field}`)}>
-									<input className="text-field" value={constraints.screening.eeo[field]} onChange={(event) => setConstraints({ screening: { ...constraints.screening, eeo: { ...constraints.screening.eeo, [field]: event.target.value } } })} />
-								</FieldRow>
-							))}
-						</div>
-						<p className="setup-caption">{PROFILE.eeoLine}</p>
+						<AnswersPanel employers={targeting.employers} />
 					</section>
 
 					<section className="setup-section" aria-label={PROFILE.install}>
@@ -564,6 +603,22 @@ export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSideb
 									</div>
 								</div>
 							</>
+						)}
+						{daily === null ? null : (
+							<div className="setup-group" data-labels="wide">
+								<label className="setup-row"><span className="setup-row-label">Daily run</span>
+									<input type="checkbox" checked={daily.enabled} onChange={(event) => saveDaily({ ...daily, enabled: event.target.checked })} />
+								</label>
+								<label className="setup-row"><span className="setup-row-label">Start time</span>
+									<input type="time" value={daily.time} onChange={(event) => saveDaily({ ...daily, time: event.target.value })} />
+								</label>
+								<label className="setup-row"><span className="setup-row-label">Daily Score limit ($)</span>
+									<input type="number" min="0.01" step="0.01" value={daily.dailyUsd} onChange={(event) => saveDaily({ ...daily, dailyUsd: Number(event.target.value) })} />
+								</label>
+								<label className="setup-row"><span className="setup-row-label">Monthly Score limit ($)</span>
+									<input type="number" min="0.01" step="0.01" value={daily.monthlyUsd} onChange={(event) => saveDaily({ ...daily, monthlyUsd: Number(event.target.value) })} />
+								</label>
+							</div>
 						)}
 						<p className="setup-caption">{PROFILE.installLine}</p>
 					</section>

@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -42,15 +43,19 @@ from pathlib import Path
 from typing import Any
 
 from venator.paths import DATA_SUBDIR, StoreRootError, resolve_store_paths
+from venator.schedule.lock import pipeline_lock
 from venator.secrets import scrub, scrub_record
 
 
 COMMIT_MESSAGE = "chore(data): record scheduled pipeline run"
-STAGE_ORDER = ("discover", "filters", "view", "commit")
+STAGE_ORDER = ("discover", "filters", "score", "recheck", "view", "notify", "commit")
 STAGE_DESCRIPTIONS = {
     "discover": "python -m venator.discover.run",
     "filters": "python -m venator.match.run",
+    "score": "python -m venator.score.run --execute",
+    "recheck": "refresh new picks and saved Postings",
     "view": "python -m venator.view.build",
+    "notify": "notify about new picks from the rebuilt View",
     "commit": (
         f"git add data/ && git commit -m {COMMIT_MESSAGE!r} "
         "(if changed, and only when data/ is inside a Git work tree)"
@@ -87,17 +92,21 @@ def append_heartbeat(
     error: str | None = None,
     pause_reason: str | None = None,
     waiting: int = 0,
+    at: str | None = None,
 ) -> dict:
     """Append one dashboard-compatible heartbeat for an executed stage.
 
-    Stage return values are not copied onto the row.
+    Only bounded Score ledger metrics are copied onto the row.
     """
-    _ = metrics
     row = {
-        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "at": at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "status": status,
         "stage": stage,
     }
+    if metrics:
+        for key in ("usd", "batches", "waiting"):
+            if key in metrics:
+                row[key] = metrics[key]
     if error:
         row["error"] = error[:300]
     if pause_reason:
@@ -133,7 +142,7 @@ def _resolved(repository: Path | None, data_dir: Path | None) -> tuple[Path, Pat
 
 
 #: The stage modules that take ``--as-of``.
-AS_OF_MODULES = frozenset({"venator.view.build"})
+AS_OF_MODULES = frozenset({"venator.view.build", "venator.score.run"})
 
 
 def run_module(
@@ -148,13 +157,14 @@ def run_module(
     if as_of is not None and module in AS_OF_MODULES:
         arguments.extend(["--as-of", as_of])
     arguments.extend(extra)
-    subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-m", module, *arguments],
         cwd=repository,
         check=True,
         env=dict(os.environ),
+        capture_output=module == "venator.score.run", text=module == "venator.score.run",
     )
-    return {}
+    return json.loads(result.stdout) if module == "venator.score.run" else {}
 
 
 def git_work_tree_for(path: Path) -> Path | None:
@@ -272,6 +282,87 @@ def include_commit_heartbeat(
     )
 
 
+def recheck(repository: Path, profile_name: str | None) -> dict[str, Any]:
+    from venator.paths import install_stores
+    from venator.discover.refresh import refresh_posting
+    from venator.discover.store import append_observations, load_postings, posting_revision
+    from venator.profile import resolve_profile
+    from venator.score.selection import select_inputs
+    from venator.track.store import fold_states, load_events, verify_track_dir
+
+    stores = install_stores()
+    profile = resolve_profile(profile_name)
+    _, inputs = select_inputs(profile, stores, date.today().isoformat())
+    fetches = []
+    if stores.runs_file.is_file():
+        fetches = [entry['at'] for line in stores.runs_file.read_text(encoding='utf-8').splitlines()
+                   if (entry := json.loads(line)).get('stage') == 'discover' and entry.get('status') == 'ok']
+    previous_fetch = fetches[-2] if len(fetches) >= 2 else None
+    postings = load_postings(stores.postings_dir)
+    arrival = {posting['key']: str(posting.get('discovered_at', '')) for posting in postings}
+    keys = {row.posting_key for row in inputs if row.score is not None
+            and row.score.probability >= 0.5 and fetches
+            and (previous_fetch is None or arrival.get(row.posting_key, '') > previous_fetch)}
+    # Application actions append TrackEvents without rebuilding the View. Read the
+    # live store so a Posting saved since yesterday's View is still rechecked.
+    if stores.track_dir.exists():
+        verify_track_dir(stores.track_dir, profile.identifier)
+        keys.update(key for key, row in fold_states(load_events(stores.track_dir), {}).items()
+                    if row['state'] in ('approved', 'prepared', 'rejected'))
+    if not keys:
+        return {}
+    changed = 0
+    for posting in postings:
+        if posting['key'] not in keys:
+            continue
+        fresh = refresh_posting(posting)
+        if not isinstance(fresh, Mapping) or any(fresh.get(k) != posting.get(k) for k in ('key', 'board', 'source')):
+            continue
+        append_observations(stores.postings_dir, [fresh])
+        if posting_revision(fresh) != posting_revision(posting):
+            changed += 1
+    if changed:
+        run_module('venator.match.run', repository, profile_name)
+    return {'changed': changed}
+
+
+def notify(repository: Path) -> dict[str, Any]:
+    from venator.paths import install_stores
+    view = install_stores().path / 'build/venator.db'
+    if not view.is_file():
+        return {}
+    with sqlite3.connect(view) as database:
+        rows = database.execute('''
+            WITH fetches AS (
+              SELECT julianday(at) AS finished FROM runs
+              WHERE stage = 'discover' AND status = 'ok'
+              ORDER BY finished DESC LIMIT 2
+            ), window AS (
+              SELECT max(finished) AS latest,
+                     CASE WHEN count(*) = 2 THEN min(finished) END AS previous FROM fetches
+            )
+            SELECT p.title FROM postings p CROSS JOIN window w
+            JOIN keep_scores k ON k.posting_key = p.key
+            JOIN assessments a ON a.posting_key = p.key
+            JOIN hard_filter_latest h ON h.posting_key = p.key
+            JOIN decisions d ON d.id = h.decision_id
+            LEFT JOIN application_states s ON s.posting_key = p.key
+            WHERE k.probability >= 0.5 AND d.verdict = 'pass'
+              AND a.listing_status = 'open' AND s.posting_key IS NULL
+              AND w.latest IS NOT NULL AND julianday(p.discovered_at) <= w.latest
+              AND (w.previous IS NULL OR julianday(p.discovered_at) > w.previous)
+            ORDER BY p.discovered_at DESC
+        ''').fetchall()
+    receipt = view.parent / 'picks-notification.json'
+    if rows:
+        receipt.write_text(json.dumps({'count': len(rows), 'title': rows[0][0]}) + '\n',
+                           encoding='utf-8', newline='\n')
+        subprocess.run(['open', '-g', 'venator://picks'], check=True)
+    else:
+        receipt.unlink(missing_ok=True)
+    return {'new_picks': len(rows)}
+
+
 def default_stage_callables(
     repository: Path | None = None,
     profile: str | None = None,
@@ -287,7 +378,10 @@ def default_stage_callables(
             extra=("--interactive",) if interactive_discover else (),
         ),
         "filters": lambda: run_module("venator.match.run", repository, profile, as_of),
+        "score": lambda: run_module("venator.score.run", repository, profile, as_of, ("--execute",)),
+        "recheck": lambda: recheck(repository, profile),
         "view": lambda: run_module("venator.view.build", repository, profile, as_of),
+        "notify": lambda: notify(repository),
         "commit": lambda: commit_data(repository),
     }
 
@@ -332,7 +426,7 @@ def planned_stages(*, only: Sequence[str] | None = None) -> list[str]:
         return [stage for stage in STAGE_ORDER if stage in chosen]
     # Discovery and eligibility produce an evidence-based view without
     # committing personal runtime data to Git.
-    return ["discover", "filters", "view"]
+    return ["discover", "filters", "score", "recheck", "view", "notify"]
 
 
 def run_loop(
@@ -399,16 +493,17 @@ def run_loop(
             return 1
         try:
             paused = metrics.get("paused")
-            append_heartbeat(
-                heartbeat_path, stage, "paused" if paused else "ok", metrics,
-                pause_reason=paused, waiting=metrics.get("waiting", 0),
-            )
+            if stage != "score":
+                append_heartbeat(
+                    heartbeat_path, stage, "paused" if paused else "ok", metrics,
+                    pause_reason=paused, waiting=metrics.get("waiting", 0),
+                )
             if stage == "commit" and metrics.get("_commit_created") is True:
                 include_commit_heartbeat(repository)
         except Exception as error:
             print(f"{stage}: ERROR writing heartbeat — {error}", file=sys.stderr, flush=True)
             return 1
-        print(f"{stage}: ok", flush=True)
+        print(f"{stage}: {'paused' if paused else 'ok'}", flush=True)
     return 0
 
 
@@ -448,13 +543,18 @@ def main() -> int:
     except StageSelectionError as error:
         parser.error(str(error))
     try:
-        return run_loop(
-            only=only,
-            dry_run=args.dry_run,
-            profile=args.profile,
-            as_of=today,
-            interactive_discover=args.interactive_discover,
-        )
+        if args.dry_run:
+            return run_loop(only=only, dry_run=True, profile=args.profile, as_of=today)
+        if only is not None:
+            # Dashboard runs own this lock for the entire child tree.
+            return run_loop(only=only, profile=args.profile, as_of=today,
+                            interactive_discover=args.interactive_discover)
+        from venator.paths import install_stores
+        with pipeline_lock(install_stores().path):
+            return run_loop(
+                only=only, profile=args.profile, as_of=today,
+                interactive_discover=args.interactive_discover,
+            )
     except StageSelectionError as error:
         parser.error(str(error))
     except StoreRootError as error:

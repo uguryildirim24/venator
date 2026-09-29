@@ -6,41 +6,54 @@ import { join } from "node:path";
 import { Hono } from "hono";
 import { applicationCommand, createApplicationRoutes } from "../server/applications/routes.ts";
 import { applicationAction } from "../src/api.ts";
+import { takePipelineLock } from "../server/pipeline-lock.ts";
 
 const profile = () => ["--profile", "candidate"];
 const headers = { "Content-Type": "application/json", "X-Venator-Application": "1", origin: "tauri://localhost" };
 
-test("the real frontend preparation request reaches the mounted application route", async (context) => {
+test("the real frontend Apply request reaches the mounted application route", async (context) => {
 	let observed: readonly string[] = [];
 	const server = new Hono();
 	server.route("/api/applications", createApplicationRoutes(async (argv) => {
 		observed = argv;
-		return { prepared: true };
+		return { prepared: true, file_hashes: { "resume.pdf": "resume-hash", "letter.pdf": "letter-hash" } };
 	}, profile));
 	context.mock.method(globalThis, "fetch", (input: string, init: RequestInit) => server.request(input, init));
-	const result = await applicationAction("greenhouse:acme:1", "prepare", { provider: "codex" });
+	const result = await applicationAction("greenhouse:acme:1", "apply");
 	assert.equal(result.prepared, true);
-	assert.deepEqual(observed, ["prepare", "greenhouse:acme:1", "--profile", "candidate", "--provider", "codex"]);
+	assert.deepEqual(result.file_hashes, { "resume.pdf": "resume-hash", "letter.pdf": "letter-hash" });
+	assert.deepEqual(observed, ["apply", "greenhouse:acme:1", "--profile", "candidate"]);
 });
 
-test("application actions require the local action header and an explicit preparation provider", async () => {
+test("application actions require the local action header and known action", async () => {
 	const calls: readonly string[][] = [];
 	const app = createApplicationRoutes(async () => { assert.fail("must not invoke a model"); }, profile);
-	const external = await app.request("/", { method: "POST", body: JSON.stringify({ key: "p:1", action: "prepare" }) });
+	const external = await app.request("/", { method: "POST", body: JSON.stringify({ key: "p:1", action: "apply" }) });
 	assert.equal(external.status, 403);
-	const missing = await app.request("/", { method: "POST", headers, body: JSON.stringify({ key: "p:1", action: "prepare" }) });
+	const missing = await app.request("/", { method: "POST", headers, body: JSON.stringify({ key: "p:1", action: "unknown" }) });
 	assert.equal(missing.status, 400);
 	assert.equal(calls.length, 0);
 });
 
-test("preparation uses fixed argv, with no executable or profile path from the request", async () => {
+test("Apply uses fixed argv, with no executable or profile path from the request", async () => {
 	let observed: readonly string[] = [];
 	const app = createApplicationRoutes(async (argv) => { observed = argv; return { prepared: true }; }, profile);
 	const response = await app.request("/", { method: "POST", headers, body: JSON.stringify({
-		key: "greenhouse:acme:1", action: "prepare", provider: "claude", coverLetter: true, profile: "../../other",
+		key: "greenhouse:acme:1", action: "apply", profile: "../../other",
 	}) });
 	assert.equal(response.status, 200);
-	assert.deepEqual(observed, ["prepare", "greenhouse:acme:1", "--profile", "candidate", "--provider", "claude", "--cover-letter"]);
+	assert.deepEqual(observed, ["apply", "greenhouse:acme:1", "--profile", "candidate"]);
+});
+
+test("edit transports only bounded reviewed passages and a version", async () => {
+	let observed: readonly string[] = [];
+	const app = createApplicationRoutes(async (argv) => { observed = argv; return { prepared: true, version: "next" }; }, profile);
+	const edits = [{ draft_id: "letter:0", text: "My own words." }];
+	const response = await app.request("/", { method: "POST", headers, body: JSON.stringify({ action: "edit", key: "greenhouse:acme:1", version: "abc123", edits }) });
+	assert.equal(response.status, 200);
+	assert.deepEqual(observed, ["edit", "greenhouse:acme:1", "--profile", "candidate", "--version", "abc123", "--edits", JSON.stringify(edits)]);
+	assert.equal((await app.request("/", { method: "POST", headers, body: JSON.stringify({ action: "edit", key: "greenhouse:acme:1", version: "abc123", edits: [{ draft_id: "letter:0", text: "a\nb" }] }) })).status, 400);
+	assert.equal((await app.request("/", { method: "POST", headers, body: JSON.stringify({ action: "edit", key: "greenhouse:acme:1", version: "abc123", edits: [{ draft_id: "letter:0", text: "a".repeat(1801) }] }) })).status, 400);
 });
 
 test("two store-writing application operations cannot overlap and failure releases the guard", async () => {
@@ -58,6 +71,29 @@ test("two store-writing application operations cannot overlap and failure releas
 	assert.equal((await first).status, 400);
 	assert.equal((await app.request("/", init)).status, 400);
 	assert.equal(calls, 2);
+});
+
+test("loop lock makes application actions answer 409; a dead pid is taken over", async () => {
+	const home = mkdtempSync(join(tmpdir(), "venator-pipeline-"));
+	const previous = process.env.VENATOR_HOME;
+	process.env.VENATOR_HOME = home;
+	try {
+		const release = takePipelineLock();
+		assert.ok(release);
+		const app = createApplicationRoutes(async () => { assert.fail("busy lock must not run action"); }, profile);
+		const init = { method: "POST", headers, body: JSON.stringify({ key: "p:1", action: "save" }) };
+		assert.equal((await app.request("/", init)).status, 409);
+		release();
+		const path = join(home, "build", ".pipeline.lock");
+		writeFileSync(path, JSON.stringify({ pid: 99999999, at: 1 }));
+		const recovered = takePipelineLock();
+		assert.ok(recovered);
+		recovered();
+	} finally {
+		if (previous === undefined) delete process.env.VENATOR_HOME;
+		else process.env.VENATOR_HOME = previous;
+		rmSync(home, { recursive: true, force: true });
+	}
 });
 
 test("status single-flights by Profile and key, without caching a subsequent read", async () => {
@@ -125,14 +161,32 @@ test("an aborted status kills the actual child process group", { skip: process.p
 	}
 });
 
-test("status limits simultaneous children to two", async () => {
+test("a confirmation status read holds the same busy flag as application writes", async () => {
+	let release: () => void = () => {};
+	const blocked = new Promise<void>((resolve) => { release = resolve; });
+	let ready: () => void = () => {};
+	const started = new Promise<void>((resolve) => { ready = resolve; });
+	const app = createApplicationRoutes(async (argv) => {
+		if (argv[0] === "status") { ready(); await blocked; }
+		return { prepared: false };
+	}, profile);
+	const status = app.request("/greenhouse%3Afixture%3A123");
+	await started;
+	const action = { method: "POST", headers, body: JSON.stringify({ action: "applied", key: "greenhouse:fixture:123" }) };
+	assert.equal((await app.request("/", action)).status, 409);
+	release();
+	assert.equal((await status).status, 200);
+	assert.equal((await app.request("/", action)).status, 200);
+});
+
+test("status serializes children because a status read can record Applied", async () => {
 	let calls = 0;
 	let release: () => void = () => {};
 	const blocked = new Promise<void>((resolve) => { release = resolve; });
 	const app = createApplicationRoutes(async () => { calls++; await blocked; return { prepared: false }; }, profile);
 	const pending = ["/a", "/b", "/c"].map((key) => app.request(key));
 	await new Promise((resolve) => setTimeout(resolve, 10));
-	assert.equal(calls, 2);
+	assert.equal(calls, 1);
 	release();
 	await Promise.all(pending);
 	assert.equal(calls, 3);

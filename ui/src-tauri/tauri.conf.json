@@ -27,6 +27,7 @@
 			"csp": null
 		}
 	},
+	"plugins": { "deep-link": { "desktop": { "schemes": ["venator"] } } },
 	"bundle": {
 		"active": true,
 		"macOS": { "signingIdentity": "-", "hardenedRuntime": false },

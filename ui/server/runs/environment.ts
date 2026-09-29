@@ -18,7 +18,10 @@
  */
 
 import { documentRuntime } from "../install-settings.ts";
-import { DATA_DIRECTORY_ENVIRONMENT, PYTHON_ENVIRONMENT, BUNDLED_PYTHON_ENVIRONMENT, systemContext, type LocationContext } from "../locations.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { asMapping, asNumber, parseJson } from "../onboarding/json.ts";
+import { DATA_DIRECTORY_ENVIRONMENT, PYTHON_ENVIRONMENT, BUNDLED_PYTHON_ENVIRONMENT, applicationDataDirectory, systemContext, type LocationContext } from "../locations.ts";
 
 /**
  * Everything a pipeline child is allowed to see, and why each one is here.
@@ -92,5 +95,13 @@ export function runEnvironment(context: LocationContext): ChildEnvironment {
 		if (value !== undefined) named.push([name, value]);
 	}
 	named.push(["VENATOR_LLM_RUNTIME", documentRuntime(context)]);
+	const settings = join(applicationDataDirectory(context), "daily-settings.json");
+	if (existsSync(settings)) {
+		const record = asMapping(parseJson(readFileSync(settings, "utf8")));
+		for (const [field, variable] of [["dailyUsd", "VENATOR_SCORE_DAILY_USD"], ["monthlyUsd", "VENATOR_SCORE_MONTHLY_USD"]] as const) {
+			const amount = asNumber(record?.[field]);
+			if (amount !== null && amount > 0 && Number.isFinite(amount)) named.push([variable, String(amount)]);
+		}
+	}
 	return Object.fromEntries(named);
 }

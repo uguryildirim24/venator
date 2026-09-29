@@ -370,7 +370,7 @@ test("two creations of the same Profile at once are one write and one honest ref
 			name: "A Person",
 			contact: { location: "Boston, MA", phone: "555-0100", email: "a@b.co", linkedin: "linkedin.com/in/x" },
 		},
-		constraints: { screening: { how_heard: null } },
+		constraints: {},
 		targeting: { search: { queries: ["raced"] } },
 	};
 	const create = async (): Promise<Answer> => {

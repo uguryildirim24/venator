@@ -146,53 +146,6 @@ _ALIASES = {
         "Attach Resume",
         "Upload Resume",
     ),
-    "salary_expectations": (
-        "Salary Expectations",
-        "Salary Expectation",
-        "Desired Salary",
-    ),
-    "resides_near_posting": (
-        "Do you reside in the location for this job posting or within commutable distance?",
-        "Do you live in or within commuting distance of the job location?",
-        "Do you reside near the job location?",
-    ),
-    "prior_employment_at_company": (
-        "Have you previously been employed by this company?",
-        "Have you ever worked for this company?",
-        "Were you previously employed by this company?",
-    ),
-    "relatives_at_company": (
-        "Do you have relatives at this company?",
-        "Do you have any relatives currently employed by this company?",
-        "Are any of your relatives employed by this company?",
-    ),
-    "how_heard": (
-        "How did you hear about us?",
-        "How did you hear about this position?",
-        "How did you learn about this opportunity?",
-    ),
-    "country": (
-        "Country",
-        "Country or Region",
-        "Country/Region",
-    ),
-    "eeo_gender": (
-        "Gender",
-        "Gender Identity",
-    ),
-    "eeo_hispanic_latino": (
-        "Are you Hispanic/Latino?",
-        "Hispanic or Latino",
-        "Hispanic/Latino",
-    ),
-    "eeo_veteran_status": (
-        "Veteran Status",
-        "Protected Veteran Status",
-    ),
-    "eeo_disability_status": (
-        "Disability Status",
-        "Voluntary Self-Identification of Disability",
-    ),
 }
 
 LABEL_FACTS = {
@@ -200,20 +153,6 @@ LABEL_FACTS = {
     for fact_name, labels in _ALIASES.items()
     for label in labels
 }
-
-SCREENING_PATHS = {
-    "salary_expectations": "screening.salary_expectations",
-    "resides_near_posting": "screening.resides_near_posting",
-    "prior_employment_at_company": "screening.prior_employment_at_company",
-    "relatives_at_company": "screening.relatives_at_company",
-    "how_heard": "screening.how_heard",
-    "country": "screening.country",
-    "eeo_gender": "screening.eeo.gender",
-    "eeo_hispanic_latino": "screening.eeo.hispanic_latino",
-    "eeo_veteran_status": "screening.eeo.veteran_status",
-    "eeo_disability_status": "screening.eeo.disability_status",
-}
-
 
 def _option_key(value: object) -> str:
     """Read one alias key. YAML reads a bare Yes/No as a boolean, not a word."""
@@ -296,17 +235,6 @@ def fact_name_for_label(label: str) -> str | None:
         if "authoriz" in normalized or "without" in words:
             return None
         return "sponsorship"
-    if normalized.startswith("have you ever been employed by or performed services for "):
-        return "prior_employment_at_company"
-    if (
-        normalized.startswith("do you have any relatives")
-        and "employed by" in normalized
-        and not any(
-            phrase in normalized
-            for phrase in ("federal government", "department of", "military")
-        )
-    ):
-        return "relatives_at_company"
     return None
 
 
@@ -479,21 +407,6 @@ def _string_fact(
     return Fact(value.strip(), f"{source_file}:{path}")
 
 
-def _screening_fact(
-    constraints: Mapping[str, object],
-    path: str,
-    sources: FactSources,
-) -> Fact | None:
-    value = _nested_value(constraints, path)
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return None
-    elif not isinstance(value, bool):
-        return None
-    return Fact(value, f"{sources.constraints}:{path}")
-
-
 def _name_part(resume: Mapping[str, object], sources: FactSources, *, first: bool) -> Fact | None:
     name = _string_fact(resume, "name", sources.resume)
     if name is None:
@@ -605,8 +518,6 @@ def resolve_fact(
         return _authorization_fact(constraints, sources)
     if fact_name == "sponsorship":
         return _sponsorship_fact(constraints, sources)
-    if fact_name in SCREENING_PATHS:
-        return _screening_fact(constraints, SCREENING_PATHS[fact_name], sources)
     if fact_name == "resume_file" and resume_file is not None and resume_file.is_file():
         return Fact(str(resume_file), f"{resume_file.as_posix()}:$file")
     return None
@@ -625,7 +536,12 @@ def map_field(
     if not isinstance(label, str) or not isinstance(kind, str):
         raise ValueError("validated FormSpec fields must have string label and kind")
 
-    fact_name = fact_name_for_label(label)
+    from venator.apply.classify import reserved
+    category = reserved(label, kind=kind)
+    if category in {"consent", "eeo", "authorization_sponsorship", "sign_in"}:
+        return FieldMapping(None, None, "reserved question left for the Owner")
+    fact_name = {"authorization": "binary_work_authorization", "sponsorship": "sponsorship"}.get(
+        category, fact_name_for_label(label))
     if fact_name is None:
         return FieldMapping(None, None, "no Profile fact covers this")
     fact = resolve_fact(fact_name, resume, constraints, resume_file, sources)
@@ -638,8 +554,6 @@ def map_field(
             )
         elif fact_name == "resume_file":
             reason = "no prepared resume artifact exists for this Posting"
-        elif fact_name in SCREENING_PATHS:
-            reason = f"owner has not provided {sources.constraints}:{SCREENING_PATHS[fact_name]}"
         else:
             reason = "the mapped Profile fact has no value"
         return FieldMapping(None, None, reason)

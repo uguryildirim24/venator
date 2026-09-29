@@ -448,34 +448,6 @@ function validateFilters(targeting: JsonMapping, warnings: string[]): void {
 	}
 }
 
-/**
- * The screening block, checked for the one thing it must never become: an answer nobody gave.
- *
- * Every declared field stays exactly as it arrives, and an absent one is written as null. A
- * sponsorship answer is refused unless `work_authorization.requires_sponsorship` is literally
- * true, which is the same rule the fill planner holds to — a sponsorship answer is never
- * inferred from an immigration status, and the planner is structurally unable to answer one
- * "No". EEO fields are never defaulted here or anywhere else.
- */
-function validateConstraints(constraints: JsonMapping): void {
-	const authorization = optionalMapping(at(constraints, "work_authorization"), "constraints.work_authorization");
-	const requiresSponsorship = authorization === null
-		? null
-		: flag(at(authorization, "requires_sponsorship"), "constraints.work_authorization.requires_sponsorship");
-	const screening = optionalMapping(at(constraints, "screening"), "constraints.screening");
-	if (screening === null) return;
-	for (const field of keysOf(screening)) {
-		if (!/sponsor/iu.test(field)) continue;
-		if (isPresent(at(screening, field)) && requiresSponsorship !== true) {
-			throw invalidProfile(
-				`constraints.screening.${field}`,
-				"A sponsorship question is answered only when the Profile states outright that sponsorship is required.",
-				"Set work_authorization.requires_sponsorship to true if that is true, or leave this answer blank so a form field is left unmapped rather than guessed.",
-			);
-		}
-	}
-}
-
 /** `resume/render.py:310-318` reads these five with `[]`; without them the PDF cannot render. */
 function validateResume(resume: JsonMapping): void {
 	const name = asText(at(resume, "name"));
@@ -522,7 +494,6 @@ export function validateProposal(proposal: ProfileProposal): readonly string[] {
 		);
 	}
 
-	if (proposal.constraints !== null) validateConstraints(proposal.constraints);
 
 	if (proposal.targeting === null || keysOf(proposal.targeting).length === 0) {
 		warnings.push("targeting.yaml is being written empty, so no profile filters run. Review each listing’s evidence, conflicts, and unknowns.");
@@ -549,7 +520,7 @@ const HEADERS: ReadonlyMap<ProfileFileName, readonly string[]> = new Map([
 		"constraints.yaml",
 		[
 			"Profile: work authorization, and the answers an application form may use.",
-			"Written by the onboarding flow. Every screening answer left null stays null:",
+			"Written by the onboarding flow:",
 			"a form field with no truthful answer is left unmapped rather than guessed,",
 			"and an EEO field is never defaulted to a decline.",
 		],

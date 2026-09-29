@@ -20,8 +20,8 @@ FONT_DIR = _reference_fixtures.FONT_DIR
 resume = _reference_fixtures.resume
 source = _reference_fixtures.source
 from venator.profile import Profile
-from venator.resume.reference import ReferenceLayoutError, capture_reference
-from venator.tailor.prepare import _input_version, prepare_application
+from venator.resume.reference import ReferenceLayoutError, ReferenceOverflowError, capture_reference
+from venator.tailor.prepare import _input_version, edit_application, prepare_application
 
 JOB = {"key": "test:lab:1", "title": "Student Assistant", "company": "Example Laboratory",
        "description_html": "<p>Assist with samples and document results.</p>",
@@ -186,6 +186,33 @@ def test_layout_hash_invalidates_version_but_reuses_same_fact_writing(source, re
     assert second["version"] != first["version"]
     assert second["input_version"] != first["input_version"]
     assert second["resumeText"] == first["resumeText"]
+
+
+def test_owner_edit_overflow_keeps_previous_reference_version(source, resume, tmp_path):
+    profile = candidate(tmp_path, resume)
+    install_reference(source, profile)
+    output = tmp_path / "application"
+
+    class LetterCompletion(Completion):
+        def __call__(self, prompt, **kwargs):
+            answer = super().__call__(prompt, **kwargs)
+            if "GENERATED PASSAGES:" not in prompt:
+                answer["letter_paragraphs"] = [{"source_ids": ["experience:0:bullet:0"],
+                                                 "text": "I assisted with 12 samples."}]
+            return answer
+
+    original = prepare_application(JOB, profile, output, provider="codex", cover_letter=True,
+                                   completion=LetterCompletion())
+    resume_pdf = PdfReader(output / "versions" / original["version"] / "resume.pdf")
+    letter_pdf = PdfReader(output / "versions" / original["version"] / "letter.pdf")
+    def faces(pdf):
+        return {str(font.get_object()["/BaseFont"]).split("+")[-1]
+                for font in pdf.pages[0]["/Resources"]["/Font"].values()}
+    assert faces(resume_pdf) & faces(letter_pdf)
+    bullet = next(row for row in original["draftProvenance"] if row["kind"] == "resume_bullet")
+    with pytest.raises(ReferenceOverflowError, match="exceeds the reference layout"):
+        edit_application(output, original, [{"draft_id": bullet["draft_id"], "text": "Unbroken" * 200}], JOB, profile)
+    assert json.loads((output / "manifest.json").read_text())["version"] == original["version"]
 
 
 def test_same_layout_cached_manifest_does_not_bypass_provenance_validation(source, resume, tmp_path):

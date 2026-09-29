@@ -24,22 +24,6 @@ work_authorization:
 volume:
   daily_queue_cap: none # everything passing filters enters the Review Queue
 
-# Your application answers. Leave a value null until you can answer it
-# truthfully; quote answers exactly as the ATS displays them. EEO fields are
-# always optional and are never defaulted to a decline response.
-screening:
-  salary_expectations: null
-  resides_near_posting: null
-  prior_employment_at_company: null
-  relatives_at_company: null
-  how_heard: null
-  country: null
-  eeo:
-    gender: null
-    hispanic_latino: null
-    veteran_status: null
-    disability_status: null
-
 # Explicit, reviewable spellings for when your Profile value and the ATS's
 # option list say the same thing differently. Deliberately small: adding an
 # entry means you know both the Profile value and the ATS's canonical label.

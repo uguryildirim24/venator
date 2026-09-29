@@ -138,6 +138,8 @@ _INVENTORY_SCRIPT = r"""
       );
       fields.push({
         label: radioGroupLabel(element),
+        name: element.name || element.id,
+        maxlength: element.maxLength > 0 ? element.maxLength : null,
         kind,
         required: group.some(isRequired),
         selector: element.name
@@ -158,6 +160,8 @@ _INVENTORY_SCRIPT = r"""
     }
     fields.push({
       label: fieldLabel(element),
+      name: element.name || element.id,
+      maxlength: element.maxLength > 0 ? element.maxLength : null,
       kind,
       required: isRequired(element),
       selector: selectorFor(element),

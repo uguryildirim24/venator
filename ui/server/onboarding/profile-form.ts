@@ -66,8 +66,6 @@ const DEFAULT_IMPLAUSIBLE_YEARS = 15;
 const EDUCATION_FIELDS = ["org", "location", "date", "degree", "gpa", "coursework"] as const;
 const PROFICIENCY_FIELDS = ["label", "items"] as const;
 const EXPERIENCE_FIELDS = ["org", "role", "location", "dates"] as const;
-const SCREENING_FIELDS = ["salary_expectations", "resides_near_posting", "prior_employment_at_company", "relatives_at_company", "how_heard", "country"] as const;
-const EEO_FIELDS = ["gender", "hispanic_latino", "veteran_status", "disability_status"] as const;
 
 /** Long enough for any résumé bullet; short enough that a form cannot be a file upload. */
 const MAXIMUM_TEXT_LENGTH = 20_000;
@@ -187,22 +185,11 @@ function resumeFormOf(document: ParsedDocument): ResumeForm {
 function constraintsFormOf(document: ParsedDocument): ConstraintsForm {
 	const root = rootOf(document);
 	const authorization = mapAt(root, "work_authorization");
-	const screening = mapAt(root, "screening");
-	const eeo = mapAt(screening, "eeo");
 	return {
 		work_authorization: {
 			status: textAt(authorization, "status"),
 			requires_sponsorship: triStateOf(scalarAt(authorization, "requires_sponsorship")),
 			authorized_to_work: triStateOf(scalarAt(authorization, "authorized_to_work")),
-		},
-		screening: {
-			salary_expectations: textAt(screening, "salary_expectations"),
-			resides_near_posting: textAt(screening, "resides_near_posting"),
-			prior_employment_at_company: textAt(screening, "prior_employment_at_company"),
-			relatives_at_company: textAt(screening, "relatives_at_company"),
-			how_heard: textAt(screening, "how_heard"),
-			country: textAt(screening, "country"),
-			eeo: { gender: textAt(eeo, "gender"), hispanic_latino: textAt(eeo, "hispanic_latino"), veteran_status: textAt(eeo, "veteran_status"), disability_status: textAt(eeo, "disability_status") },
 		},
 	};
 }
@@ -510,8 +497,6 @@ function patchConstraints(document: ParsedDocument, baseline: ConstraintsForm, f
 		if (value === null) clearScalar(document, ["work_authorization", field]);
 		else setScalar(document, ["work_authorization", field], value);
 	}
-	for (const field of SCREENING_FIELDS) answer(["screening", field], baseline.screening[field], form.screening[field]);
-	for (const field of EEO_FIELDS) answer(["screening", "eeo", field], baseline.screening.eeo[field], form.screening.eeo[field]);
 	return changed;
 }
 
@@ -739,27 +724,11 @@ function resumeFromBody(body: JsonMapping): ResumeForm {
 function constraintsFromBody(body: JsonMapping): ConstraintsForm {
 	const constraints = mappingField(body, "constraints", "constraints");
 	const authorization = mappingField(constraints, "work_authorization", "constraints.work_authorization");
-	const screening = mappingField(constraints, "screening", "constraints.screening");
-	const eeo = mappingField(screening, "eeo", "constraints.screening.eeo");
 	return {
 		work_authorization: {
 			status: textField(authorization, "status", "constraints.work_authorization.status"),
 			requires_sponsorship: triStateField(authorization, "requires_sponsorship", "constraints.work_authorization.requires_sponsorship"),
 			authorized_to_work: triStateField(authorization, "authorized_to_work", "constraints.work_authorization.authorized_to_work"),
-		},
-		screening: {
-			salary_expectations: textField(screening, "salary_expectations", "constraints.screening.salary_expectations"),
-			resides_near_posting: textField(screening, "resides_near_posting", "constraints.screening.resides_near_posting"),
-			prior_employment_at_company: textField(screening, "prior_employment_at_company", "constraints.screening.prior_employment_at_company"),
-			relatives_at_company: textField(screening, "relatives_at_company", "constraints.screening.relatives_at_company"),
-			how_heard: textField(screening, "how_heard", "constraints.screening.how_heard"),
-			country: textField(screening, "country", "constraints.screening.country"),
-			eeo: {
-				gender: textField(eeo, "gender", "constraints.screening.eeo.gender"),
-				hispanic_latino: textField(eeo, "hispanic_latino", "constraints.screening.eeo.hispanic_latino"),
-				veteran_status: textField(eeo, "veteran_status", "constraints.screening.eeo.veteran_status"),
-				disability_status: textField(eeo, "disability_status", "constraints.screening.eeo.disability_status"),
-			},
 		},
 	};
 }

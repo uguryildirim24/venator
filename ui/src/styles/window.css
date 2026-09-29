@@ -932,6 +932,24 @@
 	color: var(--green);
 }
 
+.requisition-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-4);
+	border-bottom: var(--hairline-width) solid var(--label-quinary);
+}
+
+.requisition-links button {
+	color: var(--label-secondary);
+	font-size: var(--size-subheadline);
+}
+
+.requisition-links button[aria-current="page"] {
+	color: var(--label-primary);
+	font-weight: var(--weight-semibold);
+}
+
 .list-footer {
 	display: flex;
 	align-items: center;

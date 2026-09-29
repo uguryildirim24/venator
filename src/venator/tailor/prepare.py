@@ -31,12 +31,13 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+from venator.answers.store import row_hash
 from venator.discover.store import posting_revision
 from venator.match.store import filters_version
 from venator.profile import Profile
 from venator.profile.facts import confirmed as _confirmed
 from venator.resume.render import DEFAULT_SECTIONS, SUPERSCRIPTS, register_fonts
-from venator.tailor.draft import CheckedDraft, DRAFT_SCHEMA, SUPPORTED_PROVIDERS, generate_and_check
+from venator.tailor.draft import CheckedDraft, DRAFT_SCHEMA, SUPPORTED_PROVIDERS, _passage, generate_and_check
 from venator.tailor.version import PREPARATION_REVISION, _input_version, _plain_copy
 
 
@@ -374,8 +375,13 @@ def _paragraph(text: str, style: ParagraphStyle) -> Paragraph:
     return Paragraph(safe or "&nbsp;", style)
 
 
-def _validate_fonts(lines: Sequence[_Line]) -> tuple[str, str]:
-    regular, bold = _font_names()
+def _validate_fonts(lines: Sequence[_Line], reference: Path | None = None) -> tuple[str, str]:
+    if reference is not None:
+        from venator.resume.reference import _load
+        _layout, fonts = _load(reference)
+        regular, bold = fonts["regular"], fonts["bold"]
+    else:
+        regular, bold = _font_names()
     for line in lines:
         font = bold if line.kind in {"name", "heading"} else regular
         supported = pdfmetrics.getFont(font).face.charToGlyph
@@ -386,8 +392,8 @@ def _validate_fonts(lines: Sequence[_Line]) -> tuple[str, str]:
     return regular, bold
 
 
-def _write_pdf(lines: Sequence[_Line], path: Path, *, title: str) -> None:
-    regular, bold = _validate_fonts(lines)
+def _write_pdf(lines: Sequence[_Line], path: Path, *, title: str, reference: Path | None = None) -> None:
+    regular, bold = _validate_fonts(lines, reference)
     styles = getSampleStyleSheet()
     body = ParagraphStyle(
         "VenatorResumeBody",
@@ -484,7 +490,7 @@ def _read_manifest(directory: Path) -> dict[str, object] | None:
 
 
 def _requested_files(cover_letter: bool) -> tuple[str, ...]:
-    return ("resume.pdf", "resume.txt", "letter.txt") if cover_letter else ("resume.pdf", "resume.txt")
+    return ("resume.pdf", "resume.txt", "letter.txt", "letter.pdf") if cover_letter else ("resume.pdf", "resume.txt")
 
 
 def _usable_manifest(
@@ -564,6 +570,7 @@ def _commit_version(
     letter_text: str | None,
     title: str,
     pdf_writer: Callable[[Path], None] | None = None,
+    letter_reference: Path | None = None,
 ) -> str:
     versions = directory / "versions"
     versions.mkdir(parents=True, exist_ok=True)
@@ -585,6 +592,8 @@ def _commit_version(
             pdf_writer(staging / "resume.pdf")
         if letter_text is not None:
             _write_text(staging / "letter.txt", letter_text)
+            _write_pdf([_Line(line) for line in letter_text.splitlines() if line],
+                       staging / "letter.pdf", title="Cover letter", reference=letter_reference)
         os.replace(staging, target)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -633,6 +642,9 @@ def prepare_application(
     provider: str,
     cover_letter: bool = False,
     completion: Callable[..., object] | None = None,
+    form_questions: Sequence[dict] = (),
+    answer_pins: Sequence[dict] = (),
+    statements: Sequence[dict] = (),
 ) -> dict[str, object]:
     """Prepare immutable, reviewable application documents.
 
@@ -662,6 +674,8 @@ def prepare_application(
     posting_version = posting_revision(posting)
     profile_version = filters_version(profile.constraints_path, profile.targeting_path)
     input_version = _input_version(profile, resume)
+    statement_pins = [{"id": row["id"], "question": row["question"], "scope": row["scope"],
+                       "hash": row_hash(row)} for row in statements]
     existing = _usable_manifest(
         directory,
         _read_manifest(directory),
@@ -676,7 +690,11 @@ def prepare_application(
         raise ValueError("profile resume has no confirmed entries to prepare")
     sources = _prompt_sources(entries)
     from venator.tailor.reuse import reuse_checked_draft
-    if existing is not None and reuse_checked_draft(existing, sources, cover_letter=cover_letter) is not None:
+    if (existing is not None and existing.get("formSnapshot", []) == list(form_questions)
+            and existing.get("answerPins", []) == list(answer_pins)
+            and existing.get("statementPins", []) == statement_pins
+            and (existing.get("edited_by") == "owner" or
+                 reuse_checked_draft(existing, sources, cover_letter=cover_letter) is not None)):
         return existing
     # Catch unsupported original source glyphs before any provider spend.
     original_selection = _Selection(tuple(entries), {entry.identifier: entry.bullets for entry in entries})
@@ -690,8 +708,9 @@ def prepare_application(
     draft = None
     previous = _read_manifest(directory)
     facts_version = _input_version(profile, resume, include_layout=False)
-    if (use_reference and previous and previous.get("facts_version", previous.get("input_version")) == facts_version
-            and previous.get("preparation_revision") in {4, 5, 6, 7, 8}):
+    if (use_reference and previous and not form_questions and not answer_pins
+            and previous.get("facts_version", previous.get("input_version")) == facts_version
+            and previous.get("preparation_revision") in {4, 5, 6, 7, 8, 9}):
         # Reformat only unchanged, hash-checked documents. The original review
         # remains tied to the same candidate facts and employer description.
         compatible = {**previous, "input_version": input_version, "preparation_revision": PREPARATION_REVISION}
@@ -700,8 +719,10 @@ def prepare_application(
             draft = reuse_checked_draft(previous, sources, cover_letter=cover_letter)
     reused_writing = draft is not None
     if draft is None:
+        essays = [row for row in form_questions if row.get("bucket") == "essay"]
         draft = generate_and_check(_plain_copy(posting), sources, provider=provider,
-                                   cover_letter=cover_letter, completion=completion)
+                                   cover_letter=cover_letter, completion=completion,
+                                   questions=essays, statements=statements)
     selection = _reference_selection(draft, entries) if use_reference else _selection(draft, entries)
     lines = _resume_lines(resume, specs, selection)
     resume_text = "\n".join(line.text for line in lines) + ("\n" if lines else "")
@@ -723,6 +744,8 @@ def prepare_application(
         "cover_letter": cover_letter,
         "resume_text": resume_text,
         "letter_text": letter_text,
+        "form_questions": list(form_questions), "answer_pins": list(answer_pins),
+        "statement_pins": statement_pins,
     }
     version = hashlib.sha256(
         json.dumps(version_payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
@@ -736,6 +759,7 @@ def prepare_application(
         letter_text=letter_text,
         title=_text(posting.get("title")) or "Prepared resume",
         pdf_writer=pdf_writer,
+        letter_reference=reference if use_reference else None,
     )
     manifest: dict[str, object] = {
         "prepared": True,
@@ -755,7 +779,13 @@ def prepare_application(
         "layout": "uploaded_reference" if use_reference else "basic",
         "renderedResume": _structured_resume(resume, specs, selection),
         "draftSelection": {"entry_ids": list(draft.selected_entry_ids), "resume_bullets": list(draft.resume_bullets),
-                           "letter_paragraphs": list(draft.letter_paragraphs)},
+                           "letter_paragraphs": list(draft.letter_paragraphs), "essays": list(draft.essays)},
+        "formSnapshot": list(form_questions),
+        "formQuestions": [{**row, "answer": next((essay["text"] for essay in draft.essays
+                                                    if essay["question_name"] == row["name"]), row.get("answer"))}
+                          for row in form_questions],
+        "answerPins": list(answer_pins),
+        "statementPins": version_payload["statement_pins"],
         "message": (
             "Drafts ready; rejected wording was restored from original resume facts or removed from the letter."
             if any(item["recovery"] for item in draft.provenance) else
@@ -770,4 +800,91 @@ def prepare_application(
     return manifest
 
 
-__all__ = ["SELECTION_SCHEMA", "SUPPORTED_PROVIDERS", "prepare_application"]
+def edit_application(directory: Path, record: Mapping[str, object], edits: Sequence[Mapping[str, str]],
+                     posting: Mapping[str, object], profile: Profile) -> dict[str, object]:
+    """Render owner wording from a reviewed version without another completion."""
+    if not record.get("prepared") or not isinstance(record.get("version"), str):
+        raise ValueError("Apply before editing documents.")
+    if not edits or len(edits) > 255:
+        raise ValueError("Choose passages to edit.")
+    provenance = _plain_copy(record.get("draftProvenance"))
+    selection = _plain_copy(record.get("draftSelection"))
+    if not isinstance(provenance, list) or not isinstance(selection, dict):
+        raise ValueError("The reviewed passages are missing.")
+    by_id = {row["draft_id"]: row for row in provenance}
+    if len(by_id) != len(provenance):
+        raise ValueError("The reviewed passages are ambiguous.")
+    changed: set[str] = set()
+    for edit in edits:
+        identifier, text = edit.get("draft_id"), edit.get("text")
+        if not isinstance(identifier, str) or identifier in changed or identifier not in by_id:
+            raise ValueError("Choose each reviewed passage only once.")
+        row = by_id[identifier]
+        if row.get("kind") not in {"resume_bullet", "letter_paragraph", "essay_answer"} or row.get("final") is None:
+            raise ValueError("Only visible reviewed passages can be edited.")
+        row["final"] = _passage(text)
+        row["edited_by"] = "owner"
+        row.pop("review_status", None)
+        row.pop("review_reason", None)
+        changed.add(identifier)
+    bullets = _plain_copy(selection.get("resume_bullets"))
+    paragraphs = _plain_copy(selection.get("letter_paragraphs"))
+    essays = _plain_copy(selection.get("essays", []))
+    if not isinstance(bullets, list) or not isinstance(paragraphs, list) or not isinstance(essays, list):
+        raise ValueError("The reviewed passages are missing.")
+    for row in provenance:
+        if row["draft_id"] not in changed:
+            continue
+        if row["kind"] == "resume_bullet":
+            for bullet in bullets:
+                if bullet["source_id"] == row["source_ids"][0]:
+                    bullet["text"] = row["final"]
+    # Position, not text equality, identifies a paragraph (two may read alike).
+    kept = [row for row in record["draftProvenance"] if row["kind"] == "letter_paragraph" and row.get("final") is not None]
+    if len(kept) != len(paragraphs):
+        raise ValueError("The letter passages disagree with this version.")
+    for index, original in enumerate(kept):
+        if original["draft_id"] in changed:
+            paragraphs[index]["text"] = by_id[original["draft_id"]]["final"]
+    for essay in essays:
+        source = next((row for row in provenance if row.get("kind") == "essay_answer"
+                       and row.get("question_name") == essay["question_name"]), None)
+        if source is not None and source["draft_id"] in changed:
+            essay["text"] = source["final"]
+    specs, entries, _ = _catalogue(profile.resume)
+    checks = [check for check in record["factualityReview"]["checks"] if check["draft_id"] not in changed]
+    draft = CheckedDraft(tuple(selection["entry_ids"]), tuple(bullets), tuple(paragraphs),
+                         tuple(provenance), tuple(checks), tuple(essays))
+    reference = profile.directory / "resume-reference"
+    use_reference = reference.exists()
+    chosen = _reference_selection(draft, entries) if use_reference else _selection(draft, entries)
+    lines = _resume_lines(profile.resume, specs, chosen)
+    resume_text = "\n".join(line.text for line in lines) + "\n"
+    has_letter = isinstance(record.get("letterText"), str)
+    letter_text = _cover_letter(str(profile.resume["name"]), draft) if has_letter else None
+    pdf_writer = None
+    if use_reference:
+        from venator.resume.reference import preflight_reference, render_reference
+        structured = _structured_resume(profile.resume, specs, chosen)
+        preflight_reference(structured, reference)
+        pdf_writer = lambda path: render_reference(structured, path, reference)
+    else:
+        structured = _structured_resume(profile.resume, specs, chosen)
+    version = uuid.uuid4().hex[:20]
+    committed = _commit_version(directory, version, resume_text=resume_text, resume_lines=lines,
+                                letter_text=letter_text, title=str(posting.get("title") or "Tailored résumé"),
+                                pdf_writer=pdf_writer, letter_reference=reference if use_reference else None)
+    result = {**record, "version": committed, "edited_by": "owner", "edited_from": record["version"],
+              "resumeText": resume_text, "letterText": letter_text, "renderedResume": structured,
+              "draftProvenance": provenance, "factualityReview": {**record["factualityReview"], "checks": checks},
+              "draftSelection": {**selection, "resume_bullets": bullets,
+                                   "letter_paragraphs": paragraphs, "essays": essays},
+              "formQuestions": [{**row, "answer": next((essay["text"] for essay in essays
+                                                        if essay["question_name"] == row["name"]), row.get("answer"))}
+                                for row in record.get("formQuestions", [])],
+              "file_hashes": _file_hashes(directory / "versions" / committed, has_letter)}
+    _write_manifest(_manifest_path(directory), result)
+    return result
+
+
+__all__ = ["SELECTION_SCHEMA", "SUPPORTED_PROVIDERS", "prepare_application", "edit_application"]

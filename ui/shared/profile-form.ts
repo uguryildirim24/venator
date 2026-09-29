@@ -80,30 +80,11 @@ export type ResumeForm = {
 	readonly experience: readonly ExperienceForm[];
 };
 
-/** The six screening answers and the four EEO answers `constraints.yaml` documents. */
-export const SCREENING_FIELDS = [
-	"salary_expectations",
-	"resides_near_posting",
-	"prior_employment_at_company",
-	"relatives_at_company",
-	"how_heard",
-	"country",
-] as const;
-
-export type ScreeningField = (typeof SCREENING_FIELDS)[number];
-
-export const EEO_FIELDS = ["gender", "hispanic_latino", "veteran_status", "disability_status"] as const;
-
-export type EeoField = (typeof EEO_FIELDS)[number];
-
 export type ConstraintsForm = {
 	readonly work_authorization: {
 		readonly status: string;
 		readonly requires_sponsorship: TriState;
 		readonly authorized_to_work: TriState;
-	};
-	readonly screening: Readonly<Record<ScreeningField, string>> & {
-		readonly eeo: Readonly<Record<EeoField, string>>;
 	};
 };
 

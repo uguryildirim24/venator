@@ -160,23 +160,6 @@ def _apply_url(posting: Mapping[str, Any], *, allow_test_urls: bool = False) -> 
     return value
 
 
-def _letter_file(directory: Path) -> Path | None:
-    """Find the optional letter in the manifest's current document version."""
-
-    directory = Path(directory)
-    try:
-        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(manifest, Mapping):
-        return None
-    version = manifest.get("version")
-    if not isinstance(version, str) or not version.isalnum():
-        return None
-    path = directory / "versions" / version / "letter.txt"
-    return path if path.is_file() else None
-
-
 def _request_payload(
     posting: Mapping[str, Any],
     profile: Profile,
@@ -184,6 +167,7 @@ def _request_payload(
     directory: Path,
     letter_file: Path | None,
     debugging_port: int | None,
+    questions: list[dict] | None = None,
 ) -> dict[str, Any]:
     return {
         "posting": {
@@ -203,6 +187,7 @@ def _request_payload(
         "directory": str(Path(directory)),
         "browser_directory": str(profile.directory.resolve() / ".venator-browser"),
         "debugging_port": debugging_port,
+        "questions": questions or [],
     }
 
 
@@ -241,6 +226,25 @@ def _trusted_document(url: str, posting: Mapping[str, Any], *, allow_test_urls: 
     return parsed.path == "/embed/job_app" and query.get("for") == [key[1]] and query.get("token") == [key[2]]
 
 
+def _confirmation_host(url: str, posting: Mapping[str, Any], *, allow_test_urls: bool = False) -> str | None:
+    """Only a confirmation for this exact Posting is a receipt."""
+    key = str(posting.get("key") or "").split(":")
+    if len(key) != 3 or key[0] != "greenhouse" or not _trusted_url(url, allow_test_urls=allow_test_urls):
+        return None
+    parsed = urlparse(url)
+    if parsed.scheme == "file":
+        # Synthetic fixtures use a named file, never a real employer marker.
+        return parsed.hostname or "fixture"
+    parts = parsed.path.strip("/").split("/")
+    if parts == [key[1], "jobs", key[2], "confirmation"]:
+        return parsed.hostname
+    if parts == ["embed", "job_app", "confirmation"]:
+        query = parse_qs(parsed.query)
+        if query.get("for") == [key[1]] and query.get("token") == [key[2]]:
+            return parsed.hostname
+    return None
+
+
 def _target(frame: Frame, field: Mapping[str, Any], expected_url: str) -> Locator:
     # Stay in the inventoried document, never re-resolve into another frame.
     if frame.url != expected_url:
@@ -251,6 +255,9 @@ def _target(frame: Frame, field: Mapping[str, Any], expected_url: str) -> Locato
     )
     if located.count() != 1:
         raise ValueError("field is missing or ambiguous")
+    identity = field.get("name")
+    if identity and located.get_attribute("name") != identity and located.get_attribute("id") != identity:
+        raise ValueError("the question identity changed")
     return located
 
 
@@ -297,6 +304,7 @@ def _assist_greenhouse(
     profile_resume_source: str,
     profile_constraints_source: str,
     *,
+    questions: list[dict] | None = None,
     allow_test_urls: bool = False,
 ) -> tuple[int, list[str], list[dict[str, Any]]]:
     warnings: list[str] = []
@@ -341,14 +349,23 @@ def _assist_greenhouse(
         str(field.get("label")): field
         for field in form_fields
         if isinstance(field, Mapping) and isinstance(field.get("label"), str)
+        and sum(item.get("label") == field.get("label") for item in form_fields) == 1
     }
+    names = {row.get("name") for row in questions or []}
+    api_labels = {row.get("label") for row in questions or []}
+    by_name = {name: [field for field in form_fields if field.get("name") == name]
+               for name in names if isinstance(name, str)}
     filled = 0
     mapped_labels: set[str] = set()
     for field in plan.get("fields", []):
         if not isinstance(field, Mapping):
             continue
         label = str(field.get("label") or "")
+        if label in api_labels:
+            continue
         spec_field = fields_by_label.get(label)
+        if spec_field is not None and spec_field.get("name") in names:
+            continue
         if spec_field is None:
             warning = f"{label or 'Unknown field'} left blank: form field changed after inventory."
             warnings.append(warning)
@@ -371,8 +388,38 @@ def _assist_greenhouse(
             filled += 1
             results.append(_field_result(field, "filled", "confirmed Profile value entered"))
 
+    for question in questions or []:
+        name = question.get("name")
+        label = str(question.get("label") or name or "")
+        answer = question.get("answer")
+        if answer is None:
+            continue
+        controls = by_name.get(name, [])
+        reason = None
+        if len(controls) != 1 or sum(item.get("label") == label for item in form_fields) != 1:
+            reason = "question identity missing or ambiguous"
+        else:
+            live = controls[0]
+            if live.get("kind") != question.get("kind") or (question.get("options") is not None
+                    and live.get("options") != question.get("options")):
+                reason = "question choices changed since review"
+            elif isinstance(answer, str) and live.get("maxlength") and len(answer) > live["maxlength"]:
+                reason = "answer exceeds the field's character limit"
+            else:
+                try:
+                    locator = _target(frame, live, expected_url)
+                    _fill_control(frame, locator, {"label": label, "kind": live["kind"], "value": answer}, live)
+                except (SkipField, PlaywrightError, ValueError) as error:
+                    reason = str(error).strip() or "question could not be filled"
+        if reason:
+            warnings.append(f"{label} left blank: {reason}.")
+            results.append(_field_result(question, "skipped", reason))
+        else:
+            filled += 1
+            results.append(_field_result(question, "filled", "reviewed answer"))
+
     for field in plan.get("unmapped", []):
-        if isinstance(field, Mapping):
+        if isinstance(field, Mapping) and field.get("label") not in api_labels:
             if fields_by_label.get(str(field.get("label") or ""), {}).get("kind") == "file" and (
                 _looks_like_resume(str(field.get("label") or ""))
                 or _looks_like_letter(str(field.get("label") or ""))
@@ -529,6 +576,7 @@ def _navigation_and_fill(request: Mapping[str, Any], page: Page) -> tuple[dict[s
                 Path(str(request["letter_file"])) if request.get("letter_file") else None,
                 str(request.get("profile_resume_source") or "resume.yaml"),
                 str(request.get("profile_constraints_source") or "constraints.yaml"),
+                questions=request.get("questions") if isinstance(request.get("questions"), list) else [],
                 allow_test_urls=allow_test_urls,
             )
             warnings.extend(assist_warnings)
@@ -557,11 +605,118 @@ def _navigation_and_fill(request: Mapping[str, Any], page: Page) -> tuple[dict[s
         "filled": filled,
         "warnings": list(dict.fromkeys(warnings)),
         "source": source,
-        "url": page.url,
         "submit_events": submit_events,
         "fields": details,
     }
     return result, filled, warnings
+
+
+_WATCH_SCRIPT = r"""
+(() => {
+  if (window.__venatorWatchInstalled) return;
+  window.__venatorWatchInstalled = true;
+  const blank = new WeakSet();
+  const inventory = () => {
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+      if (!el.value && !el.checked) blank.add(el);
+    });
+  };
+  inventory();
+  document.addEventListener('click', event => {
+    if (event.isTrusted) window.venatorHandoffEvent({event: 'action'});
+  }, true);
+  document.addEventListener('keydown', event => {
+    if (event.isTrusted) window.venatorHandoffEvent({event: 'action'});
+  }, true);
+  document.addEventListener('change', event => {
+    const el = event.target;
+    if (!event.isTrusted || !blank.has(el) || !el.matches('input, select, textarea')) return;
+    if (el.type === 'file' || el.type === 'password' || el.type === 'hidden') return;
+    const label = el.type === 'radio'
+      ? el.closest('fieldset')?.querySelector('legend')?.textContent?.trim() || ''
+      : el.labels?.[0]?.textContent?.trim() || el.getAttribute('aria-label') || el.name || '';
+    window.venatorHandoffEvent({event: 'change', label, name: el.name || el.id,
+      login: Boolean(document.querySelector('input[type=password]')) || /\/(login|signin|sign-in|verify)/i.test(location.pathname),
+      kind: el.type || el.tagName.toLowerCase(), value: el.type === 'checkbox' ? el.checked : el.value});
+  }, true);
+})()
+"""
+
+
+def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_path: Path, state: dict) -> None:
+    """The worker writes a bounded receipt; the app is the sole Track writer."""
+    from venator.apply.classify import reserved
+
+    posting = request.get("posting") or {}
+    if posting.get("source") != SUPPORTED_SOURCE:
+        return
+    acted = False
+    allow_test_urls = bool(request.get("allow_test_urls"))
+
+    def inspect(frame: Frame) -> None:
+        if not acted or (_read_json(state_path) or {}).get("state") == "applied":
+            return
+        host = _confirmation_host(frame.url, posting, allow_test_urls=allow_test_urls)
+        if host is None:
+            return
+        # A path alone is not proof if the employer served an error/validation page.
+        try:
+            body = frame.locator("body").inner_text(timeout=500).casefold()
+        except Exception:
+            return
+        if not any(word in body for word in ("thank you", "application received", "application submitted")):
+            return
+        if any(word in body for word in ("error", "validation failed", "try again")):
+            return
+        key = str(posting["key"]).split(":")
+        marker = {"system": "greenhouse", "board": key[1], "job_id": key[2],
+                  "host": host, "at": time.time()}
+        # No URL or employer text is persisted in the receipt state.
+        _write_json(state_path, {"state": "applied", "pid": state["pid"], "marker": marker,
+                                 "candidates": state.get("candidates", [])})
+
+    def on_event(source: dict, payload: dict) -> None:
+        nonlocal acted
+        frame = source.get("frame")
+        if frame is None or not _trusted_document(frame.url, posting, allow_test_urls=allow_test_urls):
+            return
+        if payload.get("event") == "action":
+            acted = True
+            return
+        if payload.get("event") != "change" or payload.get("login") is True:
+            return
+        label = str(payload.get("label") or "")[:300]
+        name = str(payload.get("name") or "")[:200]
+        kind = str(payload.get("kind") or "")
+        if reserved(label, kind=kind) is not None or reserved(name, kind=kind) is not None or kind in {"file", "password", "checkbox"}:
+            return
+        value = payload.get("value")
+        if not isinstance(value, (str, bool)) or isinstance(value, str) and len(value) > 1800:
+            return
+        candidates = state.setdefault("candidates", [])
+        if not name or not label or any(item["name"] == name for item in candidates):
+            return
+        candidates.append({"name": name, "label": label, "value": value})
+        if len(candidates) <= 50:
+            current = _read_json(state_path) or {}
+            if current.get("state") == "ready":
+                _write_json(state_path, {**current, "candidates": candidates})
+
+    context.expose_binding("venatorHandoffEvent", on_event)
+    context.add_init_script(_WATCH_SCRIPT)
+
+    def attach(page: Page) -> None:
+        page.on("framenavigated", inspect)
+        for frame in page.frames:
+            try:
+                frame.evaluate(_WATCH_SCRIPT)
+            except PlaywrightError:
+                pass
+            inspect(frame)
+
+    context.on("page", attach)
+    for page in context.pages:
+        attach(page)
 
 
 def _worker_main(request_path: Path, ready_path: Path, lock_path: Path, state_path: Path) -> int:
@@ -594,13 +749,13 @@ def _worker_main(request_path: Path, ready_path: Path, lock_path: Path, state_pa
             "pid": os.getpid(),
             "browser": browser_name,
             "debugging_port": request.get("debugging_port"),
-            "url": result.get("url"),
             "filled": result.get("filled", 0),
             "warnings": result.get("warnings", []),
             "message": result.get("message"),
             "fields": result.get("fields", []),
         }
         _write_json(state_path, state)
+        _install_confirmation_watch(context, request, state_path, state)
         _write_json(ready_path, {"ready": True, **result})
         _write_json(lock_path, {"token": token, "pid": os.getpid(), "state": "ready"})
         # Keep the persistent context alive until the user closes its pages.
@@ -665,7 +820,9 @@ def start_handoff(
     resume_file: Path,
     directory: Path,
     *,
+    letter_file: Path | None = None,
     allow_test_urls: bool = False,
+    questions: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Start a detached visible handoff and return after its ready handshake.
 
@@ -680,6 +837,8 @@ def start_handoff(
     resume_file = Path(resume_file).resolve()
     if not resume_file.is_file():
         raise ValueError(f"prepared resume is missing: {resume_file.name}")
+    if letter_file is not None and not Path(letter_file).is_file():
+        raise ValueError("prepared letter is missing")
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     token = uuid.uuid4().hex
@@ -695,8 +854,9 @@ def start_handoff(
         profile,
         resume_file,
         directory,
-        _letter_file(directory),
+        Path(letter_file).resolve() if letter_file is not None else None,
         debugging_port,
+        questions,
     )
     request["allow_test_urls"] = allow_test_urls
     request["token"] = token

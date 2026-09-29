@@ -32,7 +32,7 @@ const detail: PostingDetail = {
 };
 
 const control: ApplicationControl = {
-	manifest: { status: "loading" }, prepared: false, busy: null, error: null, notice: null, warnings: [], run: () => {},
+	manifest: { status: "loading" }, prepared: false, busy: null, error: null, failedAction: null, reviewVersion: null, notice: null, warnings: [], run: () => {},
 };
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 

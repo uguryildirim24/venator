@@ -9,6 +9,8 @@ export type CellStatus = {
 export type Cell = {
 	readonly key: string;
 	readonly title: string;
+	readonly count?: number;
+	readonly groupKeys?: readonly string[];
 	readonly meta: string;
 	readonly time: string;
 	/** A full date for the time's tooltip. */
@@ -61,7 +63,7 @@ export function CellList({ label, groups, selectedKey, onSelect, keyboardMoves }
 				<div key={group.key} className="day" role="group" aria-label={group.header}>
 					<h3 className="day-header">{group.header}</h3>
 					{group.cells.map((cell) => {
-						const isSelected = cell.key === selectedKey;
+						const isSelected = cell.key === selectedKey || (selectedKey !== null && cell.groupKeys?.includes(selectedKey) === true);
 						return (
 							<button
 								key={cell.key}
@@ -73,7 +75,7 @@ export function CellList({ label, groups, selectedKey, onSelect, keyboardMoves }
 								onClick={() => onSelect(cell.key)}
 							>
 								{cell.isNew ? <span className="cell-dot" aria-label="New" role="img" /> : null}
-								<span className="cell-title">{cell.title}</span>
+								<span className="cell-title">{cell.title}{cell.count && cell.count > 1 ? ` · ${cell.count}` : ""}</span>
 								{cell.time === "" ? null : (
 									<time className="cell-time" title={cell.stamp}>
 										{cell.time}

@@ -136,6 +136,18 @@ def test_binary_work_authorization_is_not_invented_from_f1_status() -> None:
     assert "never answered 'No'" in mapping.reason
 
 
+def test_authorization_answer_from_profile_and_sponsorship_stays_separate() -> None:
+    constraints = {**CONSTRAINTS, "work_authorization": {
+        **CONSTRAINTS.get("work_authorization", {}), "authorized_to_work": True,
+    }}
+    authorization = map_field(field("Are you legally authorized to work in the United States?", "radio", ["Yes", "No"]),
+                              RESUME, constraints)
+    assert authorization.value == "Yes"
+    assert authorization.source == "constraints.yaml:work_authorization.authorized_to_work"
+    combined = map_field(field("Can you work here without visa sponsorship?", "radio", ["Yes", "No"]), RESUME, constraints)
+    assert not combined.mapped
+
+
 def test_unknown_label_is_explicitly_unmapped() -> None:
     mapping = map_field(field("Describe a scientific breakthrough", "textarea"), RESUME, CONSTRAINTS)
 
