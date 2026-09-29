@@ -399,6 +399,13 @@ def normalize_greenhouse_job(board: str, job: Mapping[str, Any]) -> dict:
     for field in ("departments", "offices", "metadata", "pay_input_ranges", "questions"):
         if field in job:
             posting[field] = job[field]
+    # Some shared boards use an office with no office location to name the
+    # company. A named, located office is not an employer or a work site.
+    offices = job.get("offices")
+    if isinstance(offices, list) and len(offices) == 1 and isinstance(offices[0], Mapping):
+        office = offices[0]
+        if job.get("location") and not office.get("location") and (name := text(office.get("name"))):
+            posting["company"] = name
     return posting
 
 

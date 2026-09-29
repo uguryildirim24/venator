@@ -105,8 +105,6 @@ def test_what_the_screen_writes_is_what_the_loader_reads(tmp_path: Path) -> None
         "requires_sponsorship": "no",
         "authorized_to_work": "yes",
     }
-    form["constraints"]["screening"]["how_heard"] = "12:30"
-    form["constraints"]["screening"]["country"] = "yes"
     form["targeting"]["search"] = {"queries": ["backend engineer", "sre"], "locations": [], "remote": None}
     form["targeting"]["employers"] = [
         {"source": "greenhouse", "board": "cloudflare", "name": "Cloudflare"},
@@ -134,8 +132,7 @@ def test_what_the_screen_writes_is_what_the_loader_reads(tmp_path: Path) -> None
         "bullets": ["Did: things", "- dashy", "Line one\nline two"],
     }
     assert constraints["work_authorization"] == {"status": "Citizen", "requires_sponsorship": False, "authorized_to_work": True}
-    assert constraints["screening"]["how_heard"] == "12:30"
-    assert constraints["screening"]["country"] == "yes"
+    assert "screening" not in constraints
     assert targeting["search"]["remote"] is None
     assert targeting["sources"]["names"] == {"cloudflare": "Cloudflare", "linear": "Linear", "yes": "Yes Corp"}
     assert targeting["sources"]["boards"] == {"greenhouse": ["cloudflare"], "lever": [], "ashby": ["linear"], "workday": ["yes"]}
@@ -148,7 +145,6 @@ def test_what_the_screen_writes_is_what_the_loader_reads(tmp_path: Path) -> None
     assert resume["memberships"] == before["resume.yaml"]["memberships"]
     assert constraints["option_aliases"] == before["constraints.yaml"]["option_aliases"]
     assert constraints["volume"] == before["constraints.yaml"]["volume"]
-    assert constraints["screening"]["eeo"] == before["constraints.yaml"]["screening"]["eeo"]
     assert targeting["profile"] == before["targeting.yaml"]["profile"]
     assert targeting["filters"]["compact_policy"] == before["targeting.yaml"]["filters"]["compact_policy"]
     assert targeting["filters"]["compact_policy"]["policy_version"] == "example-compact-1"

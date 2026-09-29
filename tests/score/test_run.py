@@ -12,8 +12,8 @@ from venator.score.selection import Input, inputs_for_passes
 from venator.score.store import read_scores
 
 FIXTURE = Path(__file__).parent / 'fixtures'
-MODEL = KeepModel('test', 'test', 'venator-decider-test', '/vol/venator-decider-test/base',
-                  '/vol/venator-decider-test/adapter', 'a' * 64,
+MODEL = KeepModel('test', 'test', 'fixture-model', '/vol/fixture-model/base',
+                  '/vol/fixture-model/adapter', 'a' * 64,
                   {'keep': {'type': 'noul', 'instructions': 'Keep?',
                             'criteria': {'false': 'Skip', 'true': 'Keep'}}})
 
@@ -67,6 +67,49 @@ def test_no_modal_no_model_no_credit_pause_without_scores(tmp_path: Path) -> Non
         assert report == {'scored': 0, 'waiting': 1, 'paused': reason}
     assert run_score(None, rows, tmp_path, execute=True, scored_at='2026-09-29T00:00:00+00:00')['paused'] == 'model-unavailable'
     assert not (tmp_path / 'data/keep-scores').exists()
+
+
+def test_batched_budget_ledger_resumes_next_day_without_repreparing(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr('venator.score.run.BATCH_SIZE', 1)
+    prepared = []
+
+    class Complete(Runtime):
+        def prepare(self, rows, directory):
+            prepared.append(rows[0]['state']['title'])
+            return super().prepare(rows, directory)
+
+        def infer(self, directory, items_sha256):
+            yield {'scores': [{'id': 'r000000', 'probability': 0.8}]}
+
+    rows = [Input(f'post-{i}', f'{i:064x}', {'title': str(i)}, None) for i in range(3)]
+    first = run_score(MODEL, rows, tmp_path, execute=True, scored_at='2026-09-29T00:00:00+00:00',
+                      runtime_factory=Complete, daily_usd=0.7)
+    assert (first['scored'], first['waiting'], first['paused']) == (1, 2, 'budget-reached')
+    ledger = [json.loads(line) for line in (tmp_path / 'data/runs.jsonl').read_text().splitlines()]
+    assert [row['batches'] for row in ledger] == [0, 1]
+    assert all(row['stage'] == 'score' and row['usd'] > 0 for row in ledger)
+    remaining = [replace(row, score=read_scores(tmp_path / 'data/keep-scores').get(
+        (row.posting_key, row.input_hash, MODEL.model_id))) for row in rows]
+    second = run_score(MODEL, remaining, tmp_path, execute=True, scored_at='2026-09-30T00:00:00+00:00',
+                       runtime_factory=Complete, daily_usd=0.7)
+    assert (second['scored'], second['waiting'], second['paused']) == (1, 1, 'budget-reached')
+    assert prepared == ['0', '1']  # batch 1 was not prepared again
+    remaining = [replace(row, score=read_scores(tmp_path / 'data/keep-scores').get(
+        (row.posting_key, row.input_hash, MODEL.model_id))) for row in rows]
+    third = run_score(MODEL, remaining, tmp_path, execute=True, scored_at='2026-10-01T00:00:00+00:00',
+                      runtime_factory=Complete, daily_usd=0.7)
+    assert (third['scored'], third['waiting'], third['paused']) == (1, 0, None)
+
+
+def test_monthly_ceiling_stops_while_daily_ceiling_has_room(tmp_path: Path) -> None:
+    rows = [Input('posting', 'a' * 64, {}, None)]
+    result = run_score(MODEL, rows, tmp_path, execute=True,
+                       scored_at='2026-09-29T00:00:00+00:00', runtime_factory=Runtime,
+                       daily_usd=2.0, monthly_usd=0.5)
+    assert result['paused'] == 'budget-reached'
+    assert result['scored'] == 0
+    ledger = [json.loads(line) for line in (tmp_path / 'data/runs.jsonl').read_text().splitlines()]
+    assert len(ledger) == 1 and ledger[0]['batches'] == 0
 
 
 def test_modal_generator_registers_without_unsupported_retry_configuration(monkeypatch) -> None:

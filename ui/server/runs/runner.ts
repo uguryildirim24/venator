@@ -13,13 +13,9 @@
  * failure and per-stage heartbeat for Discover, Hard Filters and View. Score separately
  * records its scores and pause heartbeat before its View rebuild.
  *
- * **One run at a time, and what that guard is not.** It is one process's memory, not a lock.
- * A person who also runs `python -m venator.match.run` in a terminal is outside it, and
- * nothing in `src/venator/` takes a lock — `venator.profile.claim` guards *cross-Profile*
- * mixing, not concurrent same-Profile runs. The guard is here because the stages are not
- * independent: `view.build` rewrites the whole database `openViewDatabase` opens fresh on
- * every request, and two `match.run`s over the same undecided Postings each append their own
- * decision for every one of them.
+ * **One writer.** The cross-process Install lock is held until the child tree and any
+ * recovery View rebuild settle. The in-process guard also keeps the run's progress attached
+ * to the current dashboard press. Standalone stage CLI calls do not take this lock.
  *
  * **The child must not outlive the app.** This is the sharpest edge in the whole surface. The
  * loop spawns a stage per subprocess, so signalling the loop alone would leave a grandchild
@@ -27,9 +23,7 @@
  * Windows. Nothing here is ever `unref`'d, and `shutdownRuns` is wired to the server's own
  * exit.
  *
- * **Nothing here writes a file.** Node spawns; the pipeline writes. There is no `fs` call on
- * this surface, and what a run leaves behind it leaves by running the same stages the CLI
- * runs.
+ * The only file this supervisor writes is its cross-process lock; stages own their stores.
  */
 
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
@@ -49,6 +43,7 @@ import { pipelineWorkingDirectory, pythonInterpreter, systemContext, type Locati
 import { runEnvironment } from "./environment.ts";
 import { RunError } from "./errors.ts";
 import { applicationIsActive } from "../applications/activity.ts";
+import { takePipelineLock } from "../pipeline-lock.ts";
 import { initialProgress, readStageLine, settleProgress, splitLines, type ProgressState } from "./progress.ts";
 
 /**
@@ -99,6 +94,7 @@ type LiveRun = {
 	readonly startedAt: string;
 	readonly context: LocationContext;
 	readonly spawnChild: SpawnChild;
+	readonly releaseLock: () => void;
 	endedAt: string | null;
 	child: ChildProcess;
 	progress: ProgressState;
@@ -306,6 +302,7 @@ function retire(run: LiveRun): void {
 	const state = snapshot(run);
 	recent = [state, ...recent].slice(0, RECENT_LIMIT);
 	if (live === run) live = null;
+	run.releaseLock();
 	startPendingReplay();
 }
 
@@ -475,13 +472,16 @@ export function startRun(
 			...(kind === "fetch-and-filter" ? ["--interactive-discover"] : []),
 		];
 	}
-	const child = spawnChild(pythonInterpreter(context), argv, {
+	const releaseLock = takePipelineLock(context);
+	if (releaseLock === null) throw new RunError("run_in_progress", "Wait for the current operation to finish.");
+	let child: ChildProcess;
+	try { child = spawnChild(pythonInterpreter(context), argv, {
 		cwd: pipelineWorkingDirectory(context),
 		stdio: kind === "score" ? ["ignore", "ignore", "ignore"] : ["ignore", "pipe", "pipe"],
 		env: environment,
 		// Its own process group, so a stop reaches the whole closed command tree.
 		detached: context.platform !== "win32",
-	});
+	}); } catch (error) { releaseLock(); throw error; }
 
 	const run: LiveRun = {
 		id: `run_${randomUUID()}`,
@@ -491,6 +491,7 @@ export function startRun(
 		endedAt: null,
 		context,
 		spawnChild,
+		releaseLock,
 		child,
 		progress: initialProgress(stages),
 		transcript: "",
@@ -615,7 +616,7 @@ export function shutdownRuns(): void {
  */
 export function resetRunsForTest(): void {
 	const run = live;
-	if (run !== null) signalTree(run.child, "SIGKILL", run.context);
+	if (run !== null) { signalTree(run.child, "SIGKILL", run.context); run.releaseLock(); }
 	if (run !== null && run.timer !== null) clearTimeout(run.timer);
 	if (run !== null && run.killTimer !== null) clearTimeout(run.killTimer);
 	live = null;

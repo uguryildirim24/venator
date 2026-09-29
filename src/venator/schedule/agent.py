@@ -1,9 +1,4 @@
-"""Generate the launchd agent for the scheduled loop, resolved for this install.
-
-The agent needs absolute paths — launchd has no shell, no PATH, and no working
-directory of its own. Committing them meant committing one person's home
-directory, so the paths are resolved here from the checkout and the environment
-instead, and the plist is written at install time rather than shipped.
+"""Generate the launchd agent for the installed app's daily loop.
 
 Usage:
     python -m venator.schedule.agent                    # print the plist
@@ -35,48 +30,43 @@ WRONG_PLATFORM = (
 )
 
 LABEL = "dev.venator.loop"
-INTERVAL_SECONDS = 6 * 60 * 60
-REPOSITORY = Path(__file__).resolve().parents[3]
+DEFAULT_HOUR = 6
+DEFAULT_MINUTE = 30
 SEARCH_PATH_SUFFIX = ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin")
-
-
-def find_uv(home: Path) -> Path:
-    """The uv launchd should run. launchd inherits no PATH, so this is absolute."""
-    found = shutil.which("uv")
-    if found:
-        return Path(found).resolve()
-    fallback = home / ".local" / "bin" / "uv"
-    if fallback.is_file():
-        return fallback
-    raise FileNotFoundError(
-        "uv is not on PATH and is not at ~/.local/bin/uv — launchd needs an "
-        "absolute path to it. Install uv, or pass --uv."
-    )
 
 
 def launch_agent(
     *,
-    repository: Path = REPOSITORY,
     home: Path | None = None,
-    uv: Path | None = None,
     profile: str | None = None,
-    interval: int = INTERVAL_SECONDS,
+    interpreter: Path | None = None,
+    claude: Path | None = None,
+    install: Path | None = None,
+    hour: int = DEFAULT_HOUR,
+    minute: int = DEFAULT_MINUTE,
+    daily_usd: float = 1.0,
+    monthly_usd: float = 10.0,
 ) -> dict:
-    """Build the launchd agent definition for this checkout and this account."""
+    """Build the launchd agent definition for this Install."""
     home = Path(home if home is not None else os.environ.get("HOME") or Path.home())
-    uv = Path(uv) if uv is not None else find_uv(home)
+    install = Path(install) if install is not None else home / 'Library/Application Support/Venator'
     log_dir = home / "Library" / "Logs" / "venator"
-    arguments = [str(uv), "run", "python", "-m", "venator.schedule.loop"]
+    if interpreter is None:
+        # The shipped app owns the scheduled code, not a moving checkout.
+        interpreter = Path('/Applications/Venator.app/Contents/Resources/resources/python/aarch64-apple-darwin/python/bin/python3')
+    arguments = [str(interpreter), "-m", "venator.schedule.loop"]
     if profile:
         arguments += ["--profile", profile]
     return {
         "Label": LABEL,
         "ProgramArguments": arguments,
-        "WorkingDirectory": str(Path(repository).resolve()),
-        "StartInterval": interval,
+        "StartCalendarInterval": {"Hour": hour, "Minute": minute},
         "EnvironmentVariables": {
             "HOME": str(home),
-            "PATH": ":".join([str(uv.parent), *SEARCH_PATH_SUFFIX]),
+            "VENATOR_HOME": str(install),
+            "VENATOR_SCORE_DAILY_USD": str(daily_usd),
+            "VENATOR_SCORE_MONTHLY_USD": str(monthly_usd),
+            "PATH": ":".join([str(Path(claude or shutil.which('claude') or home / '.local/bin/claude').parent), *SEARCH_PATH_SUFFIX]),
         },
         "ProcessType": "Background",
         "StandardOutPath": str(log_dir / "loop.stdout.log"),
@@ -91,24 +81,34 @@ def render(agent: dict) -> bytes:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, help="write the plist here instead of stdout")
-    parser.add_argument("--repository", type=Path, default=REPOSITORY)
     parser.add_argument("--home", type=Path, default=None)
-    parser.add_argument("--uv", type=Path, default=None, help="absolute path to the uv binary")
     parser.add_argument("--profile", default=None, help="Profile the scheduled loop runs for")
-    parser.add_argument("--interval", type=int, default=INTERVAL_SECONDS)
+    parser.add_argument("--interpreter", type=Path)
+    parser.add_argument("--claude", type=Path)
+    parser.add_argument("--install", type=Path)
+    parser.add_argument("--time", default="06:30")
+    parser.add_argument("--daily-usd", type=float, default=1.0)
+    parser.add_argument("--monthly-usd", type=float, default=10.0)
     args = parser.parse_args()
     if sys.platform != SUPPORTED_PLATFORM:
         parser.error(WRONG_PLATFORM.format(platform=sys.platform))
     try:
-        agent = launch_agent(
-            repository=args.repository,
-            home=args.home,
-            uv=args.uv,
-            profile=args.profile,
-            interval=args.interval,
-        )
-    except FileNotFoundError as error:
-        parser.error(str(error))
+        hour, minute = (int(part) for part in args.time.split(':'))
+        if not (0 <= hour < 24 and 0 <= minute < 60):
+            raise ValueError('outside the day')
+    except ValueError:
+        parser.error('--time must be HH:MM')
+    agent = launch_agent(
+        home=args.home,
+        profile=args.profile,
+        interpreter=args.interpreter,
+        claude=args.claude,
+        install=args.install,
+        hour=hour,
+        minute=minute,
+        daily_usd=args.daily_usd,
+        monthly_usd=args.monthly_usd,
+    )
     payload = render(agent)
     if args.out is None:
         sys.stdout.write(payload.decode("utf-8"))

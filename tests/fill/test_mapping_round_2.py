@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from venator.fill.mapping import (
     fact_name_for_label,
@@ -208,117 +207,6 @@ def test_sponsorship_never_falls_back_to_no() -> None:
     assert mapping.value is None
 
 
-@pytest.mark.parametrize(
-    ("label", "path"),
-    [
-        ("Salary Expectations", "screening.salary_expectations"),
-        (
-            "Do you reside in the location for this job posting or within commutable distance?",
-            "screening.resides_near_posting",
-        ),
-        (
-            "Have you ever been employed by or performed services for Example Company, a subsidiary, or an acquired company?",
-            "screening.prior_employment_at_company",
-        ),
-        ("Do you have relatives at this company?", "screening.relatives_at_company"),
-        ("How did you hear about us?", "screening.how_heard"),
-        ("Country", "screening.country"),
-        ("Gender", "screening.eeo.gender"),
-        ("Are you Hispanic/Latino?", "screening.eeo.hispanic_latino"),
-        ("Veteran Status", "screening.eeo.veteran_status"),
-        ("Disability Status", "screening.eeo.disability_status"),
-    ],
-)
-def test_absent_screening_answers_stay_unmapped(label: str, path: str) -> None:
-    mapping = map_field(field(label, "text"), RESUME, BASE_CONSTRAINTS)
-
-    assert not mapping.mapped
-    assert mapping.reason == f"owner has not provided constraints.yaml:{path}"
-
-
-def test_provided_screening_answers_map_exactly_or_by_normalized_membership() -> None:
-    constraints = {
-        **BASE_CONSTRAINTS,
-        "screening": {
-            "salary_expectations": "$45,000",
-            "resides_near_posting": "yes",
-            "prior_employment_at_company": False,
-            "relatives_at_company": "No",
-            "how_heard": "college university fair",
-            "country": "united states 1",
-            "eeo": {
-                "gender": "decline to self identify",
-                "hispanic_latino": None,
-                "veteran_status": "I don't wish to answer",
-                "disability_status": "I do not want to answer",
-            },
-        },
-    }
-    cases = [
-        (field("Salary Expectations", "text"), "$45,000"),
-        (field("Do you reside near the job location?", "select", ["Yes", "No"]), "Yes"),
-        (field("Have you ever worked for this company?", "radio", ["Yes", "No"]), "No"),
-        (field("Do you have relatives at this company?", "select", ["Yes", "No"]), "No"),
-        (
-            field(
-                "How did you hear about us?",
-                "select",
-                ["College / University Fair", "Other"],
-            ),
-            "College / University Fair",
-        ),
-        (field("Country", "select", ["Canada +1", "United States +1"]), "United States +1"),
-        (
-            field("Gender", "select", ["Male", "Female", "Decline To Self Identify"]),
-            "Decline To Self Identify",
-        ),
-        (
-            field(
-                "Veteran Status",
-                "select",
-                ["I am not a protected veteran", "I don't wish to answer"],
-            ),
-            "I don't wish to answer",
-        ),
-        (
-            field(
-                "Disability Status",
-                "select",
-                ["No, I do not have a disability", "I do not want to answer"],
-            ),
-            "I do not want to answer",
-        ),
-    ]
-
-    for spec_field, expected in cases:
-        mapping = map_field(spec_field, RESUME, constraints)
-        assert mapping.mapped, mapping.reason
-        assert mapping.value == expected
-
-    hispanic = map_field(
-        field("Are you Hispanic/Latino?", "select", ["Yes", "No", "Decline To Self Identify"]),
-        RESUME,
-        constraints,
-    )
-    assert not hispanic.mapped
-    assert "owner has not provided" in hispanic.reason
-
-
-def test_provided_screening_choice_stays_unmapped_without_canonical_membership() -> None:
-    constraints = {
-        **BASE_CONSTRAINTS,
-        "screening": {"how_heard": "Online search"},
-    }
-    mapping = map_field(
-        field("How did you hear about us?", "select", ["Through my network", "Other"]),
-        RESUME,
-        constraints,
-    )
-
-    assert not mapping.mapped
-    assert mapping.reason == "Profile value 'Online search' is not an exact or canonical option"
-
-
 def test_eeo_is_never_defaulted_to_decline() -> None:
     labels_and_options = [
         ("Gender", ["Male", "Female", "Decline To Self Identify"]),
@@ -331,34 +219,4 @@ def test_eeo_is_never_defaulted_to_decline() -> None:
         mapping = map_field(field(label, "select", options), RESUME, BASE_CONSTRAINTS)
         assert not mapping.mapped
         assert mapping.value is None
-        assert "owner has not provided" in mapping.reason
-
-
-def test_screening_scaffold_is_declared_but_never_defaulted() -> None:
-    """Every Profile carries the screening fields, and every one starts null.
-
-    They are real optional fields now rather than commented-out scaffolding, so
-    a Profile can be filled in without knowing the schema — but an absent
-    answer must still leave a form field unmapped, never guessed.
-    """
-    for directory in sorted(Path("profiles").iterdir()):
-        constraints = yaml.safe_load((directory / "constraints.yaml").read_text(encoding="utf-8"))
-        screening = constraints["screening"]
-
-        assert set(screening) == {
-            "salary_expectations",
-            "resides_near_posting",
-            "prior_employment_at_company",
-            "relatives_at_company",
-            "how_heard",
-            "country",
-            "eeo",
-        }, directory
-        assert set(screening["eeo"]) == {
-            "gender",
-            "hispanic_latino",
-            "veteran_status",
-            "disability_status",
-        }, directory
-        assert all(value is None for key, value in screening.items() if key != "eeo"), directory
-        assert all(value is None for value in screening["eeo"].values()), directory
+        assert mapping.reason == "reserved question left for the Owner"

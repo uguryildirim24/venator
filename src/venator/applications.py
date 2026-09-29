@@ -17,8 +17,8 @@ from venator.profile import add_profile_argument, profile_from_arguments
 from venator.profile.claim import store_owner
 from venator.secrets import scrub
 
-FILES = frozenset({"resume.pdf", "resume.txt", "letter.txt"})
-ACTIONS = ("status", "file", "prepare", "save", "dismiss", "restore", "applied", "handoff")
+FILES = frozenset({"resume.pdf", "resume.txt", "letter.txt", "letter.pdf"})
+ACTIONS = ("status", "file", "apply", "edit", "save", "dismiss", "restore", "applied", "fill", "answers", "answer", "retract", "replace", "promote")
 
 
 def application_directory(stores: dict, profile_id: str, key: str) -> Path:
@@ -30,13 +30,13 @@ def application_directory(stores: dict, profile_id: str, key: str) -> Path:
 def manifest(directory: Path) -> dict:
     path = directory / "manifest.json"
     if not path.exists():
-        return {"prepared": False, "message": "No documents prepared yet."}
+        return {"prepared": False, "message": "No application documents yet."}
     try:
         result = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
-        raise ValueError("The application record is unreadable. Prepare the documents again.") from error
+        raise ValueError("The application record is unreadable. Apply again.") from error
     if not isinstance(result, dict) or result.get("prepared") is not True:
-        raise ValueError("The application record is incomplete. Prepare the documents again.")
+        raise ValueError("The application record is incomplete. Apply again.")
     return result
 
 
@@ -46,23 +46,23 @@ def document_path(directory: Path, record: dict, name: str) -> Path:
     if name not in FILES:
         raise ValueError("Choose an application document to download.")
     if record.get("prepared") is not True or record.get("preparation_revision") != PREPARATION_REVISION:
-        raise ValueError("Prepare fresh documents before opening this application.")
+        raise ValueError("Apply again before opening this application.")
     version = record.get("version")
     if not isinstance(version, str) or not version.isalnum():
         raise ValueError("No prepared document version is available.")
-    if name == "letter.txt" and not isinstance(record.get("letterText"), str):
+    if name in {"letter.txt", "letter.pdf"} and not isinstance(record.get("letterText"), str):
         raise ValueError("No cover letter was prepared for this version.")
     path = directory / "versions" / version / name
     if any(item.is_symlink() for item in (path.parent.parent, path.parent, path)):
-        raise ValueError("The prepared document location changed. Prepare the documents again.")
+        raise ValueError("The document location changed. Apply again.")
     hashes = record.get("file_hashes")
     expected = hashes.get(name) if isinstance(hashes, dict) else None
     try:
         content = path.read_bytes()
     except OSError as error:
-        raise ValueError("That document is missing or unreadable. Prepare the documents again.") from error
+        raise ValueError("That document is missing or unreadable. Apply again.") from error
     if not isinstance(expected, str) or hashlib.sha256(content).hexdigest() != expected:
-        raise ValueError("The prepared document changed or is damaged. Prepare the documents again.")
+        raise ValueError("The document changed or is damaged. Apply again.")
     preview_key = {"resume.txt": "resumeText", "letter.txt": "letterText"}.get(name)
     if preview_key is not None:
         try:
@@ -70,8 +70,15 @@ def document_path(directory: Path, record: dict, name: str) -> Path:
         except UnicodeError:
             matches = False
         if not matches:
-            raise ValueError("The document and its preview disagree. Prepare the documents again.")
+            raise ValueError("The document and its preview disagree. Apply again.")
     return path
+
+
+def _verify_answer_pins(record: dict, stores: dict, profile_id: str) -> None:
+    from venator.answers.store import pinned_current
+    if not pinned_current(stores["data_dir"] / "answers", profile_id,
+                          [*record.get("answerPins", []), *record.get("statementPins", [])]):
+        raise ValueError("A reviewed answer or statement changed. Apply again before Fill.")
 
 
 def _verify_bundle(directory: Path, record: dict) -> Path:
@@ -79,8 +86,9 @@ def _verify_bundle(directory: Path, record: dict) -> Path:
     document_path(directory, record, "resume.txt")
     if isinstance(record.get("letterText"), str):
         document_path(directory, record, "letter.txt")
-    elif (resume.parent / "letter.txt").exists():
-        raise ValueError("An unexpected letter is present. Prepare the documents again.")
+        document_path(directory, record, "letter.pdf")
+    elif (resume.parent / "letter.txt").exists() or (resume.parent / "letter.pdf").exists():
+        raise ValueError("An unexpected letter is present. Apply again.")
     return resume
 
 
@@ -94,7 +102,7 @@ def _verify_freshness(record: dict, posting: dict | str, profile) -> None:
     if (record.get("posting_version") != revision
             or record.get("profile_version") != filters_version(profile.constraints_path, profile.targeting_path)
             or record.get("input_version") != _input_version(profile, profile.resume)):
-        raise ValueError("The job or your profile changed. Prepare fresh documents before using this application.")
+        raise ValueError("The job or your profile changed. Apply again before using this application.")
 
 
 def _status_revision(stores: dict, key: str) -> str:
@@ -123,6 +131,37 @@ def perform(args: argparse.Namespace) -> dict:
     profile = profile_from_arguments(args)
     stores = resolve_store_paths(data_dir=None, postings_dir=None, decisions_dir=None,
                                  track_dir=None, database_path=None)
+    if args.action in {"answers", "answer", "retract", "replace", "promote"}:
+        from venator.answers.store import append, latest, rows
+        directory = stores["data_dir"] / "answers"
+        if args.action == "answers":
+            return {"answers": list(latest(directory, profile.identifier).values())}
+        payload = json.loads(args.answer)
+        if not isinstance(payload, dict):
+            raise ValueError("Choose an answer.")
+        if args.action in {"retract", "replace", "promote"}:
+            old = next((row for row in rows(directory, profile.identifier) if row["id"] == payload.get("id")), None)
+            if old is None:
+                raise ValueError("This answer is no longer in the library.")
+            if latest(directory, profile.identifier).get((old["question"], old["scope"])) != old:
+                raise ValueError("This answer changed. Reload the Answers view.")
+            from venator.answers.store import promote, replace
+            if args.action == "promote":
+                return promote(directory, profile.identifier, old)
+            return replace(directory, profile.identifier, old, payload.get("answer") if args.action == "replace" else None)
+        kind = payload.get("kind")
+        posting = None
+        if kind != "statement":
+            from venator.discover.store import load_postings
+            posting = next((row for row in load_postings(stores["postings_dir"]) if row["key"] == args.key), None)
+            if posting is None:
+                raise ValueError("Choose a Posting for this answer.")
+        if set(payload) != {"text", "kind", "answer", "universal", "eeo"} or not isinstance(payload["universal"], bool) or not isinstance(payload["eeo"], bool):
+            raise ValueError("Choose a question, answer and employer scope.")
+        return append(directory, profile.identifier, text=payload["text"], kind=kind,
+                      answer=payload["answer"], board=str(posting.get("board") or "") if posting else "any",
+                      company=str(posting.get("company") or "") if posting else "",
+                      universal=payload["universal"], eeo=payload["eeo"])
     if args.action == "status":
         # The stamps are the ownership lock. Routine reads must not replay all
         # foreign rows in the Filter Decision store just to check a manifest.
@@ -131,15 +170,36 @@ def perform(args: argparse.Namespace) -> dict:
             if owner is not None and owner != profile.identifier:
                 raise ValueError(f"The {name} store belongs to another Profile: {owner!r}.")
         directory = application_directory(stores, profile.identifier, args.key)
+        from venator.browser.handoff import _read_json, handoff_state_path
+        handoff = _read_json(handoff_state_path(directory)) or {}
+        marker = handoff.get("marker")
+        parts = args.key.split(":")
+        confirmed = (handoff.get("state") == "applied" and isinstance(marker, dict)
+                     and len(parts) == 3 and parts[0] == "greenhouse"
+                     and marker.get("system") == parts[0] and marker.get("board") == parts[1]
+                     and marker.get("job_id") == parts[2])
+        if confirmed:
+            from venator.track.record import record_event
+            from venator.track.store import load_events
+            from venator.view.build import build_database
+            if not any(row.get("posting_key") == args.key and row.get("event") == "submit"
+                       for row in load_events(stores["track_dir"])):
+                record_event("submit", args.key, "employer confirmation: greenhouse",
+                             identifier=profile.identifier, postings_dir=stores["postings_dir"],
+                             decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
+                build_database(profile=profile)
+        session = {"handoff": handoff.get("state") if handoff.get("state") in {"ready", "closed", "applied"} else None,
+                   "applied": confirmed, "candidates": handoff.get("candidates", []) if handoff.get("state") in {"ready", "closed", "applied"} else []}
         try:
             record = manifest(directory)
             if record.get("prepared") is True:
                 revision = _status_revision(stores, args.key)
                 _verify_freshness(record, revision, profile)
+                _verify_answer_pins(record, stores, profile.identifier)
                 _verify_bundle(directory, record)
-            return record
+            return {**record, **session}
         except ValueError as error:
-            return {"prepared": False, "message": str(error)}
+            return {"prepared": False, "message": str(error), **session}
     from venator.discover.store import posting_revision
     from venator.match.store import filters_version, load_latest_decisions, load_postings, verify_decisions_dir
     from venator.track.record import record_event
@@ -158,7 +218,7 @@ def perform(args: argparse.Namespace) -> dict:
         path = document_path(directory, record, args.file)
         content = path.read_bytes()
         if hashlib.sha256(content).hexdigest() != record["file_hashes"][args.file]:
-            raise ValueError("The document changed during download. Retry after preparing it again.")
+            raise ValueError("The document changed during download. Apply again before retrying.")
         return {"base64": base64.b64encode(content).decode("ascii")}
 
     events = {"save": "approve", "dismiss": "reject", "restore": "restore", "applied": "submit"}
@@ -169,6 +229,26 @@ def perform(args: argparse.Namespace) -> dict:
         build_database(profile=profile)
         return {"message": {"save": "Job saved.", "dismiss": "Job dismissed. You can undo this.",
                             "restore": "Job restored.", "applied": "Application recorded as applied."}[args.action]}
+
+    if args.action in {"edit", "fill"}:
+        record = manifest(directory)
+        _verify_freshness(record, posting, profile)
+        _verify_answer_pins(record, stores, profile.identifier)
+        resume_file = _verify_bundle(directory, record)
+        if args.action == "edit":
+            if args.version != record.get("version"):
+                raise ValueError("This version changed. Review the current documents before editing.")
+            from venator.tailor.prepare import edit_application
+            edits = json.loads(args.edits)
+            if not isinstance(edits, list) or any(not isinstance(row, dict) or set(row) != {"draft_id", "text"}
+                                                   for row in edits):
+                raise ValueError("Choose reviewed passages to edit.")
+            return edit_application(directory, record, edits, posting, profile)
+        from venator.browser.handoff import start_handoff
+        return start_handoff(posting, profile, resume_file, directory,
+                             letter_file=document_path(directory, record, "letter.pdf")
+                             if isinstance(record.get("letterText"), str) else None,
+                             questions=record.get("formQuestions", []))
 
     from venator.discover.refresh import refresh_posting
     from venator.discover.store import append_observations
@@ -202,35 +282,47 @@ def perform(args: argparse.Namespace) -> dict:
     if decision.get("verdict") == "kill":
         raise ValueError(f"The refreshed job conflicts with your profile: {decision.get('reason', 'eligibility conflict')}")
 
-    if args.action == "prepare":
+    if args.action == "apply":
+        from venator.answers.store import latest
+        from venator.apply.form import greenhouse_questions, review_questions
         from venator.tailor.prepare import prepare_application
-        result = prepare_application(refreshed, profile, directory, provider=args.provider, cover_letter=args.cover_letter)
+        question_rows: list[dict] = []
+        pins: list[dict] = []
+        read_form = False
+        if refreshed.get("source") == "greenhouse":
+            try:
+                questions = greenhouse_questions(refreshed)
+                question_rows, pins = review_questions(refreshed, profile, stores["data_dir"] / "answers", questions)
+                read_form = True
+            except (ValueError, OSError, TimeoutError):
+                pass
+        library = latest(stores["data_dir"] / "answers", profile.identifier)
+        statements = [row for row in library.values() if row.get("kind") == "statement" and row.get("answer")]
+        needs_letter = not read_form or any(row["kind"] == "file" and "letter" in row["label"].casefold()
+                                            for row in question_rows)
+        result = prepare_application(refreshed, profile, directory, provider="claude", cover_letter=needs_letter,
+                                     form_questions=question_rows, answer_pins=pins, statements=statements)
         _verify_freshness(result, refreshed, profile)
         _verify_bundle(directory, result)
         record_event("prepare", args.key, "Prepared application documents.", identifier=profile.identifier,
                      postings_dir=stores["postings_dir"], decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
         build_database(profile=profile)
         return result
-    record = manifest(directory)
-    _verify_freshness(record, refreshed, profile)
-    resume_file = _verify_bundle(directory, record)
-    from venator.browser.handoff import start_handoff
-    return start_handoff(refreshed, profile, resume_file, directory)
+    raise ValueError("Choose an application action.")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=ACTIONS)
     parser.add_argument("key")
-    parser.add_argument("--provider", choices=("claude", "codex", "api"))
-    parser.add_argument("--cover-letter", action="store_true")
+    parser.add_argument("--edits", default="[]")
+    parser.add_argument("--answer", default="{}")
+    parser.add_argument("--version")
     parser.add_argument("--file", choices=sorted(FILES))
     add_profile_argument(parser)
     args = parser.parse_args()
     try:
         with redirect_stdout(sys.stderr):
-            if args.action == "prepare" and args.provider is None:
-                raise ValueError("Choose a provider for preparation.")
             if args.action == "file" and args.file is None:
                 raise ValueError("Choose an application document to download.")
             result = perform(args)

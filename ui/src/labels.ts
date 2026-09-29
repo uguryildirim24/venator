@@ -21,7 +21,7 @@ import type {
 	PostingStatus,
 } from "../shared/contracts.ts";
 import type { ExtractedField, RuntimeState } from "../shared/onboarding.ts";
-import type { DegreeLevel, EeoField, HardFilterRule, ScreeningField, TriState } from "../shared/profile-form.ts";
+import type { DegreeLevel, HardFilterRule, TriState } from "../shared/profile-form.ts";
 import type { SectionKey } from "./onboarding/draft.ts";
 import type { RunKind, RunStage } from "../shared/runs.ts";
 import type { HomeList } from "./router.ts";
@@ -523,6 +523,7 @@ export function scorePauseLabel(reason: string): string {
 		"out-of-credit": "Out of credit",
 		"account-unavailable": "Account unavailable",
 		"cap-reached": "Spending cap reached",
+		"budget-reached": "Score budget reached",
 		"connection-unavailable": "Connection unavailable",
 	};
 	return Object.entries(state).find(([code]) => code === reason)?.[1] ?? "Score paused";
@@ -580,27 +581,7 @@ export function hardFilterLine(rule: HardFilterRule): string {
 	return HARD_FILTER_LINES[rule];
 }
 
-/** The screening answers `constraints.yaml` holds, as a form asks them. */
-const SCREENING_FIELDS = {
-	salary_expectations: "Salary expectations",
-	resides_near_posting: "Live near the job",
-	prior_employment_at_company: "Worked there before",
-	relatives_at_company: "Relatives there",
-	how_heard: "How you heard",
-	country: "Country",
-} satisfies Record<ScreeningField, string>;
-
-export function screeningFieldLabel(field: ScreeningField): string {
-	return SCREENING_FIELDS[field];
-}
-
-const EEO_FIELDS = {
-	gender: "Gender",
-	hispanic_latino: "Hispanic or Latino",
-	veteran_status: "Veteran status",
-	disability_status: "Disability status",
-} satisfies Record<EeoField, string>;
-
-export function eeoFieldLabel(field: EeoField): string {
-	return EEO_FIELDS[field];
+export function answerScopeLabel(scope: string, employers: readonly { readonly board: string; readonly name: string }[]): string {
+	if (scope === "any") return "Every employer";
+	return employers.find((employer) => employer.board === scope)?.name || "One employer";
 }

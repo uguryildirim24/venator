@@ -157,23 +157,6 @@ test("a resume without the five fields the renderer reads is refused", () => {
 	assert.equal(refusal(() => validateProposal(partial)).field, "resume.contact.linkedin");
 });
 
-test("a sponsorship answer is refused unless the Profile says sponsorship is required", () => {
-	const error = refusal(() =>
-		validateProposal(
-			proposal({}, { work_authorization: { requires_sponsorship: null }, screening: { requires_sponsorship: "No" } }),
-		),
-	);
-	assert.equal(error.field, "constraints.screening.requires_sponsorship");
-	assert.match(error.message, /states outright/u);
-
-	// Literally true is the only thing that permits one.
-	validateProposal(
-		proposal({}, { work_authorization: { requires_sponsorship: true }, screening: { requires_sponsorship: "Yes" } }),
-	);
-	// And a blank answer is always fine — that is the default state of the whole block.
-	validateProposal(proposal({}, { screening: { requires_sponsorship: null, eeo: { gender: null } } }));
-});
-
 test("a key that would reach an object's prototype is refused rather than dropped", () => {
 	const hostile: JsonMapping = JSON.parse('{"filters": {"__proto__": {"polluted": true}}}');
 	assert.equal(refusal(() => validateProposal(proposal(hostile))).code, "invalid_profile");

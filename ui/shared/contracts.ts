@@ -114,6 +114,8 @@ export type PostingEntry = {
 	readonly assessment?: JobAssessment;
 	/** Discovered within the latest completed Discover run window. Nothing is stored. */
 	readonly isNew: boolean;
+	/** Same employer, normalized title and site; each key opens its own requisition. */
+	readonly groupKeys?: readonly string[];
 };
 
 /**

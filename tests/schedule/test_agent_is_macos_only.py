@@ -71,6 +71,5 @@ def test_nothing_is_written_when_the_platform_is_refused(
 def test_macos_still_generates_the_plist(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(sys, "argv", ["venator.schedule.agent"])
-    monkeypatch.setattr(agent, "find_uv", lambda home: home / ".local" / "bin" / "uv")
 
     assert agent.main() == 0

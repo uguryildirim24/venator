@@ -154,6 +154,9 @@ from pathlib import Path
 #: * ``match/filters.py``  — the Hard Filters themselves.
 #: * ``match/dedup.py``    — a Hard Filter under another name; it records at
 #:                           stage ``hard_filter`` with ``rule: "duplicate"``.
+#: * ``match/location_scope.py`` — decides whether a Posting has a local site.
+#: * ``place_lookup.py`` and ``place_names.json`` — shared city readings used
+#:                           by the location Hard Filter.
 #: * ``profile/schema.py`` — the policy objects a filter reads.
 #: * ``profile/loader.py`` — turns a Profile's YAML into those policy objects,
 #:                           defaults included, so what it does not build is a
@@ -172,6 +175,9 @@ from pathlib import Path
 RULE_FILES: tuple[str, ...] = (
     "src/venator/match/filters.py",
     "src/venator/match/dedup.py",
+    "src/venator/match/location_scope.py",
+    "src/venator/place_lookup.py",
+    "src/venator/place_names.json",
     "src/venator/profile/schema.py",
     "src/venator/profile/loader.py",
 )
@@ -297,6 +303,13 @@ def changed_behaviour(before_rev: str, after_rev: str) -> list[str]:
             changed.append(f"{path} (added or removed)")
             continue
         if before == after:
+            continue
+        if path.endswith(".json"):
+            try:
+                if json.loads(before) != json.loads(after):
+                    changed.append(path)
+            except json.JSONDecodeError:
+                changed.append(f"{path} (could not be parsed)")
             continue
         if not path.endswith(".py"):
             changed.append(path)
@@ -489,7 +502,7 @@ def main(argv: list[str]) -> int:
     rules = [path for path in changed if path.split(" ")[0] in RULE_FILES]
     print("Watched file(s) whose behaviour changed:")
     for path in changed:
-        kind = "rule" if path in rules else "plumbing"
+        kind = "rule" if path.split(" ")[0] in RULE_FILES else "plumbing"
         print(f"  [{kind:<8}] {path}")
 
     try:

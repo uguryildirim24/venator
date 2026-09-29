@@ -7,6 +7,7 @@ import { after, before, test } from "node:test";
 import { documentRuntime, saveDocumentRuntime } from "../server/install-settings.ts";
 import { ONBOARDING_REQUEST_HEADER } from "../shared/onboarding.ts";
 import { createOnboardingRoutes } from "../server/onboarding/routes.ts";
+import { createApplicationRoutes } from "../server/applications/routes.ts";
 import { currentRun, recentRuns, resetRunsForTest } from "../server/runs/runner.ts";
 import type { LocationContext } from "../server/locations.ts";
 import { editProfileDocuments, readProfileDocuments } from "../server/onboarding/profile-edit.ts";
@@ -29,7 +30,7 @@ test("Profile opens the existing Install's three files, edits them and preserves
 		// Use the setup writer rather than hand-making a Profile.
 		const created = await writeProfile({ name: "main", overwrite: false,
 			resume: { name: "A Person", contact: { location: "Boston", phone: "555-0100", email: "a@b.co", linkedin: "linkedin.com/in/a" } },
-			constraints: { screening: { how_heard: null } }, targeting: { search: { queries: ["biologist"] } },
+			constraints: {}, targeting: { search: { queries: ["biologist"] } },
 		}, context);
 		await saveDocumentRuntime("codex", context);
 		writeFileSync(join(created.directory, "reference.pdf"), "prepared document");
@@ -84,6 +85,36 @@ test("the Profile save route starts a replay on a version change but not on an u
 	}
 });
 
+test("an authorization answer writes the Profile once through the onboarding writer", async () => {
+	const home = realpathSync(mkdtempSync(join(tmpdir(), "venator-authorization-")));
+	const previousHome = process.env["VENATOR_HOME"];
+	const previousPython = process.env["VENATOR_PYTHON"];
+	process.env["VENATOR_HOME"] = home;
+	process.env["VENATOR_PYTHON"] = process.execPath;
+	try {
+		const context: LocationContext = { platform: "linux", home, workingDirectory: home, checkoutRoot: null,
+			environment: (key) => key === "VENATOR_HOME" ? home : standIn.get(key) };
+		await writeProfile({ name: "main", overwrite: false,
+			resume: { name: "A Person", contact: { location: "Boston", phone: "555-0100", email: "a@b.co", linkedin: "linkedin.com/in/a" } },
+			constraints: {}, targeting: { search: { queries: ["biologist"] } },
+		}, context);
+		const routes = createApplicationRoutes(async () => { assert.fail("no application subprocess"); });
+		const request = { method: "POST", headers: { "Content-Type": "application/json", "X-Venator-Application": "1", origin: "tauri://localhost" },
+			body: JSON.stringify({ action: "authorization", key: "greenhouse:fixture:123", authorized: true }) };
+		assert.equal((await routes.request("/", request)).status, 200);
+		const first = readProfileDocuments("main", context)["constraints.yaml"];
+		assert.match(first, /authorized_to_work: true/u);
+		assert.equal((await routes.request("/", request)).status, 200);
+		assert.equal(readProfileDocuments("main", context)["constraints.yaml"], first);
+		assert.equal((await routes.request("/", { ...request, body: JSON.stringify({ action: "authorization", key: "greenhouse:fixture:123", authorized: false }) })).status, 409);
+	} finally {
+		resetRunsForTest();
+		if (previousHome === undefined) delete process.env["VENATOR_HOME"]; else process.env["VENATOR_HOME"] = previousHome;
+		if (previousPython === undefined) delete process.env["VENATOR_PYTHON"]; else process.env["VENATOR_PYTHON"] = previousPython;
+		rmSync(home, { recursive: true, force: true });
+	}
+});
+
 test("the Profile screen's save writes the form's differences and keeps the stale check, the compact policy and the runtime", async () => {
 	const home = realpathSync(mkdtempSync(join(tmpdir(), "venator-profile-form-")));
 	const context: LocationContext = {
@@ -93,7 +124,7 @@ test("the Profile screen's save writes the form's differences and keeps the stal
 	try {
 		const created = await writeProfile({ name: "main", overwrite: false,
 			resume: { name: "A Person", contact: { location: "Boston", phone: "555-0100", email: "a@b.co", linkedin: "linkedin.com/in/a" } },
-			constraints: { screening: { how_heard: null } },
+			constraints: {},
 			targeting: { search: { queries: ["biologist"] }, filters: { compact_policy: { policy_version: "mine-1", restricted_roles: "review", temporary_student_authorization_exclusion: "review", no_sponsorship_student: "review", no_sponsorship_nonstudent: "review", unmet_completed_degree: "review", domains: ["pharmacy"] } } },
 		}, context);
 		await saveDocumentRuntime("codex", context);
@@ -103,15 +134,15 @@ test("the Profile screen's save writes the form's differences and keeps the stal
 		assert.equal(form.resume.name, "A Person");
 		const edited = { ...form,
 			resume: { ...form.resume, name: "Edited Person" },
-			constraints: { ...form.constraints, screening: { ...form.constraints.screening, how_heard: "A friend" } },
+			constraints: { ...form.constraints, work_authorization: { ...form.constraints.work_authorization, authorized_to_work: "yes" as const } },
 			targeting: { ...form.targeting, search: { ...form.targeting.search, queries: ["biologist", "chemist"] } },
 		};
 		assert.equal(await saveProfileForm("main", edited, original, context), true);
 		const saved = readProfileDocuments("main", context);
 		// The setup writer quotes every scalar; an edit in place keeps the spelling it found, and
-		// an answer that was null is written plain.
+		// an explicit authorization answer is written as a boolean.
 		assert.match(saved["resume.yaml"], /name: "Edited Person"/u);
-		assert.match(saved["constraints.yaml"], /how_heard: A friend/u);
+		assert.match(saved["constraints.yaml"], /authorized_to_work: true/u);
 		assert.match(saved["targeting.yaml"], /- chemist/u);
 		assert.match(saved["targeting.yaml"], /policy_version: "mine-1"/u, "the compact policy the form never shows is still there");
 		assert.deepEqual(formOf(saved).targeting.search.queries, ["biologist", "chemist"]);

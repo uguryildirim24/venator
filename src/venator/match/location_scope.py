@@ -49,6 +49,12 @@ _FACILITIES = {
     "Addison Gilbert Hospital": "ma",
     "Exeter Hospital": "new_england",
     "Maddock Alumni Center": "new_england",
+    "Newport Hospital": "new_england",
+    "Rhode Island Hospital": "new_england",
+    "The Miriam Hospital": "new_england",
+    "Bradley Hospital": "new_england",
+    "Hasbro Children's Hospital": "new_england",
+    "Emma Pendleton Bradley Hospital": "new_england",
 }
 _LOCAL_FACILITIES = {name.casefold(): scope for name, scope in _FACILITIES.items()}
 
@@ -133,9 +139,37 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
     return "unreadable"
 
 
+# A title hint must name a city followed by an explicit region/country; bare
+# city names in titles cannot disambiguate a shared place name.
+_TITLE_PLACE = re.compile(
+    r"(?:\s/\s|\s[-–—]\s|\()\s*([A-Za-z][A-Za-z .'-]+?,\s*(?:[A-Z]{2}|[A-Za-z][A-Za-z ]+?))(?=\s*(?:\)|\(|[-–—/]|$))"
+)
+
+
+def _ambiguous_site(name: str) -> bool:
+    city = re.sub(r"\s*\([^)]*\)$", "", name).strip()
+    if "," in city or re.search(r"\b(?:" + "|".join(re.escape(n) for n in STATE_NAMES) + r")\b", city, re.I):
+        return False
+    if re.search(r"\b[A-Z]{2}\b", city):
+        return False
+    return len(readings(city)) > 1
+
+
 def location_scope(posting: Mapping[str, object], *, employer_has_local: bool | None = None) -> Scope:
     """Keep any New England site; a wholly unreadable employer is outside."""
     sites: list[Scope] = []
+    ambiguous = False
+    known_local = False
+
+    def add(name: str, *, region: str = "", country: str = "") -> None:
+        nonlocal ambiguous, known_local
+        scope = _site(name, region=region, country=country)
+        sites.append(scope)
+        shared_city = not region and (not country or country_code(country) == "US") and _ambiguous_site(name)
+        if shared_city:
+            ambiguous = True
+        elif scope in {"ma", "new_england", "remote"}:
+            known_local = True
     raw = posting.get("locations")
     structured_sites = False
     if isinstance(raw, list):
@@ -145,10 +179,12 @@ def location_scope(posting: Mapping[str, object], *, employer_has_local: bool | 
                 if _COUNT.fullmatch(name.strip()):
                     continue
                 structured_sites = True
-                sites.extend(_site(part, region=str(entry.get("region") or ""), country=str(entry.get("country") or "")) for part in re.split(r"\s*[;|]\s*", name))
+                for part in re.split(r"\s*[;|]\s*", name):
+                    add(part, region=str(entry.get("region") or ""), country=str(entry.get("country") or ""))
             elif isinstance(entry, str) and not _COUNT.fullmatch(entry.strip()):
                 structured_sites = True
-                sites.extend(_site(part) for part in re.split(r"\s*[;|]\s*", entry))
+                for part in re.split(r"\s*[;|]\s*", entry):
+                    add(part)
     display = posting.get("location")
     display_is_count = isinstance(display, str) and bool(_COUNT.fullmatch(display.strip()))
     if not structured_sites or display_is_count:
@@ -167,9 +203,28 @@ def location_scope(posting: Mapping[str, object], *, employer_has_local: bool | 
                     name = entry.get("name")
                     if isinstance(name, str) and not _COUNT.fullmatch(name.strip()):
                         structured_sites = True
-                        sites.extend(_site(part) for part in re.split(r"\s*[;|]\s*", name))
+                        for part in re.split(r"\s*[;|]\s*", name):
+                            add(part)
     if isinstance(display, str) and not (structured_sites and display_is_count):
-        sites.extend(_site(part) for part in re.split(r"\s*[;|]\s*", display))
+        for part in re.split(r"\s*[;|]\s*", display):
+            add(part)
+    # A title can clarify an ambiguous site, but cannot erase a separate,
+    # explicitly local (or US-remote) site on a multi-site Posting.
+    if (ambiguous or "unreadable" in sites or not sites) and not known_local:
+        title = posting.get("title")
+        if isinstance(title, str):
+            for match in _TITLE_PLACE.finditer(title):
+                hint = match[1]
+                region = hint.rsplit(",", 1)[-1].strip()
+                if region.upper() not in STATE_CODES.values() and region.casefold() not in STATE_NAMES and not country_code(region):
+                    continue
+                scope = _site(hint)
+                if scope == "outside":
+                    return "outside"
+                # A local title does not rescue a known outside site or an
+                # unreadable employer that revision 35 already excluded.
+                if scope in {"ma", "new_england"} and "outside" not in sites and employer_has_local is not False:
+                    return scope
     for value in ("ma", "new_england", "remote", "unreadable", "outside"):
         if value in sites:
             if value == "unreadable" and employer_has_local is False and not (display_is_count and not structured_sites):

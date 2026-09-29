@@ -129,6 +129,48 @@ def test_every_watched_file_exists() -> None:
     assert not missing, f"the guard watches paths that no longer exist: {missing}"
 
 
+@pytest.mark.parametrize(
+    ("path", "old", "new"),
+    [
+        (
+            "src/venator/match/location_scope.py",
+            "def scope():\n    return 'outside'\n", "def scope():\n    return 'ma'\n",
+        ),
+        (
+            "src/venator/place_lookup.py",
+            "def readings():\n    return ()\n", "def readings():\n    return ('MA',)\n",
+        ),
+        ("src/venator/place_names.json", '{"cambridge": ["MA"]}', '{"cambridge": ["MA", "CT"]}'),
+    ],
+)
+def test_location_reading_requires_a_version_bump(
+    path: str, old: str, new: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """The actual guard verdict, not just membership in its watch list."""
+    assert path in guard.RULE_FILES
+    monkeypatch.setattr(
+        guard, "blob", lambda rev, candidate: (old if rev == "before" else new) if candidate == path else None,
+    )
+    monkeypatch.setattr(guard, "git", lambda *args: str(tmp_path) if args == ("rev-parse", "--show-toplevel") else "")
+    monkeypatch.setattr(guard, "checkout", lambda rev, repo, workspace, label: workspace)
+    versions = {"before": {"candidate": "old"}, "after": {"candidate": "old"}}
+    monkeypatch.setattr(guard, "versions_in", lambda tree, rev: versions[rev])
+    assert guard.changed_behaviour("before", "after") == [path]
+    assert guard.main(["guard", "before", "after"]) == 1
+    versions["after"] = {"candidate": "new"}
+    assert guard.main(["guard", "before", "after"]) == 0
+
+
+def test_json_formatting_is_not_a_location_rule_change(monkeypatch: pytest.MonkeyPatch) -> None:
+    path = "src/venator/place_names.json"
+    versions = {
+        "before": '{"cambridge": ["MA"], "boston": ["MA"]}',
+        "after": '{\n  "boston": ["MA"],\n  "cambridge": ["MA"]\n}',
+    }
+    monkeypatch.setattr(guard, "blob", lambda rev, candidate: versions[rev] if candidate == path else None)
+    assert guard.changed_behaviour("before", "after") == []
+
+
 def test_the_files_filters_version_hashes_directly_are_not_also_watched() -> None:
     """They cannot fail the check: editing one moves the version by construction."""
     hashed = ("profiles/sample/constraints.yaml", "profiles/sample/targeting.yaml")

@@ -81,6 +81,8 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	return {
 		key: posting.key,
 		title: posting.title,
+		count: entry.groupKeys?.length ?? 1,
+		groupKeys: entry.groupKeys ?? [posting.key],
 		meta,
 		time: verified === null ? formatDay(posting.discoveredAt) : formatTime(verified),
 		stamp: verified === null ? `Found ${formatMoment(posting.discoveredAt)}` : `Verified ${formatMoment(verified)}`,
@@ -143,7 +145,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	const keys = useMemo(() => postings.status === "ready" ? postings.value.entries.map((entry) => entry.posting.key) : [], [postings]);
 	const groups = useMemo(() => postings.status === "ready" ? dayGroups(postings.value.entries, source.kind === "list" ? source.list : null) : [], [source, postings]);
 
-	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || keys.includes(route.key)) ? route.key : (keys[0] ?? null);
+	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || (postings.status === "ready" && postings.value.entries.some((entry) => entry.groupKeys?.includes(route.key)))) ? route.key : (keys[0] ?? null);
 	const detailPane = useRef<HTMLDivElement>(null);
 	const [arrival, setArrival] = useState(() => ({ key: selectedKey, at: performance.now(), animate: false }));
 	useLayoutEffect(() => {
@@ -169,13 +171,14 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	const move = useCallback(
 		(to: (index: number) => number) => {
 			if (keys.length === 0) return;
-			const index = selectedKey === null ? -1 : keys.indexOf(selectedKey);
+			const head = postings.status === "ready" ? postings.value.entries.find((entry) => entry.groupKeys?.includes(selectedKey ?? ""))?.posting.key : undefined;
+			const index = head === undefined ? -1 : keys.indexOf(head);
 			const next = keys[Math.max(0, Math.min(keys.length - 1, to(index)))];
 			if (next === undefined) return;
 			select(next);
 			setKeyboardMoves((count) => count + 1);
 		},
-		[keys, select, selectedKey],
+		[keys, postings, select, selectedKey],
 	);
 	const bindings = useMemo<readonly KeyBinding[]>(
 		() => [
@@ -214,6 +217,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	const shown = postings.status === "ready" ? postings.value.entries.length : 0;
 	const pages = total === null || total <= PAGE_SIZE ? null : { first: offset + 1, last: offset + shown, total };
 	const current = detail.status === "ready" && detail.value.posting.key === selectedKey ? detail.value : null;
+	const requisitions = postings.status === "ready" ? postings.value.entries.find((entry) => entry.groupKeys?.includes(selectedKey ?? ""))?.groupKeys ?? [] : [];
 
 	return (
 		<>
@@ -271,6 +275,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 							<p>{detail.message}</p>
 						</div>
 					) : null}
+					{requisitions.length > 1 ? <nav aria-label="Requisitions" className="requisition-links">{requisitions.map((key, index) => <button type="button" key={key} aria-current={key === selectedKey ? "page" : undefined} onClick={() => select(key)}>Requisition {index + 1}</button>)}</nav> : null}
 					{current === null ? null : <PostingPage key={current.posting.key} detail={current} control={control} arriving={arrival.key === selectedKey && arrival.animate} />}
 				</div>
 			</div>

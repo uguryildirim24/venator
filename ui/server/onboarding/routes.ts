@@ -43,9 +43,8 @@
  * - Profile writes stay inside `<application data directory>/profiles/`; settings stay in
  *   the Install. An existing Profile edit keeps its other
  *   files and assets. A same-named checkout Profile cannot supersede an Install Profile.
- * - Nothing here fabricates a Profile fact. A screening answer with no value stays null, an
- *   EEO field is never defaulted to a decline, and a sponsorship answer is refused unless the
- *   Profile states outright that sponsorship is required.
+ * - Nothing here fabricates a Profile fact. Work authorization stays unanswered until the
+ *   person supplies it.
  * - Nothing here chooses a runtime on someone's behalf or falls back from one to another.
  *
  * **Why it is safe on loopback.** The server binds 127.0.0.1 and that is the boundary

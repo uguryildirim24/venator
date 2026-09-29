@@ -146,6 +146,17 @@ const ENTRY_FILTER = `
       OR lower(assessment_summary) LIKE $pattern
     ))`;
 
+// Presentation grouping, not identity dedup: different requisition links remain intact.
+// Match dedup's case/spacing/edge-punctuation title normalization without merging sites.
+const GROUPED = `, filtered AS (SELECT * FROM entries ${ENTRY_FILTER}),
+identified AS (SELECT *, CASE WHEN trim(coalesce(company, '')) = '' OR trim(title) = '' OR trim(coalesce(location, '')) = ''
+    THEN key ELSE lower(trim(company)) || char(31) || lower(trim(title, ' -–—,.;:/\\|·•*&_+()[]{}''"')) || char(31) || lower(trim(location)) END AS group_id FROM filtered),
+ranked AS (SELECT *, row_number() OVER (PARTITION BY group_id
+  ORDER BY keep_probability DESC NULLS LAST, last_verified_at DESC, key ASC) AS group_rank,
+  count(*) OVER (PARTITION BY group_id) AS group_count,
+  max(is_new) OVER (PARTITION BY group_id) AS group_is_new FROM identified),
+heads AS (SELECT * FROM ranked WHERE group_rank = 1)`;
+
 function orderClause(sort: PostingSort): string {
 	// Most recently verified first. A historical Match Score never orders the board.
 	if (sort === "verified") return "last_verified_at DESC, discovered_at DESC, key ASC";
@@ -248,22 +259,31 @@ export function readPostingEntries(
 ): readonly PostingEntry[] {
 	// Sort only keys: pulling evidence JSON into the sort costs a full-corpus read.
 	const keepOrder = query.status === "queued" || query.status === "needs-review" ? "keep_probability DESC, " : "";
-	const keys = database.prepare(
-		`${postingEntries()} SELECT key FROM entries ${ENTRY_FILTER} ORDER BY ${keepOrder}${orderClause(query.sort)} LIMIT $limit OFFSET $offset`,
-	).all({ ...filterParameters(query), limit: query.limit, offset: query.offset ?? 0 })
-		.map((row) => textColumn(row, "key"));
+	const rows = database.prepare(
+		`${postingEntries()} ${GROUPED} SELECT key, group_is_new FROM heads ORDER BY ${keepOrder}${orderClause(query.sort)} LIMIT $limit OFFSET $offset`,
+	).all({ ...filterParameters(query), limit: query.limit, offset: query.offset ?? 0 });
+	const keys = rows.map((row) => textColumn(row, "key"));
 	if (keys.length === 0) return [];
 	// One batched read rather than one query per Posting. Restore the requested sort order.
 	const placeholders = keys.map(() => "?").join(",");
 	const entries = database.prepare(`${postingEntries()} SELECT * FROM entries WHERE key IN (${placeholders})`)
 		.all(...keys).map(decodeEntry);
 	const byKey = new Map(entries.map((entry) => [entry.posting.key, entry]));
-	return keys.map((key) => byKey.get(key)!);
+	const groupedKeys = database.prepare(`${postingEntries()} ${GROUPED}
+		SELECT h.key AS head, r.key AS member FROM heads h JOIN ranked r ON h.group_id = r.group_id
+		WHERE h.key IN (${placeholders}) ORDER BY r.keep_probability DESC NULLS LAST, r.key ASC`)
+		.all({ ...filterParameters(query) }, ...keys);
+	const members = new Map<string, string[]>();
+	for (const row of groupedKeys) {
+		const head = textColumn(row, "head");
+		members.set(head, [...(members.get(head) ?? []), textColumn(row, "member")]);
+	}
+	return keys.map((key, index) => ({ ...byKey.get(key)!, isNew: integerColumn(rows[index]!, "group_is_new") !== 0, groupKeys: members.get(key) ?? [key] }));
 }
 
 export function countPostingEntryTotals(database: DatabaseSync, query: PostingQuery): { total: number; newCount: number } {
 	const row = database.prepare(
-		`${postingEntries()} SELECT COUNT(*) AS total, coalesce(SUM(is_new), 0) AS new_count FROM entries ${ENTRY_FILTER}`,
+		`${postingEntries()} ${GROUPED} SELECT COUNT(*) AS total, coalesce(SUM(group_is_new), 0) AS new_count FROM heads`,
 	).get(filterParameters(query));
 	return row === undefined ? { total: 0, newCount: 0 } : {
 		total: integerColumn(row, "total"),

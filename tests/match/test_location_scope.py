@@ -129,3 +129,16 @@ def test_structured_sites_and_unconfigured_profile() -> None:
     assert location_scope({"location": "11 Locations"}, employer_has_local=False) == "unreadable"
     assert location_scope({"location": "Boston-MA"}) == "ma"
     assert location_scope({"location": "MA-Boston"}) == "ma"
+
+
+def test_title_disambiguates_only_unknown_or_shared_sites() -> None:
+    assert location_scope({"location": "Madison", "title": "Research Technician / Madison, WI (On-Site)"}) == "outside"
+    assert location_scope({"location": "Unknown Campus", "title": "Technician - Marlborough, MA"}) == "ma"
+    assert location_scope({"location": "Unknown Campus", "title": "Technician (Boston, MA)"}) == "ma"
+    assert location_scope({"location": "Concord, NC", "title": "Technician (Boston, MA)"}) == "outside"
+    assert location_scope({"location": "Madison", "title": "Technician (Madison)"}) == "new_england"
+    assert location_scope({"locations": ["Boston, MA", "Madison"], "title": "Technician / Madison, WI"}) == "ma"
+    assert location_scope({"locations": ["Remote, USA", "Madison"], "title": "Technician / Madison, WI"}) == "new_england"
+    assert location_scope({"locations": [{"name": "Madison", "country": "US"}], "title": "Technician / Madison, WI"}) == "outside"
+    for hospital in ("Newport Hospital", "Rhode Island Hospital", "The Miriam Hospital", "Bradley Hospital"):
+        assert location_scope({"location": hospital}) == "new_england"

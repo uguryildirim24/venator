@@ -61,6 +61,56 @@ class TwoCalls:
         return response
 
 
+def test_edit_without_letter_stays_without_letter(tmp_path, candidate):
+    from venator.tailor.prepare import edit_application
+    directory = tmp_path / "application"
+    record = prepare_application(job(), candidate, directory, provider="codex",
+                                 completion=TwoCalls(draft(), approved()))
+    edited = edit_application(directory, record, [{"draft_id": "resume:0", "text": ORIGINAL}], job(), candidate)
+    assert edited["letterText"] is None
+    assert "letter.pdf" not in edited["file_hashes"]
+
+
+def test_essays_require_statements_and_review_and_obey_field_limit(tmp_path, candidate):
+    from venator.answers.store import append, row_hash
+    library = tmp_path / "answers"
+    statement = append(library, "fixture", text="Why science", kind="statement",
+                       answer="I want to work in a wet lab.", board="any", universal=True)
+    questions = [
+        {"name": "question_1", "label": "Why this role?", "kind": "textarea", "bucket": "essay", "maxlength": 100},
+        {"name": "question_2", "label": "Why this company?", "kind": "textarea", "bucket": "essay", "maxlength": 100},
+        {"name": "question_3", "label": "Your story", "kind": "textarea", "bucket": "essay", "maxlength": 4},
+    ]
+    response = {**draft(), "essay_answers": [
+        {"question_name": row["name"], "source_ids": [statement["id"]], "text": "I want to work in a wet lab."}
+        for row in questions
+    ]}
+    checks = {"checks": [
+        {"draft_id": "resume:0", "status": "supported", "reason": "Source facts."},
+        {"draft_id": "essay:0", "status": "supported", "reason": "Owner statement."},
+        {"draft_id": "essay:1", "status": "unsupported", "reason": "Not in statement."},
+    ]}
+    calls = TwoCalls(response, checks)
+    directory = tmp_path / "application"
+    result = prepare_application(job(), candidate, directory, provider="codex", completion=calls,
+                                 form_questions=questions, statements=[statement])
+    assert result["formQuestions"][0]["answer"] == "I want to work in a wet lab."
+    assert result["formQuestions"][1]["answer"] is None
+    assert result["formQuestions"][2]["answer"] is None
+    assert result["statementPins"] == [{"id": statement["id"], "question": statement["question"],
+                                        "scope": statement["scope"], "hash": row_hash(statement)}]
+    assert "OWNER STATEMENTS:" in calls.calls[0][0]
+    assert "OWNER STATEMENTS:" in calls.calls[1][0]
+    reused = prepare_application(job(), candidate, directory, provider="codex", completion=lambda *_args, **_kwargs: pytest.fail("reused draft called the model"),
+                                 form_questions=questions, statements=[statement])
+    assert reused["version"] == result["version"]
+    invented = {**response, "essay_answers": [{"question_name": "question_1", "source_ids": ["observed"],
+                                                "text": "I want to work in a wet lab."}]}
+    with pytest.raises(ValueError, match="Owner's statements"):
+        prepare_application(job(), candidate, tmp_path / "other", provider="codex",
+                            completion=TwoCalls(invented, checks), form_questions=questions, statements=[statement])
+
+
 def test_real_rewrite_and_personalized_letter_preserve_originals_with_provenance(tmp_path, candidate):
     originals = copy.deepcopy(dict(candidate.resume))
     calls = TwoCalls(draft(letter=True), approved(letter=True))

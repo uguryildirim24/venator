@@ -291,7 +291,7 @@ const CHECKS: readonly RouteCheck[] = [
 			"Summer 2027 Intern, Automation &amp; Lab Informatics",
 			// The page, and Venator's notes in the margin beside it.
 			"Verified open",
-			"Prepare Application…",
+			">Apply<",
 			"Read More",
 		],
 		// A browser tab draws its own window; only the desktop host is native.
@@ -344,7 +344,7 @@ const CHECKS: readonly RouteCheck[] = [
 			"Everything this rule excluded",
 			"The employer listing is closed.",
 		],
-		absent: ["Prepare Application…", ">Open Application<"],
+		absent: [">Apply<", ">Fill<"],
 	},
 	{
 		hash: "#/inspector",
@@ -401,12 +401,6 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: ["Hard Filters: excluded", "Superseded by a later decision", "Hard Filters: passed", "Replayed under the summer-2027 housing clause"],
 	},
 	{
-		hash: `#/postings/${DETAIL_KEY}`,
-		label: "Posting: Prepare states its cost before the press and sends nothing to the employer",
-		press: "Prepare Application…",
-		expected: ["Prepare with", "Include a cover letter", "Preparing is one completion on that runtime.", "Nothing is sent to the employer."],
-	},
-	{
 		hash: `#/postings/${TESSERA_KEY}`,
 		label: "Posting: résumé evidence and a review, with no score",
 		expected: ["Intern, Gene Writing Analytics", "On your résumé", "QC reporting in Excel"],
@@ -426,7 +420,7 @@ const CHECKS: readonly RouteCheck[] = [
 			"Mid level to Senior", "Bachelor’s degree", PROFILE.answers, "Not answered", PROFILE.install, PROFILE.save,
 		],
 		absent: [
-			"Connect an assistant", "Use Claude", "Use ChatGPT", "Set Up Venator", "<textarea", "name: Avery", "qualification_mode",
+			"Connect an assistant", "Use Claude", "Use ChatGPT", "Set Up Venator", "name: Avery", "qualification_mode",
 			"restriction_patterns", "primary: true", "experience_years", "requires_sponsorship", "Résumé facts",
 		],
 	},
@@ -877,6 +871,7 @@ function fixtureAnswer(view: "fixture" | "empty"): FixtureResponse {
 		// Never the real Keychain: the settings read answers "no key" for every pass.
 		if (method === "GET" && path === "/api/onboarding/settings") return json(smokeProfile ? '{"runtime":"codex"}' : SETTINGS);
 		if (method === "GET" && path === "/api/onboarding/existing-profile") return json(JSON.stringify({ documents: EXAMPLE_PROFILE, form: formOf(EXAMPLE_PROFILE) }));
+		if (method === "GET" && path === "/api/applications/answers") return json('{"answers":[]}');
 		if (method === "GET" && /^\/api\/applications\/[^/]+$/u.test(path)) return json('{"prepared":false}');
 		if (method === "GET" && path === "/api/runs/current") return json('{"run":null}');
 		if (method === "GET" && path === "/api/runs/recent") return json('{"runs":[]}');

@@ -24,7 +24,7 @@ def reuse_checked_draft(record: Mapping, sources: Sequence[dict], *, cover_lette
         }
         bullets = {bullet["id"]: bullet["text"] for row in sources for bullet in row["bullets"]}
         originals.update(bullets)
-        rewritten, paragraphs = [], []
+        rewritten, paragraphs, essays = [], [], []
         for row in provenance:
             supported = verdicts[row["draft_id"]] == "supported"
             if row["kind"] == "resume_bullet":
@@ -45,6 +45,12 @@ def reuse_checked_draft(record: Mapping, sources: Sequence[dict], *, cover_lette
                     if row["final"] not in record.get("letterText", ""):
                         return None
                     paragraphs.append({"source_ids": row["source_ids"], "text": row["final"]})
+            elif row["kind"] == "essay_answer":
+                if row.get("final") != (row["draft"] if supported else None):
+                    return None
+                if supported:
+                    essays.append({"question_name": row["question_name"],
+                                   "source_ids": row["source_ids"], "text": row["final"]})
             else:
                 return None
         if cover_letter and not any(row["source_ids"] for row in paragraphs):
@@ -57,10 +63,13 @@ def reuse_checked_draft(record: Mapping, sources: Sequence[dict], *, cover_lette
                 return None
             if cover_letter and selection.get("letter_paragraphs") != paragraphs:
                 return None
+            if selection.get("essays", []) != essays:
+                return None
         elif not provenance:
             # Older bundles without a selection snapshot need actual passage
             # provenance; an empty review cannot establish what was checked.
             return None
-        return CheckedDraft(tuple(row["entry_id"] for row in sources), tuple(rewritten), tuple(paragraphs), tuple(provenance), tuple(checks))
+        return CheckedDraft(tuple(row["entry_id"] for row in sources), tuple(rewritten), tuple(paragraphs),
+                            tuple(provenance), tuple(checks), tuple(essays))
     except (KeyError, TypeError, ValueError):
         return None

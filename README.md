@@ -22,13 +22,17 @@ yourself. Venator never presses submit for you.
 - **Score** sorts Hard Filter passes using your keep model, configured in your
   Install. It runs only when you press **Score**.
 - **The dashboard** shows the lists, each Posting as a page with notes beside it,
-  and buttons to save, dismiss, prepare documents and open the application. Its
+  and buttons to save, dismiss, Apply and Fill. Its
   résumé assessment treats confirmed post-secondary education, including current
   enrolment, as meeting a high school requirement. This covers ordinary wording
   such as “(Required)” and high school as one option, but not separate required
   qualifications. Preferred extras stay separate.
-- **Handoff** opens the employer's form in a visible browser, fills what it can
-  confirm (Greenhouse forms, for now), and stops. You check it and submit.
+- **Apply** checks the live Posting and drafts a résumé and letter PDF from confirmed
+  facts. You can edit the drafts; each edit makes a new reviewed version.
+- **Fill** opens the employer's form in a visible browser. On Greenhouse it reads
+  questions, fills confirmed answers and uploads only the reviewed, hash-checked
+  PDFs. You check the form and press Submit yourself. When Greenhouse shows a
+  confirmation, Venator records that the Application was sent.
 
 Everything personal (your Profile, the Postings, every decision) stays in a folder on
 your computer, outside this repository.
@@ -113,6 +117,8 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
 - The last-checked line below Employers shows when Discover last checked your boards,
   including checks run from the command line. It says **Not checked yet** until
   a board check has been recorded.
+- Postings for the same requisition at several sites fold into one row. Open it to
+  see its sites; each site's Posting is still kept in history.
 - **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
   from 0.014 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
   below 0.014. **Applications**, **Saved** and **Dismissed** hold what you've acted on.
@@ -122,12 +128,16 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   of the requirements Venator can check against your résumé. Press a requirement
   line to open the description at that line. **Open Listing** goes to the
   employer's page when Venator can't prepare an application. **Save** and **Dismiss** record your
-  choice, and **Restore** undoes it. **Prepare Application** drafts a résumé (and a
-  cover letter if you want one) from confirmed facts only. **Open Application** hands
-  the prepared files to a browser window. **I Applied** records that you applied.
+  choice, and **Restore** undoes it. **Apply** drafts a résumé and letter PDF.
+  Review or edit the drafts, then **Fill** opens the form. **I Applied** records
+  an Application if you submitted it and confirmation was not detected.
+- **Profile** has an answer library for employer questions. Save answers for one
+  employer or all employers, and add your own statements for essay questions.
+  Reserved questions remain for you to answer on the form; Venator never guesses.
 
-Nothing is scheduled. Venator only fetches when you press Refresh, unless you set up
-the optional timer in [ops/README.md](ops/README.md).
+The installed Mac app can run Discover, Hard Filters, a capped batch of Score,
+rechecks, View and a notification once a day. It uses a cross-process lock and daily
+and monthly Score limits. See [ops/README.md](ops/README.md).
 
 ## Try it with the example Profile
 
@@ -179,8 +189,8 @@ minimum. Required advanced degrees count only when the wording clearly asks for
 a degree; “Rockville, MD” and “DO NOT” do not. A co-op page offering several
 degree tracks passes when one track is within reach.
 
-Screening answers start empty. Fill in only what's true. The example
-files explain every field in comments, and [docs/RUNNING.md](docs/RUNNING.md) covers
+The answer library starts empty. Add only what's true. The example
+files explain the Profile fields in comments, and [docs/RUNNING.md](docs/RUNNING.md) covers
 registering boards.
 
 ## From the terminal

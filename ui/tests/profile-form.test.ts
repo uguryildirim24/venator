@@ -36,7 +36,6 @@ test("the example Profile reads as fields, with the flags and policy the form do
 	assert.deepEqual(form.resume.experience[0]?.bullets.length, 2);
 	assert.deepEqual(form.resume.technical_proficiencies.map((entry) => entry.label), ["Languages", "Infrastructure"]);
 	assert.deepEqual(form.constraints.work_authorization, { status: "", requires_sponsorship: "unanswered", authorized_to_work: "unanswered" });
-	assert.equal(form.constraints.screening.eeo.gender, "");
 	assert.equal(form.targeting.profileName, "example");
 	assert.deepEqual(form.targeting.search, { queries: ["backend engineer", "platform engineer"], locations: ["Chicago, IL", "Remote"], remote: "preferred" });
 	assert.deepEqual(form.targeting.employers, [
@@ -86,7 +85,6 @@ test("what changed is written into the same document, and what the form does not
 		},
 		constraints: {
 			work_authorization: { status: "Citizen", requires_sponsorship: "no", authorized_to_work: "yes" },
-			screening: { ...form.constraints.screening, how_heard: "12:30" },
 		},
 		targeting: {
 			...form.targeting,
@@ -120,8 +118,7 @@ test("what changed is written into the same document, and what the form does not
 	assert.match(constraints, /status: Citizen/u);
 	assert.match(constraints, /requires_sponsorship: false/u);
 	assert.match(constraints, /authorized_to_work: true/u);
-	assert.match(constraints, /how_heard: "12:30"/u);
-	assert.match(constraints, /gender: null/u);
+	assert.doesNotMatch(constraints, /screening:/u);
 	assert.match(constraints, /^option_aliases: \{\}$/mu);
 	assert.match(constraints, /the planner never guesses "No" on your behalf\./u);
 
@@ -144,12 +141,10 @@ test("what changed is written into the same document, and what the form does not
 	assert.deepEqual(formOf(patched).resume.experience.map((entry) => entry.org), ["Example Software Studio", "New Co"]);
 });
 
-test("a blank answer that was never written is not written, and a stale origin is refused", () => {
-	const original = { ...example(), "constraints.yaml": "screening: {}\n" };
+test("an untouched Profile and a stale origin are handled separately", () => {
+	const original = example();
 	const form = formOf(original);
-	assert.equal(patchProfileDocuments(original, form)["constraints.yaml"], "screening: {}\n");
-	const answered = { ...form, constraints: { ...form.constraints, screening: { ...form.constraints.screening, country: "Ireland" } } };
-	assert.equal(patchProfileDocuments(original, answered)["constraints.yaml"], "screening:\n  country: Ireland\n");
+	assert.equal(patchProfileDocuments(original, form)["constraints.yaml"], original["constraints.yaml"]);
 	const stale = { ...form, resume: { ...form.resume, education: [{ ...form.resume.education[0]!, origin: 4 }] } };
 	assert.equal(refusal(() => patchProfileDocuments(original, stale)).code, "bad_request");
 	const twice = { ...form, resume: { ...form.resume, education: [form.resume.education[0]!, form.resume.education[0]!] } };

@@ -22,6 +22,24 @@ def test_organizational_office_cannot_replace_the_postings_work_location():
     assert posting["source_facts"]["offices"][0]["name"] == "Boston Drydock"
 
 
+def test_shared_board_uses_unlocated_company_office_without_using_it_as_location():
+    posting = normalize_greenhouse_job("shared-board", {
+        "id": 7, "title": "Research Associate", "location": {"name": "Boston, MA"},
+        "offices": [{"name": "Mirai Bio", "location": None}],
+        "departments": [{"name": "Research/Discovery"}],
+    })
+    assert posting["company"] == "Mirai Bio"
+    assert posting["location"] == "Boston, MA"
+    assert normalize_greenhouse_job("ordinary-board", {
+        "id": 7, "location": {"name": "Boston, MA"},
+        "offices": [{"name": "Boston Office", "location": "Boston, MA"}],
+    }).get("company") is None
+    assert normalize_greenhouse_job("shared-board", {
+        "id": 8, "location": {"name": "Boston, MA"},
+        "offices": [{"name": "Mirai Bio"}, {"name": "Other Company"}],
+    }).get("company") is None
+
+
 def test_explicit_additional_work_locations_are_retained():
     posting = normalize_greenhouse_job("labs", {
         "id": 1, "location": {"name": "Emeryville, California"},

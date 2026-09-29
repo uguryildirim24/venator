@@ -49,7 +49,7 @@ const RESUME: JsonMapping = {
 };
 
 function proposal(name: string, overwrite = false, targeting: JsonMapping = {}): ProfileProposal {
-	return { name, overwrite, resume: RESUME, constraints: { screening: { how_heard: null } }, targeting };
+	return { name, overwrite, resume: RESUME, constraints: {}, targeting };
 }
 
 before(() => {

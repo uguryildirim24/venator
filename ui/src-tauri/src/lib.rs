@@ -17,11 +17,14 @@ use std::io::{BufRead, BufReader};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::path::BaseDirectory;
+use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "macos")]
 use tauri::{Manager, RunEvent};
 
@@ -34,6 +37,84 @@ const API_PORT: u16 = 5170;
 const VIEW_POINTER: &str = "view-path.txt";
 
 struct ApiSidecar(Mutex<Option<Child>>);
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DailySettings {
+    enabled: bool,
+    time: String,
+    daily_usd: f64,
+    monthly_usd: f64,
+    #[serde(default)]
+    profile: String,
+}
+
+impl Default for DailySettings {
+    fn default() -> Self {
+        Self { enabled: false, time: "06:30".into(), daily_usd: 1.0, monthly_usd: 10.0, profile: String::new() }
+    }
+}
+
+fn daily_settings_path() -> Result<PathBuf, String> {
+    let install = install::install_data_dir(&|name| env::var(name).ok(), env::consts::OS)?;
+    Ok(install.join("daily-settings.json"))
+}
+
+#[tauri::command]
+fn get_daily_settings() -> Result<DailySettings, String> {
+    let path = daily_settings_path()?;
+    if !path.exists() { return Ok(DailySettings::default()); }
+    serde_json::from_slice(&fs::read(path).map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn set_daily_settings(app: tauri::AppHandle, settings: DailySettings, profile: String) -> Result<(), String> {
+    #[cfg(not(target_os = "macos"))]
+    { let _ = (app, settings, profile); return Err("Daily scheduling requires macOS.".into()); }
+    #[cfg(target_os = "macos")]
+    {
+        let parts: Vec<&str> = settings.time.split(':').collect();
+        if parts.len() != 2 || parts[0].parse::<u8>().map_or(true, |hour| hour > 23)
+            || parts[1].parse::<u8>().map_or(true, |minute| minute > 59)
+            || !settings.daily_usd.is_finite() || !settings.monthly_usd.is_finite()
+            || settings.daily_usd <= 0.0 || settings.monthly_usd <= 0.0
+            || profile.is_empty() || profile.starts_with('.') || profile.contains('/') || profile.contains('\\') {
+            return Err("Choose a time, spend ceilings, and Profile.".into());
+        }
+        let path = daily_settings_path()?;
+        let install = path.parent().ok_or("Install directory missing")?;
+        fs::create_dir_all(install).map_err(|error| error.to_string())?;
+        if let Ok(home) = env::var("HOME") {
+            fs::create_dir_all(PathBuf::from(home).join("Library/Logs/venator"))
+                .map_err(|error| error.to_string())?;
+        }
+        let plist = install.join("dev.venator.loop.plist");
+        let target = format!("gui/{}", unsafe { libc::geteuid() });
+        // A job is only loaded on an explicit Save with enabled=true. Never on app startup.
+        let _ = Command::new("launchctl").args(["bootout", &target, &plist.to_string_lossy()]).status();
+        if settings.enabled {
+            let interpreter = bundled_python(&app).ok_or("The bundled Python is missing")?;
+            let status = Command::new(&interpreter)
+                .args(["-m", "venator.schedule.agent", "--out"])
+                .arg(&plist).args(["--interpreter"]).arg(&interpreter)
+                .args(["--install"]).arg(install)
+                .args(["--profile", &profile, "--time", &settings.time,
+                    "--daily-usd", &settings.daily_usd.to_string(),
+                    "--monthly-usd", &settings.monthly_usd.to_string()])
+                .status().map_err(|error| error.to_string())?;
+            if !status.success() { return Err("Daily job could not be written.".into()); }
+            let status = Command::new("launchctl").args(["bootstrap", &target, &plist.to_string_lossy()])
+                .status().map_err(|error| error.to_string())?;
+            if !status.success() { return Err("Daily job could not be started.".into()); }
+        } else {
+            let _ = fs::remove_file(&plist);
+        }
+        let settings = DailySettings { profile, ..settings };
+        fs::write(path, serde_json::to_vec(&settings).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())
+    }
+}
 
 fn api_is_listening() -> bool {
     let address: SocketAddr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, API_PORT).into();
@@ -272,6 +353,24 @@ fn start_api(app: &tauri::AppHandle) -> Option<Child> {
 
 /// Reveals the window once the API answers, or after the timeout so a failure is visible in
 /// the dashboard's own error banner rather than as an app that never opens.
+fn announce_picks(app: &tauri::AppHandle) {
+    let Ok(install) = install::install_data_dir(&|name| env::var(name).ok(), env::consts::OS) else {
+        return;
+    };
+    let receipt = install.join("build/picks-notification.json");
+    let Ok(text) = fs::read_to_string(&receipt) else { return; };
+    let Ok(record) = serde_json::from_str::<serde_json::Value>(&text) else { return; };
+    let (Some(count), Some(title)) = (record["count"].as_u64(), record["title"].as_str()) else {
+        return;
+    };
+    if count == 0 || title.len() > 300 { return; }
+    let _ = fs::remove_file(receipt);
+    let _ = app.notification().builder()
+        .title(format!("{count} new {}", if count == 1 { "pick" } else { "picks" }))
+        .body(title)
+        .show();
+}
+
 fn show_window_when_ready(app: tauri::AppHandle) {
     thread::spawn(move || {
         let deadline = Instant::now() + Duration::from_secs(8);
@@ -287,7 +386,11 @@ fn show_window_when_ready(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_notification::init())
+        .invoke_handler(tauri::generate_handler![get_daily_settings, set_daily_settings]);
     let app = builder
         .setup(|app| {
             // Registered in every build, and that is a deliberate change from registering it
@@ -307,15 +410,40 @@ pub fn run() {
             )?;
 
             let handle = app.handle().clone();
+            let background_picks = handle.deep_link().get_current().ok().flatten().unwrap_or_default().iter()
+                .any(|url| url.scheme() == "venator" && url.host_str() == Some("picks"));
+            if let Ok(settings) = get_daily_settings() {
+                if settings.enabled && !settings.profile.is_empty() {
+                    if let Err(error) = set_daily_settings(handle.clone(), settings.clone(), settings.profile) {
+                        log::warn!("daily job update failed: {error}");
+                    }
+                }
+            }
+            let on_url = handle.clone();
+            handle.deep_link().on_open_url(move |event| {
+                if event.urls().iter().any(|url| url.scheme() == "venator" && url.host_str() == Some("picks")) {
+                    announce_picks(&on_url);
+                    if let Some(window) = on_url.get_webview_window("main") {
+                        let _ = window.eval("window.location.hash = '#/queue'");
+                    }
+                }
+            });
+            if background_picks { announce_picks(&handle); }
             let child = start_api(&handle);
             app.manage(ApiSidecar(Mutex::new(child)));
-            show_window_when_ready(handle);
+            if !background_picks { show_window_when_ready(handle); }
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building the venator dashboard");
 
     app.run(|handle, event| {
+        if let RunEvent::Reopen { .. } = event {
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
         // The API belongs to this window; it should not outlive it.
         if let RunEvent::Exit = event {
             if let Some(sidecar) = handle.try_state::<ApiSidecar>() {

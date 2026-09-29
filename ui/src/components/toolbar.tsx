@@ -2,7 +2,7 @@ import { Bookmark, EyeOff, PanelLeft, Search, SquareArrowOutUpRight } from "luci
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
 
 import type { PostingDetail } from "../../shared/contracts.ts";
-import type { ApplicationControl } from "../application.ts";
+import { preparation, type ApplicationControl } from "../application.ts";
 import { reservesTrafficLights } from "../platform.ts";
 import { ExternalLink } from "./external-link.tsx";
 
@@ -75,17 +75,13 @@ type PostingActionsProps = {
 };
 
 /**
- * Open in the browser, save, dismiss, and the one prominent button: Open Application.
- *
- * Open Application is the visible handoff. It opens the employer's form in a browser the
- * Owner can see, fills confirmed fields, uploads the prepared documents, and stops; the Owner
- * presses submit. It needs prepared documents; the disabled control says that by its state.
- * An excluded Posting has no Owner action and no capsule; a dismissed one has Restore in its place.
+ * Save, dismiss, and Apply. Fill is available after review in the Posting margin.
  */
 export function PostingActions({ detail, control }: PostingActionsProps) {
 	const state = detail.application?.state ?? null;
 	const excluded = detail.status === "hard-killed";
 	const busy = control.busy !== null;
+	const canApply = preparation(detail).allowed;
 	// Saving is the first step of an application; once there is a later one, it has happened.
 	const savable = state === null || state === "queued";
 	return (
@@ -118,8 +114,8 @@ export function PostingActions({ detail, control }: PostingActionsProps) {
 					{control.busy === "restore" ? "Restoring…" : "Restore"}
 				</button>
 			) : (
-				<button type="button" className="capsule" disabled={busy || !control.prepared} onClick={() => control.run("handoff")}>
-					{control.busy === "handoff" ? "Opening…" : "Open Application"}
+				<button type="button" className="capsule" disabled={busy || !canApply} onClick={() => control.run("apply")}>
+					{control.busy === "apply" ? "Applying…" : "Apply"}
 				</button>
 			)}
 		</>
