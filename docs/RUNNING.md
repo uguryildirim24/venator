@@ -99,9 +99,10 @@ nothing. Every Posting gets a decision, including the ones that pass.
 To enable the New England location Hard Filter in `targeting.yaml`, add `location`
 to `filters.enabled` and set `filters.location.regions` to
 `[MA, RI, NH, CT, VT, ME]`. All six codes are required. A Posting passes if any
-site is in New England, remote, US-wide or unreadable. Only Postings with every
-readable site outside New England are killed, including sites in named US
-territories. Workday's “2 Locations” label does not hide its other sites: the
+site is in New England or is US-wide remote. A remote site tied to a state
+counts only in that state. Only physical local sites vouch for an unreadable
+site from the same employer. Postings clearly outside New England are killed,
+including sites in named US territories. Workday's “2 Locations” label does not hide its other sites: the
 filter also reads sites in `source_facts`, including on older Postings. The
 location choice on the dashboard only narrows what's displayed.
 
@@ -134,6 +135,24 @@ The estimate is a bounded CPU preflight. Execute uses that receipt, checks the $
 cap, then appends scores under `data/keep-scores`. A partial run resumes without
 rescoring current inputs. The daily run also has daily and monthly spend limits.
 Refresh does not run inference.
+
+Retraining uses your own labels, not bundled data. Provide a private CSV with
+`posting key` and `decision` columns (`keep` or `skip`). Track decisions made
+since then take precedence. The first command shows counts, byte sizes, the
+kinds of content sent, and a hash bound to the payload before anything uploads;
+the newest labels are held out. Employer names, Posting excerpts and confirmed
+résumé facts can leave the machine. Posting keys, reasons, contact details and holdout labels stay local.
+Approve the preview hash to train and compare the old and candidate models on
+the holdout, then pick which one to use. Nothing swaps until you pick new.
+
+```bash
+uv run python -m venator.score.train --profile NAME --labels /path/to/labels.csv
+uv run python -m venator.score.train --profile NAME --labels /path/to/labels.csv --approve-sha256 HASH
+uv run python -m venator.score.train --profile NAME --comparison /path/to/keep-training-comparison.json --pick new
+```
+
+The comparison file is private to the Install. To keep the old model, use
+`--pick old`. No model, label CSV, adapter path or Modal account is shipped.
 
 ### 4. Build the view
 
@@ -176,7 +195,8 @@ uv run python -m venator.applications applied POSTING_KEY --profile NAME
 `applied` records that you applied. It sends nothing to the employer.
 
 Apply checks the live Posting and reruns Hard Filters. It reads Greenhouse form
-questions when available, drafts a résumé and a letter if the form asks for one,
+questions when available, remembers Ashby questions per employer for the next
+Apply, and drafts a résumé and a letter if the form asks for one,
 and checks drafted passages against confirmed Profile facts. You can edit the text;
 each edit makes a new version. Reviewed files are hashed under `data/applications/`.
 
@@ -205,10 +225,11 @@ uv run python -m venator.applications fill POSTING_KEY --profile NAME
 ```
 
 It opens a visible browser with its own saved profile, so logins stick. On
-Greenhouse it fills confirmed fields and uploads only the reviewed PDFs. Other
-sources open for you to fill in by hand. Review the form, answer what's missing,
-deal with any CAPTCHA and press Submit yourself. A detected Greenhouse confirmation
-records an applied Application; use `applied` if you submitted without detection.
+Greenhouse or Ashby it fills confirmed fields and uploads only the reviewed PDFs
+when the trusted form belongs to the Posting. Lever opens for you to fill in by
+hand. Review the form, answer what's missing, deal with any CAPTCHA and press
+Submit yourself. A detected Greenhouse confirmation records an applied
+Application; use `applied` after Ashby or if you submitted without detection.
 
 ## Dry Run browser tools
 

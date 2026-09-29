@@ -38,6 +38,7 @@ const PYTHON_SITES = {
 	"onboarding/profile-edit.ts": ["env: inheritedToolEnvironment(context)"],
 	"runs/plan.ts": ["env: runEnvironment(context)"],
 	"runs/runner.ts": ["env: runEnvironment(context)", "env: environment"],
+	"train/routes.ts": ["env: runEnvironment(context)"],
 } satisfies Record<string, readonly string[]>;
 
 function typescriptFiles(folder: string): string[] {

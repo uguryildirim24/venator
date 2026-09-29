@@ -180,14 +180,22 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 		},
 		[keys, postings, select, selectedKey],
 	);
+	const selectedEntry = postings.status === "ready" ? postings.value.entries.find((entry) => entry.groupKeys?.includes(selectedKey ?? "")) : undefined;
+	const canTriage = selectedEntry !== undefined && selectedEntry.status !== "hard-killed" && control.busy === null;
 	const bindings = useMemo<readonly KeyBinding[]>(
 		() => [
 			{ keys: ["j", "ArrowDown"], label: "j", description: "next Posting", run: () => move((index) => index + 1) },
 			{ keys: ["k", "ArrowUp"], label: "k", description: "previous Posting", run: () => move((index) => index - 1) },
 			{ keys: ["g"], label: "g", description: "first Posting", run: () => move(() => 0) },
 			{ keys: ["G"], label: "G", description: "last Posting", run: () => move(() => keys.length - 1) },
+			{ keys: ["s"], label: "s", description: "Save Posting", run: () => {
+				if (canTriage && (selectedEntry?.application?.state === null || selectedEntry?.application?.state === undefined || selectedEntry.application.state === "queued")) control.run("save");
+			} },
+			{ keys: ["x"], label: "x", description: "Dismiss Posting", run: () => {
+				if (canTriage && selectedEntry?.application?.state !== "rejected") control.run("dismiss");
+			} },
 		],
-		[keys.length, move],
+		[canTriage, control, keys.length, move, selectedEntry],
 	);
 	useKeyBindings(bindings);
 

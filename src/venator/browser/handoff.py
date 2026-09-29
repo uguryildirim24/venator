@@ -7,8 +7,7 @@ intercepts or submits a request.  The caller waits only for a small ready
 handshake from a detached worker; the worker owns the browser for the rest of
 its lifetime.
 
-Greenhouse is the first assisted source.  Other sources are opened visibly and
-reported as manual/download fallbacks until a source-specific flow is proved.
+Greenhouse and Ashby are assisted sources. Other sources open for manual completion.
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ from venator.fill.plan import create_fill_plan
 from venator.profile import Profile
 
 
-SUPPORTED_SOURCE = "greenhouse"
+SUPPORTED_SOURCES = frozenset({"greenhouse", "ashby"})
 STARTUP_TIMEOUT = 60.0
 ASSIST_TIMEOUT = 15.0
 NAVIGATION_TIMEOUT_MS = 8_000
@@ -168,6 +167,8 @@ def _request_payload(
     letter_file: Path | None,
     debugging_port: int | None,
     questions: list[dict] | None = None,
+    form_memory: Path | None = None,
+    profile_id: str | None = None,
 ) -> dict[str, Any]:
     return {
         "posting": {
@@ -188,6 +189,8 @@ def _request_payload(
         "browser_directory": str(profile.directory.resolve() / ".venator-browser"),
         "debugging_port": debugging_port,
         "questions": questions or [],
+        "form_memory": str(form_memory) if form_memory else None,
+        "profile_id": profile_id,
     }
 
 
@@ -207,6 +210,7 @@ def _trusted_url(url: str, *, allow_test_urls: bool = False) -> bool:
     return parsed.scheme == "https" and parsed.netloc in {
         "boards.greenhouse.io", "job-boards.greenhouse.io",
         "boards.eu.greenhouse.io", "job-boards.eu.greenhouse.io",
+        "jobs.ashbyhq.com",
     }
 
 
@@ -217,9 +221,15 @@ def _trusted_document(url: str, posting: Mapping[str, Any], *, allow_test_urls: 
     if allow_test_urls and parsed.scheme == "file":
         return True
     key = str(posting.get("key") or "").split(":")
-    if len(key) != 3 or key[0] != "greenhouse":
+    if len(key) != 3:
         return False
     parts = parsed.path.strip("/").split("/")
+    if key[0] == "ashby":
+        return parsed.hostname == "jobs.ashbyhq.com" and parts in (
+            [key[1], key[2]], [key[1], key[2], "application"]
+        )
+    if key[0] != "greenhouse" or parsed.hostname == "jobs.ashbyhq.com":
+        return False
     query = parse_qs(parsed.query)
     if len(parts) == 3 and parts[1] == "jobs":
         return parts[0] == key[1] and parts[2] == key[2]
@@ -294,7 +304,7 @@ def _warning_for_unmapped(field: Mapping[str, Any]) -> str:
     return f"{label} left blank: {reason}."
 
 
-def _assist_greenhouse(
+def _assist_form(
     page: Page,
     posting: Mapping[str, Any],
     profile_resume: Mapping[str, Any],
@@ -306,6 +316,8 @@ def _assist_greenhouse(
     *,
     questions: list[dict] | None = None,
     allow_test_urls: bool = False,
+    form_memory: Path | None = None,
+    profile_id: str | None = None,
 ) -> tuple[int, list[str], list[dict[str, Any]]]:
     warnings: list[str] = []
     results: list[dict[str, Any]] = []
@@ -328,12 +340,16 @@ def _assist_greenhouse(
                 form = forms.nth(index)
                 candidates.append((_form_score(form), candidate, form))
         if not candidates:
-            raise ValueError("no application form on a confirmed Greenhouse document")
+            raise ValueError("no application form on a confirmed Posting document")
         _score, frame, form = max(candidates, key=lambda item: item[0])
         expected_url = frame.url
         form_fields = form.evaluate(_INVENTORY_SCRIPT)
     except Exception as error:
-        return 0, [f"The Greenhouse form could not be inventoried: {str(error).strip()}"], results
+        return 0, [f"The Posting form could not be inventoried: {str(error).strip()}"], results
+
+    if posting.get("source") == "ashby" and form_memory is not None:
+        from venator.apply.form import remember_ashby_form
+        remember_ashby_form(form_memory, posting, form_fields, profile_id)
 
     form_spec = {"fields": form_fields}
     plan = create_fill_plan(
@@ -477,8 +493,8 @@ def _source_message(source: str, assisted: bool, *, filled: int) -> str:
     return f"Opened the {source} application in a persistent browser for manual completion."
 
 
-def _greenhouse_form_host_confirmed(page: Page, *, allow_test_urls: bool = False) -> bool:
-    return any(_trusted_url(frame.url, allow_test_urls=allow_test_urls) for frame in page.frames)
+def _form_host_confirmed(page: Page, posting: Mapping[str, Any], *, allow_test_urls: bool = False) -> bool:
+    return any(_trusted_document(frame.url, posting, allow_test_urls=allow_test_urls) for frame in page.frames)
 
 
 def _login_page_detected(page: Page) -> bool:
@@ -553,21 +569,16 @@ def _navigation_and_fill(request: Mapping[str, Any], page: Page) -> tuple[dict[s
 
     filled = 0
     details: list[dict[str, Any]] = []
-    host_confirmed = _greenhouse_form_host_confirmed(
-        page,
-        allow_test_urls=allow_test_urls,
-    )
+    host_confirmed = _form_host_confirmed(page, posting, allow_test_urls=allow_test_urls)
     login_detected = _login_page_detected(page)
-    assisted = source == SUPPORTED_SOURCE and host_confirmed and not login_detected
-    if source == SUPPORTED_SOURCE and login_detected:
+    assisted = source in SUPPORTED_SOURCES and host_confirmed and not login_detected
+    if source in SUPPORTED_SOURCES and login_detected:
         warnings.append("The application requires a login; sign in manually before entering Profile facts.")
-    if source == SUPPORTED_SOURCE and not host_confirmed:
-        warnings.append(
-            "The navigated page is outside the Greenhouse host; no automatic fields or uploads were attempted."
-        )
+    if source in SUPPORTED_SOURCES and not host_confirmed:
+        warnings.append("The navigated page is outside this Posting's form; no fields or uploads were attempted.")
     if assisted:
         try:
-            filled, assist_warnings, details = _assist_greenhouse(
+            filled, assist_warnings, details = _assist_form(
                 page,
                 posting,
                 request.get("profile_resume") if isinstance(request.get("profile_resume"), Mapping) else {},
@@ -578,13 +589,15 @@ def _navigation_and_fill(request: Mapping[str, Any], page: Page) -> tuple[dict[s
                 str(request.get("profile_constraints_source") or "constraints.yaml"),
                 questions=request.get("questions") if isinstance(request.get("questions"), list) else [],
                 allow_test_urls=allow_test_urls,
+                form_memory=Path(str(request["form_memory"])) if request.get("form_memory") else None,
+                profile_id=str(request["profile_id"]) if request.get("profile_id") else None,
             )
             warnings.extend(assist_warnings)
         except Exception as error:
-            warnings.append(f"Greenhouse assistance stopped before all fields were filled: {str(error).strip()}.")
+            warnings.append(f"Form assistance stopped before all fields were filled: {str(error).strip()}.")
     else:
         warnings.append(
-            "Automatic assistance is currently limited to Greenhouse; download the prepared files and complete this form manually."
+            "Complete this form manually with the prepared files."
         )
 
     try:
@@ -648,13 +661,13 @@ def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_
     from venator.apply.classify import reserved
 
     posting = request.get("posting") or {}
-    if posting.get("source") != SUPPORTED_SOURCE:
+    if posting.get("source") not in SUPPORTED_SOURCES:
         return
     acted = False
     allow_test_urls = bool(request.get("allow_test_urls"))
 
     def inspect(frame: Frame) -> None:
-        if not acted or (_read_json(state_path) or {}).get("state") == "applied":
+        if posting.get("source") != "greenhouse" or not acted or (_read_json(state_path) or {}).get("state") == "applied":
             return
         host = _confirmation_host(frame.url, posting, allow_test_urls=allow_test_urls)
         if host is None:
@@ -823,6 +836,7 @@ def start_handoff(
     letter_file: Path | None = None,
     allow_test_urls: bool = False,
     questions: list[dict] | None = None,
+    form_memory: Path | None = None,
 ) -> dict[str, Any]:
     """Start a detached visible handoff and return after its ready handshake.
 
@@ -857,6 +871,8 @@ def start_handoff(
         Path(letter_file).resolve() if letter_file is not None else None,
         debugging_port,
         questions,
+        form_memory,
+        profile.identifier,
     )
     request["allow_test_urls"] = allow_test_urls
     request["token"] = token

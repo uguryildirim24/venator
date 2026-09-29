@@ -18,6 +18,23 @@ import type { OnboardingStateResponse } from "../shared/onboarding.ts";
 
 export const API_BASE_URL = import.meta.env?.VITE_API_BASE ?? "/api";
 
+export type TrainPreview = {
+	readonly rows: number; readonly training: number; readonly holdout: number;
+	readonly training_bytes: number; readonly holdout_bytes: number; readonly sha256: string;
+	readonly leaves_mac: readonly string[]; readonly stays_mac: readonly string[]; readonly not_uploaded: readonly string[];
+};
+export type TrainComparison = { readonly old: { readonly correct: number; readonly total: number }; readonly new: { readonly correct: number; readonly total: number } };
+export type TrainRequest = { readonly action: "preview" | "train" | "pick"; readonly csv: string | null; readonly sha256: string | undefined; readonly choice: "old" | "new" | undefined };
+export type TrainResult = TrainPreview & TrainComparison & { readonly picked?: string };
+
+export async function trainAction(body: TrainRequest): Promise<TrainResult> {
+	const response = await fetch(`${API_BASE_URL}/train`, { method: "POST", headers: { "Content-Type": "application/json", "X-Venator-Training": "1" }, body: JSON.stringify(body) });
+	// SAFETY: This response comes from the paired local train route; the error shape is read only on failure.
+	const result = await response.json() as TrainResult & { readonly error?: string };
+	if (!response.ok) throw new Error(result.error ?? "Training failed.");
+	return result;
+}
+
 export type RequestState<Value> =
 	| { readonly status: "loading" }
 	| { readonly status: "error"; readonly message: string }

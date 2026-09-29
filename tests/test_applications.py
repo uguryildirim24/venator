@@ -52,7 +52,8 @@ def application_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                            "letter_paragraphs": [{"source_ids": ["lab:fact"], "text": "I measured synthetic samples."},
                                                  {"source_ids": ["lab:fact"], "text": "My samples were measured."}]})
 
-    def browser(posting, profile, resume_file, directory, *, letter_file, questions):
+    def browser(posting, profile, resume_file, directory, *, letter_file, questions, form_memory):
+        assert form_memory == install / "data" / "answers" / "forms"
         run.browser_calls.append((posting, resume_file, letter_file))
         assert questions and questions[0]["name"] == "cover_letter"
         assert resume_file.read_bytes().startswith(b"%PDF")
@@ -91,6 +92,25 @@ def test_apply_returns_hashed_resume_and_letter_and_fill_uses_current_version(ap
     assert run.browser_calls[-1][1].parent.name == record["version"]
     assert run.browser_calls[-1][2].name == "letter.pdf"
     assert len(run.refresh_calls) == 1  # Fill doesn't refetch after Apply.
+
+
+def test_ashby_employer_form_memory_does_not_suppress_current_posting_letter(application_run):
+    from venator.apply.form import remember_ashby_form
+
+    run = application_run
+    posting = {**run.refreshed, "key": "ashby:fixture:2", "source": "ashby", "external_id": "2",
+               "url": "https://jobs.ashbyhq.com/fixture/2/application"}
+    append_observations(run.install / "data" / "postings", [posting])
+    run.refreshed = posting
+    remember_ashby_form(run.install / "data" / "answers" / "forms", posting, [
+        {"name": "full_name", "label": "Full Name", "kind": "text", "required": True,
+         "options": None, "maxlength": None},
+    ], "candidate-test")
+    args = run.args("apply")
+    args.key = posting["key"]
+    record = applications.perform(args)
+    assert record["formQuestions"][0]["name"] == "full_name"
+    assert "letter.pdf" in record["file_hashes"]
 
 
 def test_owner_edits_version_without_completion_and_next_apply_keeps_it(application_run):

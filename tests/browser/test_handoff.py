@@ -189,8 +189,8 @@ def test_unsupported_source_opens_manual_fallback_without_uploading(tmp_path: Pa
     try:
         result = start_handoff(
             {
-                "key": "ashby:fixture:123",
-                "source": "ashby",
+                "key": "lever:fixture:123",
+                "source": "lever",
                 "board": "fixture",
                 "title": "Fixture scientist",
                 "url": FIXTURE.resolve().as_uri(),
@@ -201,7 +201,7 @@ def test_unsupported_source_opens_manual_fallback_without_uploading(tmp_path: Pa
             allow_test_urls=True,
         )
         assert result["filled"] == 0
-        assert any("limited to Greenhouse" in warning for warning in result["warnings"])
+        assert any("Complete this form manually" in warning for warning in result["warnings"])
         state = read_handoff_state(application_dir)
         assert state is not None
         with sync_playwright() as playwright:
@@ -214,6 +214,82 @@ def test_unsupported_source_opens_manual_fallback_without_uploading(tmp_path: Pa
             browser.close()
     finally:
         _stop_handoff(application_dir)
+
+
+def test_ashby_saved_form_fills_reviewed_answers_and_files_without_touching_captcha(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from venator.answers.store import append
+    from venator.apply.form import ashby_questions, remember_ashby_form, review_questions
+    from venator.browser.recon import _INVENTORY_SCRIPT
+
+    posting = {"key": "ashby:lilasciences:123", "source": "ashby", "board": "lilasciences",
+               "company": "Lila Sciences", "url": "https://jobs.ashbyhq.com/lilasciences/123/application"}
+    memory = tmp_path / "memory"
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"fixture resume")
+    letter = tmp_path / "letter.pdf"
+    letter.write_bytes(b"fixture letter")
+    html = (FIXTURE.parent / "phase3-ashby-form.html").read_text()
+    append(tmp_path / "answers", "fixture", text="Have you worked for Lila?", kind="select",
+           answer="No", board="lilasciences", company="Lila Sciences")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(offline=True)
+        posts = []
+        def route(request):
+            if request.request.method != "GET":
+                posts.append(request.request.method)
+            request.fulfill(body=html, content_type="text/html")
+        page.route("**/*", route)
+        page.goto(posting["url"])
+        fields = page.locator("form").evaluate(_INVENTORY_SCRIPT)
+        remember_ashby_form(memory, posting, fields, "fixture")
+        assert [row["name"] for row in ashby_questions(memory, posting, "fixture")] == [
+            "full_name", "experience", "notes", "resume", "letter"]
+        assert ashby_questions(memory, {**posting, "key": "ashby:another:123"}, "fixture") == []
+        with pytest.raises(ValueError, match="another Profile"):
+            remember_ashby_form(memory, posting, fields, "different")
+        assert (memory / ".profile").read_text().strip() == "fixture"
+        profile = SimpleNamespace(identifier="fixture", resume={"name": "Test Person"}, constraints={})
+        reviewed, pins = review_questions(posting, profile, tmp_path / "answers",
+                                          ashby_questions(memory, posting, "fixture"))
+        assert pins and next(row for row in reviewed if row["name"] == "experience")["answer"] == "No"
+        result, filled, _ = _navigation_and_fill({"posting": posting, "resume_file": str(resume),
+            "letter_file": str(letter), "profile_resume": profile.resume, "profile_constraints": {},
+            "questions": reviewed, "form_memory": str(memory), "profile_id": "fixture"}, page)
+        assert filled == 4
+        assert page.locator("#full_name").input_value() == "Test Person"
+        assert page.locator("#experience").input_value() == "No"
+        assert page.locator("#notes").input_value() == ""
+        assert page.locator("#resume").evaluate("el => el.files[0].name") == "resume.pdf"
+        assert page.locator("#letter").evaluate("el => el.files[0].name") == "letter.pdf"
+        assert page.locator(".g-recaptcha iframe").count() == 1
+        assert not posts
+        assert result["submit_events"] == 0
+        browser.close()
+
+
+@pytest.mark.parametrize("destination", ["https://other.test/lilasciences/123/application",
+    "https://boards.greenhouse.io/lilasciences/jobs/123",
+    "https://jobs.ashbyhq.com/another/123/application",
+    "https://jobs.ashbyhq.com/lilasciences/456/application",
+    "http://jobs.ashbyhq.com/lilasciences/123/application"])
+def test_ashby_other_hosts_and_postings_get_no_fields_or_files(destination: str, tmp_path: Path) -> None:
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"fixture resume")
+    html = (FIXTURE.parent / "phase3-ashby-form.html").read_text()
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(offline=True)
+        page.route("**/*", lambda route: route.fulfill(body=html, content_type="text/html"))
+        result, filled, _ = _navigation_and_fill({"posting": {"key": "ashby:lilasciences:123",
+            "source": "ashby", "url": destination}, "resume_file": str(resume),
+            "profile_resume": {"name": "Test Person"}, "profile_constraints": {}}, page)
+        assert filled == 0
+        assert page.locator("#full_name").input_value() == ""
+        assert page.locator("#resume").evaluate("el => el.files.length") == 0
+        assert result["submit_events"] == 0
+        browser.close()
 
 
 def test_production_form_can_send_manual_post_with_current_documents(tmp_path: Path) -> None:
