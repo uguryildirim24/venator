@@ -30,7 +30,7 @@ import {
 	systemContext,
 	type LocationContext,
 } from "../locations.ts";
-import { nonJevInheritedEnvironment } from "../runs/environment.ts";
+import { inheritedToolEnvironment } from "../runs/environment.ts";
 import type { ProbeOutcome, ProbeUnavailableReason, RuntimeLane, RuntimeState } from "../../shared/onboarding.ts";
 import { RUNTIME_STATES } from "../../shared/onboarding.ts";
 import { asBoolean, asList, asMapping, asText, at, parseJson } from "./json.ts";
@@ -93,7 +93,7 @@ function runProbe(request: ProbeRequest, context: LocationContext): Promise<Prob
 		const child = spawn(pythonInterpreter(context), [...argumentsFor(request)], {
 			cwd: pipelineWorkingDirectory(context),
 			stdio: ["ignore", "pipe", "pipe"],
-			env: nonJevInheritedEnvironment(context),
+			env: inheritedToolEnvironment(context),
 		});
 		let stdout = "";
 		let stderr = "";

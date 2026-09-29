@@ -48,7 +48,7 @@ type FixtureAssessment = {
 	readonly status: "suitable" | "needs_review" | "not_suitable" | "unassessed";
 	readonly summary: string;
 	readonly evidence: readonly { readonly requirement: string; readonly candidate_evidence: string; readonly source: string }[];
-	readonly assessedBy: "deterministic" | "jev";
+	readonly assessedBy: "deterministic";
 	readonly assessedAsOf: string | null;
 	readonly conflicts: readonly string[];
 	readonly unknowns: readonly string[];
@@ -95,7 +95,6 @@ CREATE TABLE track_events (id INTEGER PRIMARY KEY, posting_key TEXT, event TEXT,
 CREATE TABLE application_states (posting_key TEXT PRIMARY KEY, state TEXT, detail TEXT,
   since TEXT);
 CREATE TABLE runs (id INTEGER PRIMARY KEY, at TEXT, status TEXT, stage TEXT, pause_reason TEXT, waiting INTEGER);
-CREATE TABLE jev_skip (posting_key TEXT PRIMARY KEY, reason TEXT NOT NULL);
 CREATE TABLE keep_scores (
   posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
   probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
@@ -103,40 +102,8 @@ CREATE TABLE keep_scores (
 CREATE TABLE assessments (posting_key TEXT PRIMARY KEY, status TEXT, summary TEXT,
   evidence TEXT, conflicts TEXT, unknowns TEXT, listing_status TEXT, last_verified_at TEXT,
   description_kind TEXT, apply_url TEXT, opportunity_type TEXT, input_version TEXT,
-  assessed_by TEXT NOT NULL DEFAULT 'deterministic' CHECK (assessed_by IN ('deterministic', 'jev')),
+  assessed_by TEXT NOT NULL DEFAULT 'deterministic' CHECK (assessed_by IN ('deterministic')),
   assessed_as_of TEXT);
-CREATE TABLE jev_triage (
-  posting_key TEXT NOT NULL,
-  mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')),
-  state TEXT NOT NULL CHECK (state IN ('current', 'stale', 'unavailable')),
-  decision TEXT NOT NULL
-    CHECK (decision IN ('prioritize', 'review', 'exclude', 'unassessed')),
-  fit_probability REAL
-    CHECK (fit_probability IS NULL OR fit_probability BETWEEN 0.0 AND 1.0),
-  fit_score REAL
-    CHECK (fit_score IS NULL OR fit_score BETWEEN 0.0 AND 1.0),
-  primary_rule TEXT,
-  exclusions TEXT NOT NULL,
-  review_flags TEXT NOT NULL,
-  diagnostic_flags TEXT NOT NULL,
-  qualifier_version TEXT,
-  assessment_key TEXT,
-  input_version TEXT,
-  policy_hash TEXT,
-  model_id TEXT,
-  as_of_month TEXT NOT NULL,
-  decided_at TEXT,
-  reason TEXT,
-  PRIMARY KEY (posting_key, mode),
-  CHECK (decision <> 'unassessed' OR
-         (fit_probability IS NULL AND fit_score IS NULL AND primary_rule IS NULL)),
-  CHECK (state <> 'current' OR
-         (decision <> 'unassessed' AND fit_probability IS NOT NULL AND
-          fit_score IS NOT NULL AND assessment_key IS NOT NULL AND
-          qualifier_version IS NOT NULL AND input_version IS NOT NULL))
-);
-CREATE TABLE jev_selection (mode TEXT NOT NULL CHECK (mode IN ('shadow', 'promoted')));
-INSERT INTO jev_selection (mode) VALUES ('shadow');
 CREATE TABLE source_health (source_key TEXT PRIMARY KEY, status TEXT, last_attempt_at TEXT,
 	last_success_at TEXT, count INTEGER, message TEXT, known_jobs INTEGER,
 	full_verified_details INTEGER, needs_detail_check INTEGER);
@@ -175,154 +142,6 @@ const CURRENT_FILTERS = "7c2e5b8146fa";
 
 /** Keep the fixture's open listings inside the server's verification window. */
 const FIXTURE_VERIFIED_AT = new Date().toISOString();
-
-type FixtureJevExclusion = {
-	readonly rule: string;
-	readonly basis: string;
-	readonly question_ids: readonly string[];
-	readonly probabilities: readonly (readonly [string, number])[];
-	readonly guard_code: string;
-	readonly policy_value: string | null;
-	readonly policy_exclusion: boolean;
-};
-
-type FixtureJevTriage = {
-	readonly postingKey: string;
-	readonly mode: "shadow" | "promoted";
-	readonly state: "current" | "stale" | "unavailable";
-	readonly decision: "prioritize" | "review" | "exclude" | "unassessed";
-	readonly fitProbability: number | null;
-	readonly fitScore: number | null;
-	readonly primaryRule: string | null;
-	readonly exclusions: readonly (string | FixtureJevExclusion)[];
-	readonly reviewFlags: readonly string[];
-	readonly diagnosticFlags: readonly string[];
-	readonly qualifierVersion: string | null;
-	readonly assessmentKey: string | null;
-	readonly inputVersion: string | null;
-	readonly policyHash: string | null;
-	readonly modelId: string | null;
-	readonly asOfMonth: string;
-	readonly decidedAt: string | null;
-	readonly reason: string | null;
-};
-
-/** R1 golden `qualifier_version` from `tests/qualify/fixtures/jev/release.json`. */
-const JEV_QUALIFIER = "jev:7f6cf2d9302311874743e3147870ffb16cf30a886ea1c077e40159573f0c82b3";
-
-const JEV_TRIAGE: readonly FixtureJevTriage[] = [
-	{
-		postingKey: "greenhouse:ginkgobioworks:5185285007",
-		mode: "shadow",
-		state: "current",
-		decision: "prioritize",
-		fitProbability: 0.85,
-		fitScore: 0.8875,
-		primaryRule: null,
-		exclusions: [],
-		reviewFlags: [],
-		diagnosticFlags: [],
-		qualifierVersion: JEV_QUALIFIER,
-		assessmentKey: "ak-priority-ginkgo",
-		inputVersion: "in-2026-09",
-		policyHash: "policy-fixture",
-		modelId: "jev-1.13.0",
-		asOfMonth: "2026-09",
-		decidedAt: "2026-09-10T12:00:00+00:00",
-		reason: null,
-	},
-	{
-		postingKey: "greenhouse:recursionpharmaceuticals:6612991",
-		mode: "shadow",
-		state: "current",
-		decision: "review",
-		fitProbability: 0.4,
-		fitScore: 0.775,
-		primaryRule: null,
-		exclusions: [],
-		reviewFlags: ["mandatory_gap_review"],
-		diagnosticFlags: [],
-		qualifierVersion: JEV_QUALIFIER,
-		assessmentKey: "ak-review-ginkgo",
-		inputVersion: "in-2026-09",
-		policyHash: "policy-fixture",
-		modelId: "jev-1.13.0",
-		asOfMonth: "2026-09",
-		decidedAt: "2026-09-10T12:01:00+00:00",
-		reason: null,
-	},
-	{
-		postingKey: "greenhouse:generatebiomedicines:4728845",
-		mode: "shadow",
-		state: "current",
-		decision: "exclude",
-		fitProbability: 0.85,
-		fitScore: 0.8875,
-		primaryRule: "restricted_role",
-		exclusions: [
-			{
-				rule: "restricted_role",
-				basis: "model_assisted_policy",
-				question_ids: ["citizenship_or_clearance"],
-				probabilities: [["citizenship_or_clearance", 0.95]],
-				guard_code: "fired",
-				policy_value: "exclude",
-				policy_exclusion: true,
-			},
-		],
-		reviewFlags: [],
-		diagnosticFlags: [],
-		qualifierVersion: JEV_QUALIFIER,
-		assessmentKey: "ak-exclude-generate",
-		inputVersion: "in-2026-09",
-		policyHash: "policy-fixture",
-		modelId: "jev-1.13.0",
-		asOfMonth: "2026-09",
-		decidedAt: "2026-09-10T12:02:00+00:00",
-		reason: "Excluded by your policy.",
-	},
-	{
-		postingKey: "greenhouse:tesseratherapeutics:4901233",
-		mode: "shadow",
-		state: "unavailable",
-		decision: "unassessed",
-		fitProbability: null,
-		fitScore: null,
-		primaryRule: null,
-		exclusions: [],
-		reviewFlags: [],
-		diagnosticFlags: [],
-		qualifierVersion: null,
-		assessmentKey: null,
-		inputVersion: null,
-		policyHash: null,
-		modelId: null,
-		asOfMonth: "2026-09",
-		decidedAt: null,
-		reason: "Jev assessment is unavailable",
-	},
-	{
-		postingKey: "greenhouse:dynotherapeutics:4455102",
-		mode: "shadow",
-		state: "stale",
-		decision: "review",
-		fitProbability: 0.4,
-		fitScore: 0.775,
-		primaryRule: null,
-		exclusions: [],
-		reviewFlags: ["mandatory_gap_review"],
-		diagnosticFlags: [],
-		qualifierVersion: JEV_QUALIFIER,
-		assessmentKey: "ak-stale-dyno",
-		inputVersion: "in-2026-08",
-		policyHash: "policy-fixture",
-		modelId: null,
-		asOfMonth: "2026-08",
-		decidedAt: "2026-08-12T09:00:00+00:00",
-		reason: null,
-	},
-];
-
 
 function description(intro: string, bullets: readonly string[], closing: string): string {
 	const items = bullets.map((bullet) => `<li>${bullet}</li>`).join("");
@@ -1291,40 +1110,6 @@ function writeView(path: string, decisions: readonly FixtureDecision[]): void {
 				descriptionKind: assessment.descriptionKind,
 				applyUrl: assessment.applyUrl,
 				opportunityType: assessment.opportunityType,
-			});
-		}
-
-		const insertJev = database.prepare(
-			`INSERT INTO jev_triage (
-			   posting_key, mode, state, decision, fit_probability, fit_score, primary_rule,
-			   exclusions, review_flags, diagnostic_flags, qualifier_version, assessment_key,
-			   input_version, policy_hash, model_id, as_of_month, decided_at, reason
-			 ) VALUES (
-			   $postingKey, $mode, $state, $decision, $fitProbability, $fitScore, $primaryRule,
-			   $exclusions, $reviewFlags, $diagnosticFlags, $qualifierVersion, $assessmentKey,
-			   $inputVersion, $policyHash, $modelId, $asOfMonth, $decidedAt, $reason
-			 )`,
-		);
-		for (const row of JEV_TRIAGE) {
-			insertJev.run({
-				postingKey: row.postingKey,
-				mode: row.mode,
-				state: row.state,
-				decision: row.decision,
-				fitProbability: row.fitProbability,
-				fitScore: row.fitScore,
-				primaryRule: row.primaryRule,
-				exclusions: JSON.stringify(row.exclusions),
-				reviewFlags: JSON.stringify(row.reviewFlags),
-				diagnosticFlags: JSON.stringify(row.diagnosticFlags),
-				qualifierVersion: row.qualifierVersion,
-				assessmentKey: row.assessmentKey,
-				inputVersion: row.inputVersion,
-				policyHash: row.policyHash,
-				modelId: row.modelId,
-				asOfMonth: row.asOfMonth,
-				decidedAt: row.decidedAt,
-				reason: row.reason,
 			});
 		}
 

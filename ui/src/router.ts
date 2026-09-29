@@ -8,7 +8,7 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 
-import { POSTING_STATUSES, JEV_TRIAGE_DECISIONS, type JevTriageDecision, type PostingStatus } from "../shared/contracts.ts";
+import { POSTING_STATUSES, type PostingStatus } from "../shared/contracts.ts";
 
 /**
  * The lists the sidebar switches between.
@@ -21,7 +21,7 @@ export type HomeList = "queued" | "needs-review" | "unscored" | "applied" | "sav
 export const HOME_LISTS: readonly HomeList[] = ["queued", "needs-review", "unscored", "applied", "saved", "dismissed", "filtered"];
 
 /** Where Focus was opened from, including the separately named Early review view. */
-export type FocusFrom = HomeList | "triage";
+export type FocusFrom = HomeList;
 
 export type InspectorFilters = {
 	readonly status: PostingStatus | null;
@@ -53,13 +53,7 @@ export type Route =
 	  }
 	| { readonly name: "onboarding"; readonly step: OnboardingStep }
 	| { readonly name: "employers" }
-	| { readonly name: "profile" }
-	| {
-			readonly name: "triage";
-			readonly decision: JevTriageDecision | null;
-			readonly search: string;
-			readonly page?: number;
-	  };
+	| { readonly name: "profile" };
 
 export const EMPTY_FILTERS: InspectorFilters = { status: null, rule: null, search: "" };
 
@@ -89,7 +83,6 @@ function parsePage(parameters: URLSearchParams): number {
 }
 
 function parseFocusFrom(raw: string | null): FocusFrom {
-	if (raw === "triage") return "triage";
 	return parseHomeList(raw);
 }
 
@@ -117,17 +110,6 @@ export function parseRoute(hash: string): Route {
 	if (path === "/profile") return { name: "profile" };
 	if (path.startsWith("/inspector")) {
 		return { name: "inspector", filters: parseFilters(search), page: parsePage(new URLSearchParams(search)) };
-	}
-	if (path === "/triage" || path.startsWith("/triage/")) {
-		const parameters = new URLSearchParams(search);
-		const decisionRaw = parameters.get("decision");
-		const decision = JEV_TRIAGE_DECISIONS.find((candidate) => candidate === decisionRaw) ?? null;
-		return {
-			name: "triage",
-			decision,
-			search: parameters.get("q") ?? "",
-			page: parsePage(parameters),
-		};
 	}
 	const parameters = new URLSearchParams(search);
 	return { name: "queue", list: parseHomeList(parameters.get("list")), search: parameters.get("q") ?? "", page: parsePage(parameters) };
@@ -173,25 +155,11 @@ export function postingHash(key: string, from: FocusFrom = "queued", returnTo?: 
 }
 
 export function postingReturnHash(from: FocusFrom, returnTo?: string): string {
-	if (returnTo === undefined) return from === "triage" ? triageHash() : queueHash(from);
+	if (returnTo === undefined) return queueHash(from);
 	const route = parseRoute(returnTo);
 	if (route.name === "queue") return queueHash(route.list, route.search, route.page);
 	if (route.name === "inspector") return inspectorHash(route.filters, route.page);
-	if (route.name === "triage") return triageHash(route.decision, route.search, route.page);
-	return from === "triage" ? triageHash() : queueHash(from);
-}
-
-export function triageHash(
-	decision: JevTriageDecision | null = null,
-	search = "",
-	page = 0,
-): string {
-	const parameters = new URLSearchParams();
-	if (decision !== null) parameters.set("decision", decision);
-	if (search !== "") parameters.set("q", search);
-	if (page > 0) parameters.set("page", String(page));
-	const query = parameters.toString();
-	return query === "" ? "#/triage" : `#/triage?${query}`;
+	return queueHash(from);
 }
 
 export function navigate(hash: string): void {

@@ -1,8 +1,8 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 
-import type { Funnel, JevTriageDecision, JevTriageEntry, PostingEntry } from "../../shared/contracts.ts";
-import { useJevTriage, useLocations, usePostingDetail, usePostings } from "../api.ts";
+import type { Funnel, PostingEntry } from "../../shared/contracts.ts";
+import { useLocations, usePostingDetail, usePostings } from "../api.ts";
 import { useApplicationControl } from "../application.ts";
 import { useDelayed } from "../delayed.ts";
 import { CellList, type Cell, type CellGroup } from "../components/cells.tsx";
@@ -13,14 +13,12 @@ import { dayKey, formatDay, formatDayHeader, formatMoment, formatTime } from "..
 import { useKeyBindings, type KeyBinding } from "../keys.ts";
 import {
 	applicationStateLabel,
-	earlyReviewLabel,
 	homeListLabel,
-	jevStateLabel,
 	originLabel,
 	postingCountLabel,
 	ruleLabel,
 } from "../labels.ts";
-import { homeListOf, homeListQuery, inspectorQuery, triageListQuery } from "../lists.ts";
+import { homeListOf, homeListQuery, inspectorQuery } from "../lists.ts";
 import {
 	inspectorHash,
 	navigate,
@@ -29,7 +27,6 @@ import {
 	postingHash,
 	queueHash,
 	replaceRoute,
-	triageHash,
 	type FocusFrom,
 	type HomeList,
 	type InspectorFilters,
@@ -40,27 +37,24 @@ import { UpdatingState } from "./first-run.tsx";
 import { FIRST_RUN } from "./onboarding/copy.ts";
 import { nextPostingArrival } from "./posting-arrival.ts";
 
-/** What the list column is showing: a home list, early review, or the inspector's results. */
+/** What the list column is showing: a home list or the inspector's results. */
 type Source =
 	| { readonly kind: "list"; readonly list: HomeList; readonly search: string; readonly page: number }
-	| { readonly kind: "triage"; readonly search: string; readonly page: number; readonly decision: JevTriageDecision | null }
 	| { readonly kind: "inspector"; readonly filters: InspectorFilters; readonly page: number };
 
 function sourceOf(route: Route): Source {
-	if (route.name === "triage") return { kind: "triage", decision: route.decision, search: route.search, page: route.page ?? 0 };
 	if (route.name === "queue") return { kind: "list", list: route.list, search: route.search, page: route.page ?? 0 };
 	if (route.name === "posting") {
 		if (route.returnTo !== undefined) {
 			const back = parseRoute(route.returnTo);
-			if (back.name === "queue" || back.name === "triage" || back.name === "inspector") return sourceOf(back);
+			if (back.name === "queue" || back.name === "inspector") return sourceOf(back);
 		}
-		return route.from === "triage" ? sourceOf({ name: "triage", decision: null, search: "" }) : sourceOf({ name: "queue", list: route.from, search: "" });
+		return { kind: "list", list: route.from, search: "", page: 0 };
 	}
 	return { kind: "list", list: "queued", search: "", page: 0 };
 }
 
 function sourceHash(source: Source, page = source.page): string {
-	if (source.kind === "triage") return triageHash(source.decision, source.search, page);
 	if (source.kind === "inspector") return inspectorHash(source.filters, page);
 	return queueHash(source.list, source.search, page);
 }
@@ -113,20 +107,6 @@ function dayGroups(entries: readonly PostingEntry[], list: HomeList | null): Cel
 	return groups;
 }
 
-/** Diagnostics keep the API's verification order; each cell names its unavailable or stale state. */
-function diagnosticGroups(entries: readonly JevTriageEntry[]): CellGroup[] {
-	const cells: Cell[] = entries.map(({ posting, triage }) => ({
-		key: posting.key,
-		title: posting.title,
-		meta: [originLabel(posting), posting.location].filter((part) => part !== null && part !== "").join(" · "),
-		time: "",
-		stamp: "",
-		isNew: false,
-		status: { text: jevStateLabel(triage.state), glyph: "info" },
-	}));
-	return cells.length === 0 ? [] : [{ key: "diagnostics", header: homeListLabel("unscored"), cells }];
-}
-
 /* ---------------------------------------------------------------- the view */
 
 type WorkspaceProps = {
@@ -142,7 +122,7 @@ type WorkspaceProps = {
 /**
  * The three-pane grammar every list shares: the list, and the selected Posting as a page.
  *
- * `#/queue` and `#/triage` show their first Posting; choosing another replaces the route with
+ * `#/queue` shows its first Posting; choosing another replaces the route with
  * that Posting's own address, so the selection is a link and Back leaves the list rather than
  * walking it.
  */
@@ -158,17 +138,10 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 				? inspectorQuery(source.filters, offset)
 				: null;
 	const postings = usePostings(postingsQuery, reloadToken);
-	const triage = useJevTriage(source.kind === "triage" ? triageListQuery(source.decision, source.search, offset) : null, reloadToken);
 
-	const listState = source.kind === "triage" ? triage : postings;
-	const keys = useMemo(() => {
-		if (source.kind === "triage") return triage.status === "ready" ? triage.value.entries.map((entry) => entry.posting.key) : [];
-		return postings.status === "ready" ? postings.value.entries.map((entry) => entry.posting.key) : [];
-	}, [source.kind, postings, triage]);
-	const groups = useMemo(() => {
-		if (source.kind === "triage") return triage.status === "ready" ? diagnosticGroups(triage.value.entries) : [];
-		return postings.status === "ready" ? dayGroups(postings.value.entries, source.kind === "list" ? source.list : null) : [];
-	}, [source, postings, triage]);
+	const listState = postings;
+	const keys = useMemo(() => postings.status === "ready" ? postings.value.entries.map((entry) => entry.posting.key) : [], [postings]);
+	const groups = useMemo(() => postings.status === "ready" ? dayGroups(postings.value.entries, source.kind === "list" ? source.list : null) : [], [source, postings]);
 
 	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || keys.includes(route.key)) ? route.key : (keys[0] ?? null);
 	const detailPane = useRef<HTMLDivElement>(null);
@@ -182,7 +155,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	const control = useApplicationControl(selectedKey, reloadToken, onReload);
 	const [keyboardMoves, setKeyboardMoves] = useState(0);
 
-	const from: FocusFrom = source.kind === "triage" ? "triage" : source.kind === "list" ? source.list : "queued";
+	const from: FocusFrom = source.kind === "list" ? source.list : "queued";
 	const returnTo = sourceHash(source);
 	const select = useCallback(
 		(key: string) => {
@@ -216,8 +189,8 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 	useKeyBindings(bindings);
 
 	const total = listState.status === "ready" ? listState.value.total : null;
-	const fresh = source.kind !== "triage" && postings.status === "ready" ? postings.value.newCount : 0;
-	const title = source.kind === "triage" ? earlyReviewLabel() : source.kind === "inspector" ? "Filter inspector" : homeListLabel(source.list);
+	const fresh = postings.status === "ready" ? postings.value.newCount : 0;
+	const title = source.kind === "inspector" ? "Filter inspector" : homeListLabel(source.list);
 	const search = source.kind === "inspector" ? source.filters.search : source.search;
 	const updating = useDelayed(listState.status === "loading");
 	const subtitle =
@@ -227,19 +200,18 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 			? null
 			: search !== ""
 				? `${total.toLocaleString("en-US")} matching “${search}”`
-				: postingCountLabel(total, source.kind === "triage" ? 0 : fresh);
+				: postingCountLabel(total, fresh);
 
 	const commitSearch = useCallback(
 		(next: string) => {
-			if (source.kind === "triage") replaceRoute(triageHash(source.decision, next));
-			else if (source.kind === "inspector") replaceRoute(inspectorHash({ ...source.filters, search: next }));
+			if (source.kind === "inspector") replaceRoute(inspectorHash({ ...source.filters, search: next }));
 			else replaceRoute(queueHash(source.list, next));
 		},
 		[source],
 	);
 	const searchProps: SearchProps = { value: search, placeholder: "Search", onCommit: commitSearch, field: searchField };
 
-	const shown = source.kind === "triage" ? (triage.status === "ready" ? triage.value.entries.length : 0) : postings.status === "ready" ? postings.value.entries.length : 0;
+	const shown = postings.status === "ready" ? postings.value.entries.length : 0;
 	const pages = total === null || total <= PAGE_SIZE ? null : { first: offset + 1, last: offset + shown, total };
 	const current = detail.status === "ready" && detail.value.posting.key === selectedKey ? detail.value : null;
 
@@ -272,8 +244,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 							locationFiltered && search === "" && source.page === 0 && total === 0 ? <div className="empty"><p className="empty-title">No Postings in these locations</p><p>Choose more places or clear the location filter to see everything again.</p></div> : <EmptyList source={source.kind === "list" ? source.list : source.kind} search={search} beyond={(total ?? 0) > 0} funnel={funnel} onReload={onReload} />
 						) : (
 							<>
-								{/* Early review always says what it is; a toolbar subtitle is too narrow to hold it whole. */}
-								<CellList label={title} groups={groups} selectedKey={selectedKey} onSelect={select} keyboardMoves={keyboardMoves} />
+									<CellList label={title} groups={groups} selectedKey={selectedKey} onSelect={select} keyboardMoves={keyboardMoves} />
 							</>
 						)}
 					</div>

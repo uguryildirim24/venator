@@ -27,9 +27,9 @@ import { Toolbar } from "../components/toolbar.tsx";
 import { assistantLabel, degreeLevelLabel, eeoFieldLabel, extractedFieldLabel, hardFilterLine, ruleLabel, rungLabel, screeningFieldLabel, triStateLabel } from "../labels.ts";
 import { chooseDocumentRuntime, OnboardingRequestError, readInstallSettings, readProfileForm, saveProfileForm, type InstallSettings } from "../onboarding/api.ts";
 import { lines, REMOTE_OPTIONS, type EducationEntry, type ExperienceEntry, type ProficiencyEntry } from "../onboarding/draft.ts";
-import { CONNECT, PROFILE, RESUME, TARGETING } from "./onboarding/copy.ts";
+import { PROFILE, RESUME, TARGETING } from "./onboarding/copy.ts";
 import { EmployerPicker, boardKey } from "./onboarding/employers.tsx";
-import { EDUCATION_FIELDS, EntryFields, EXPERIENCE_FIELDS, JevKeyField, Popup, PROFICIENCY_FIELDS, Row, rowWords, skillsOf, TokenField } from "./onboarding/parts.tsx";
+import { EDUCATION_FIELDS, EntryFields, EXPERIENCE_FIELDS, Popup, PROFICIENCY_FIELDS, Row, rowWords, skillsOf, TokenField } from "./onboarding/parts.tsx";
 
 /** The Contact group's order: the résumé step's, so the two screens read alike. */
 const CONTACT_ORDER = ["name", "location", "email", "phone", "linkedin"] as const;
@@ -101,12 +101,12 @@ function withFilters(form: ProfileForm, filters: Partial<TargetingForm["filters"
  *
  * What is shown is `formOf` the three files, read by the server; what Save sends is the form
  * and the files as they were opened, and the server writes only the difference into them
- * (`server/onboarding/profile-form.ts`). Everything the form does not show — the Jev policy,
+ * (`server/onboarding/profile-form.ts`). Everything the form does not show — the qualification policy,
  * the wording patterns, an entry's flags — is not on this screen and is not touched by it.
  *
  * Save is held, with the reason beside it, while a field would be refused; a refusal the
  * server names a field for lands under that field, and one it does not lands at the top. The
- * assistant and the Jev key are this Mac's settings, saved the moment they change, and are
+ * assistant are this Mac's settings, saved the moment they change, and are
  * never part of Save.
  */
 export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSidebar }: {
@@ -562,19 +562,7 @@ export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSideb
 											<option value="codex">{assistantLabel("codex")}</option>
 										</Popup>
 									</div>
-									<div className="setup-row">
-										<span className="setup-row-lines">
-											<span className="setup-row-title">{CONNECT.jevKey}</span>
-											<span className="setup-row-subtitle">{settings.jevKeyPresent ? CONNECT.keySaved : CONNECT.optional}</span>
-										</span>
-									</div>
 								</div>
-								<JevKeyField
-									present={settings.jevKeyPresent}
-									onSaved={() => {
-										readInstallSettings().then(setSettings).catch(() => setSettings(null));
-									}}
-								/>
 							</>
 						)}
 						<p className="setup-caption">{PROFILE.installLine}</p>

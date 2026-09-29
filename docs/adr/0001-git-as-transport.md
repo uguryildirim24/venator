@@ -5,7 +5,7 @@ retired.
 
 ## Context
 
-Venator's history lives in JSONL files under `data/`: Postings, Filter Decisions, Jev
+Venator's history lives in JSONL files under `data/`: Postings, Filter Decisions, keep scores
 results, Track events and run heartbeats. At first, Git carried that history between
 machines. It no longer does. Personal stores now live only in the Install's
 application data directory, outside Git, and no checkout or cloud job holds them.

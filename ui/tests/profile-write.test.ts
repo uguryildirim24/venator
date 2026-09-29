@@ -79,9 +79,6 @@ test("a Profile is written into the application data directory and nowhere else"
 	}
 	const targeting = readFileSync(join(written.directory, "targeting.yaml"), "utf8");
 	assert.match(targeting, /marker-80/u);
-	assert.match(targeting, /qualification_mode: "jev"/u);
-	assert.match(targeting, /policy_version: "onboarding-shadow-1"/u);
-	assert.match(targeting, /no_sponsorship_nonstudent: "review"/u);
 	// Nothing outside the Profiles directory was touched.
 	assert.deepEqual(readdirSync(home), ["profiles"]);
 	assert.deepEqual(readdirSync(elsewhere), []);
@@ -125,13 +122,13 @@ test("a lone surrogate anywhere in a Profile is refused, and no Profile is creat
 	assert.match(readFileSync(join(written.directory, "targeting.yaml"), "utf8"), /scientist/u);
 });
 
-test("an explicit Jev policy or deterministic choice is not replaced on write", async () => {
+test("an explicit compact policy is not replaced on write", async () => {
 	const policy = {
 		policy_version: "mine-1", restricted_roles: "exclude", temporary_student_authorization_exclusion: "review",
 		no_sponsorship_student: "retain", no_sponsorship_nonstudent: "review", unmet_completed_degree: "review",
 		domains: ["laboratory_research"],
 	};
-	const first = await writeProfile(proposal("one", false, { filters: { qualification_mode: "jev", jev: policy } }), install());
+	const first = await writeProfile(proposal("one", false, { filters: { compact_policy: policy } }), install());
 	assert.match(readFileSync(join(first.directory, "targeting.yaml"), "utf8"), /policy_version: "mine-1"/u);
 	const second = await writeProfile(proposal("two", false, { filters: { qualification_mode: "deterministic" } }), install());
 	assert.doesNotMatch(readFileSync(join(second.directory, "targeting.yaml"), "utf8"), /policy_version/u);
@@ -156,7 +153,7 @@ test("overwrite replaces the whole Profile and leaves nothing of the old one", a
 	assert.equal(written.replaced, true);
 	const targeting = readFileSync(join(written.directory, "targeting.yaml"), "utf8");
 	assert.match(targeting, /marker-90/u);
-	assert.doesNotMatch(targeting, /qualification_mode/u, "overwriting an existing Profile must not turn Jev on by default");
+	assert.doesNotMatch(targeting, /qualification_mode/u, "overwriting an existing Profile must not change qualification mode");
 	assert.ok(!existsSync(join(written.directory, "stray.yaml")));
 	assert.deepEqual(readdirSync(join(home, "profiles")), ["someone"]);
 });

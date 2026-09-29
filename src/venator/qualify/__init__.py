@@ -1,3 +1,1 @@
-"""Jev qualification package."""
-
-from __future__ import annotations
+"""Shared compiler, evidence and posting projection for compact scoring."""

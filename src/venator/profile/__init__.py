@@ -12,14 +12,14 @@ from __future__ import annotations
 from venator.profile.loader import PROFILE_FILES, ProfileError, load_profile
 from venator.profile.schema import (
     DEGREE_LEVELS,
-    JEV_DOMAIN_TOKENS,
-    JEV_EXCLUDE_OR_REVIEW,
-    JEV_RETAIN_OR_REVIEW,
+    COMPACT_DOMAIN_TOKENS,
+    COMPACT_EXCLUDE_OR_REVIEW,
+    COMPACT_RETAIN_OR_REVIEW,
     SHIFT_PREFERENCES,
     BoardRegistry,
     EducationFitPolicy,
     FilterPolicy,
-    JevPolicy,
+    CompactPolicy,
     Matcher,
     Profile,
     RoleLevel,
@@ -46,10 +46,10 @@ from venator.profile.select import (
 
 __all__ = [
     "DEGREE_LEVELS",
-    "JEV_DOMAIN_TOKENS",
-    "JEV_EXCLUDE_OR_REVIEW",
-    "JEV_RETAIN_OR_REVIEW",
-    "JevPolicy",
+    "COMPACT_DOMAIN_TOKENS",
+    "COMPACT_EXCLUDE_OR_REVIEW",
+    "COMPACT_RETAIN_OR_REVIEW",
+    "CompactPolicy",
     "SHIFT_PREFERENCES",
     "PROFILES_DIR",
     "PROFILE_ENV",

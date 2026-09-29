@@ -6,7 +6,7 @@ this repository installs or loads it. Building or testing Venator never runs
 `launchctl`.
 
 The agent runs `uv run python -m venator.schedule.loop`, which does Discover, the Hard
-Filters and a view rebuild. It never runs Jev and never commits or pushes anything.
+Filters and a view rebuild. It never scores and never commits or pushes anything.
 
 The plist is generated, not committed. launchd gives a job no shell, no `PATH` and no
 working directory, so the plist needs absolute paths, and those are specific to your

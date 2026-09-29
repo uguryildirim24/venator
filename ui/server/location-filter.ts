@@ -6,13 +6,13 @@ import type { DatabaseSync } from "node:sqlite";
 import { applicationDataDirectory, systemContext, type LocationContext } from "./locations.ts";
 import { asList, asText, parseJson } from "./onboarding/json.ts";
 import { optionalTextColumn, textColumn, type SqlRow } from "./rows.ts";
-import { US_CITIES } from "./us-city-table.ts";
+import placeNames from "../../src/venator/place_names.json" with { type: "json" };
 
 const STATES = {
 	AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
 } satisfies Record<string, string>;
 const STATE_NAMES = new Map(Object.entries(STATES));
-const usCities: ReadonlyMap<string, readonly string[]> = new Map(Object.entries(US_CITIES));
+const cityReadings: ReadonlyMap<string, readonly string[]> = new Map(Object.entries(placeNames));
 const STATE_CODE = new Map(Object.entries(STATES).flatMap(([code, name]) => [[code.toLowerCase(), code], [name.toLowerCase(), code]]));
 
 export type LocationChoice = { readonly key: string; readonly label: string; readonly count: number; readonly parent?: string };
@@ -78,14 +78,21 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 		if (hasRemote && /\bremote\b/iu.test(parts[0]!)) continue;
 		if (parts[1]) parts[1] = parts[1].replace(/\s*\([^)]*(?:campus|site|office)[^)]*\)$/iu, "")
 			.replace(/\s+(?:university|memorial|main|medical|north|south|west|east)\s+campus$/iu, "").trim();
+		const county = parts.find((part) => /\bcounty$/iu.test(part))?.toLocaleLowerCase("en-US");
+		const countyReadings = county ? cityReadings.get(`county:${county}`) : undefined;
 		let state = STATE_CODE.get((parts[1] ?? "").toLowerCase()) ?? STATE_CODE.get(local.toLowerCase());
+		if (!state && countyReadings) state = countyReadings.includes("MA") ? "MA" :
+			countyReadings.find((code) => ["RI", "NH", "CT", "VT", "ME"].includes(code)) ??
+			(countyReadings.length === 1 ? countyReadings[0] : undefined);
 		if (!state && parts.length === 1) {
 			const suffix = /^(.+?)\s+([A-Z]{2})$/iu.exec(local);
 			if (suffix && STATE_NAMES.has(suffix[2]!.toUpperCase())) { state = suffix[2]!.toUpperCase(); parts.splice(0, 1, cityName(suffix[1]!)); }
 		}
 		if (!state && parts.length === 1) {
-			const known = usCities.get(parts[0]!.toLocaleLowerCase("en-US"));
-			if (known?.length === 1) state = known[0];
+			const known = cityReadings.get(parts[0]!.toLocaleLowerCase("en-US"));
+			if (known?.includes("MA")) state = "MA";
+			else if (known?.some((code) => ["RI", "NH", "CT", "VT", "ME"].includes(code))) state = known.find((code) => ["RI", "NH", "CT", "VT", "ME"].includes(code));
+			else if (known?.length === 1 && STATE_NAMES.has(known[0]!)) state = known[0];
 		}
 		if (state) {
 			const parent = `state:${state}`;
@@ -99,11 +106,13 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 		const pathCountry = /^(.+?)\s*[-–—]\s*(.+)$/u.exec(local);
 		const leading = pathCountry ? country(pathCountry[1]!) : undefined;
 		const trailing = country(parts.at(-1) ?? "");
-		const nation = leading ?? trailing ?? (parts.length === 1 ? country(local) : undefined);
+		const readings = parts.length === 1 ? cityReadings.get(parts[0]!.toLocaleLowerCase("en-US")) : undefined;
+		const nation = leading ?? trailing ?? (parts.length === 1 ? country(local) : undefined) ??
+			(readings?.length === 1 && !STATE_NAMES.has(readings[0]!) ? regionNames.of(readings[0]!) : undefined);
 		if (nation) {
 			const parent = `country:${nation.toLowerCase()}`;
 			add({ key: parent, label: nation });
-			const city = leading ? pathCountry![2] : trailing && parts.length > 1 ? parts.slice(0, -1).join(", ") : "";
+			const city = leading ? pathCountry![2] : trailing && parts.length > 1 ? parts.slice(0, -1).join(", ") : readings ? local : "";
 			if (city) {
 				const name = title(city);
 				add({ key: `city:${name.toLocaleLowerCase("en-US")},${nation.toLowerCase()}`, label: name, parent });

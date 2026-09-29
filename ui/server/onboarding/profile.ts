@@ -568,33 +568,6 @@ const HEADERS: ReadonlyMap<ProfileFileName, readonly string[]> = new Map([
 	],
 ]);
 
-// Jev's current release has a closed life-sciences domain vocabulary. Setup does not
-// ask the person to choose among those domains, so keep all of them rather than
-// guessing a field from a search phrase. Outside those fields Jev will flag a
-// domain review, not silently exclude the Posting. Every exclusion policy starts
-// at review until the person explicitly chooses otherwise in their Profile.
-const SHADOW_JEV_POLICY: JsonMapping = {
-	policy_version: "onboarding-shadow-1",
-	restricted_roles: "review",
-	temporary_student_authorization_exclusion: "review",
-	no_sponsorship_student: "review",
-	no_sponsorship_nonstudent: "review",
-	unmet_completed_degree: "review",
-	domains: [
-		"biochemistry", "laboratory_research", "pharmacy", "quality_control",
-		"biomanufacturing", "clinical_research", "computational_life_sciences", "regulatory_science",
-	],
-};
-
-function targetingWithShadowJev(targeting: JsonMapping | null): JsonMapping {
-	const source = targeting ?? {};
-	const filters = asMapping(at(source, "filters")) ?? {};
-	// Respect an explicit policy or explicit deterministic opt-out. This default
-	// belongs to the new Profile only; it never changes a Profile already on disk.
-	if (isPresent(at(filters, "qualification_mode")) || isPresent(at(filters, "jev"))) return source;
-	return { ...source, filters: { ...filters, qualification_mode: "jev", jev: SHADOW_JEV_POLICY } };
-}
-
 function documentFor(file: ProfileFileName, mapping: JsonMapping | null): string {
 	return writeYamlDocument(mapping ?? {}, HEADERS.get(file) ?? []);
 }
@@ -750,7 +723,7 @@ async function writeProfileAlone(
 	const documents = new Map<ProfileFileName, string>();
 	for (const file of files) {
 		const mapping =
-			file === "resume.yaml" ? proposal.resume : file === "constraints.yaml" ? proposal.constraints : exists ? proposal.targeting : targetingWithShadowJev(proposal.targeting);
+			file === "resume.yaml" ? proposal.resume : file === "constraints.yaml" ? proposal.constraints : proposal.targeting;
 		try {
 			documents.set(file, documentFor(file, mapping));
 		} catch (cause) {

@@ -92,12 +92,9 @@ from typing import BinaryIO, Callable, TypeAlias
 
 from venator.match.filters import Decision, apply_filters
 from venator.profile.schema import FilterPolicy
-from venator.qualify.jev_contract import JevContext
 
 #: The one callable ``decide`` puts a Posting through, whichever arm is armed.
-#: The optional Jev context travels with the Posting; omitting it is the
-#: legacy call.
-Filtering: TypeAlias = Callable[..., Decision]
+Filtering: TypeAlias = Callable[[dict], Decision]
 
 
 class BudgetError(OSError):
@@ -254,16 +251,10 @@ def serve(outgoing: BinaryIO) -> None:
         return
     while True:
         message = _receive(incoming)
-        if isinstance(message, dict):
-            posting, jev = message, None
-        elif isinstance(message, tuple) and len(message) == 2 and isinstance(message[0], dict):
-            posting, jev = message
-            if jev is not None and not isinstance(jev, JevContext):
-                return
-        else:
-            return
         try:
-            verdict, rule, reason, facts = apply_filters(posting, filters, jev=jev)
+            if not isinstance(message, dict):
+                return
+            verdict, rule, reason, facts = apply_filters(message, filters)
             # ``facts`` as a plain dict: ``Decision``'s default is a
             # ``MappingProxyType``, which does not pickle. Every reader takes it
             # through ``dict(...)`` already, so this is the same mapping.
@@ -344,7 +335,7 @@ class _Worker:
         self._process = process
         return process
 
-    def filtered(self, posting: dict, jev: JevContext | None = None) -> Decision:
+    def filtered(self, posting: dict) -> Decision:
         key = posting.get("key")
         posting_key = key if isinstance(key, str) else ""
         process = self._process or self._start()
@@ -352,7 +343,7 @@ class _Worker:
         try:
             if stdin is None:
                 raise BrokenPipeError("the worker process has no stdin")
-            _send(stdin, (posting, jev))
+            _send(stdin, posting)
         except (OSError, ValueError, TypeError) as error:
             raise self._lost(posting_key, error) from error
         try:
@@ -455,17 +446,17 @@ def hard_filter_budget(
     """
     if seconds <= 0:
 
-        def unbounded(posting: dict, jev: JevContext | None = None) -> Decision:
-            return apply_filters(posting, filters, jev=jev)
+        def unbounded(posting: dict) -> Decision:
+            return apply_filters(posting, filters)
 
         yield unbounded
         return
     if alarm_can_be_armed():
 
-        def under_alarm(posting: dict, jev: JevContext | None = None) -> Decision:
+        def under_alarm(posting: dict) -> Decision:
             key = posting.get("key")
             with _alarm(seconds, key if isinstance(key, str) else "", targeting_path):
-                return apply_filters(posting, filters, jev=jev)
+                return apply_filters(posting, filters)
 
         yield under_alarm
         return

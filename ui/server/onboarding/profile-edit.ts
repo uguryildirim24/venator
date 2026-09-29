@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import type { ProfileDocuments } from "../../shared/profile-form.ts";
 import { pipelineWorkingDirectory, pythonInterpreter, systemContext, writableProfilesRoot, type LocationContext } from "../locations.ts";
-import { nonJevInheritedEnvironment } from "../runs/environment.ts";
+import { inheritedToolEnvironment } from "../runs/environment.ts";
 import { OnboardingError } from "./errors.ts";
 import { oneWriterPerProfile } from "./one-writer.ts";
 import { profileDirectoryFor, writeAndFlush } from "./profile.ts";
@@ -51,7 +51,7 @@ export function readProfileDocuments(name: string, context: LocationContext = sy
 function versionOf(directory: string, context: LocationContext): string | null {
 	try {
 		return execFileSync(pythonInterpreter(context), [fileURLToPath(new URL("./profile_version.py", import.meta.url)), directory], {
-			cwd: pipelineWorkingDirectory(context), env: nonJevInheritedEnvironment(context),
+			cwd: pipelineWorkingDirectory(context), env: inheritedToolEnvironment(context),
 			encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "ignore"],
 		}).trim();
 	} catch {

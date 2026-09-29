@@ -47,7 +47,7 @@ export type Posting = {
 /**
  * Where a Posting stands on the dashboard.
  *
- * `needs-review` is Jev review (the Explore list);
+ * `needs-review` is a keep-model review (the Explore list);
  * `applied` is a Posting with application progress (the Applications list). A historical
  * Match Score does not choose this value.
  */
@@ -112,7 +112,6 @@ export type PostingEntry = {
 	/** Null until the Track stage records a lifecycle row for this Posting. */
 	readonly application: ApplicationState | null;
 	readonly assessment?: JobAssessment;
-	readonly jev: { readonly decision: "prioritize" | "review" | "exclude"; readonly mode: JevTriageMode } | null;
 	/** Discovered within the latest completed Discover run window. Nothing is stored. */
 	readonly isNew: boolean;
 };
@@ -149,60 +148,6 @@ export type PostingDetail = {
 	readonly trackEvents: readonly TrackEvent[];
 	readonly application: ApplicationState | null;
 	readonly assessment?: JobAssessment;
-	readonly jev: PostingEntry["jev"];
-	/** Current Jev row, preferring promoted over shadow; absent on a view built before Jev. */
-	readonly jevTriage?: JevTriage;
-};
-
-export type JevTriageDecision = "prioritize" | "review" | "exclude" | "unassessed";
-export type JevTriageState = "current" | "stale" | "unavailable";
-export type JevTriageMode = "shadow" | "promoted";
-
-export const JEV_TRIAGE_DECISIONS: readonly JevTriageDecision[] = [
-	"prioritize",
-	"review",
-	"exclude",
-	"unassessed",
-];
-export const JEV_TRIAGE_STATES: readonly JevTriageState[] = ["current", "stale", "unavailable"];
-export const JEV_TRIAGE_MODES: readonly JevTriageMode[] = ["shadow", "promoted"];
-
-/**
- * One Jev triage row as the dashboard renders it. Machine ids stay off screen.
- *
- * `fit_probability` and `fit_score` stay in the view. Neither crosses the wire, so no Jev
- * number can reach the screen: early review is spoken as its decision label.
- */
-export type JevTriage = {
-	readonly postingKey: string;
-	readonly mode: JevTriageMode;
-	readonly state: JevTriageState;
-	readonly decision: JevTriageDecision;
-	readonly primaryRule: string | null;
-	readonly exclusions: readonly string[];
-	readonly reviewFlags: readonly string[];
-	readonly diagnosticFlags: readonly string[];
-	readonly qualifierVersion: string | null;
-	readonly assessmentKey: string | null;
-	readonly inputVersion: string | null;
-	readonly policyHash: string | null;
-	readonly modelId: string | null;
-	readonly asOfMonth: string;
-	readonly decidedAt: string | null;
-	readonly reason: string | null;
-};
-
-/** A Posting plus its Jev triage row — the unit the Early review list renders. */
-export type JevTriageEntry = {
-	readonly posting: Posting;
-	readonly triage: JevTriage;
-};
-
-export type JevTriageResponse = {
-	readonly entries: readonly JevTriageEntry[];
-	readonly total: number;
-	readonly limit: number;
-	readonly offset: number;
 };
 
 export type JobAssessment = {
@@ -211,7 +156,7 @@ export type JobAssessment = {
 	readonly evidence: readonly { readonly requirement: string; readonly candidateEvidence: string; readonly source: string; readonly basis?: "related_skill" }[];
 	/** Total requirement clauses read, when the assessment reports it. */
 	readonly requirementsRead?: number;
-	readonly assessedBy: "deterministic" | "jev";
+	readonly assessedBy: "deterministic";
 	readonly assessedAsOf: string | null;
 	readonly conflicts: readonly string[];
 	readonly unknowns: readonly string[];

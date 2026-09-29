@@ -2,7 +2,7 @@
 
 Every individual rule returns a ``Reading`` — ``(verdict, rule, reason, fact)``,
 where the first three are the Filter Decision and ``fact`` is a short token
-naming what the rule read on a pass.  Ambiguous wording passes through to Jev
+naming what the rule read on a pass.  Ambiguous wording passes through to keep scoring
 because a false kill is more costly than an extra Posting to qualify — which makes the pass the common outcome, and made the pass
 the outcome the store could not explain.  A kill names its evidence in the
 reason; a pass said only "passed", so a rule that was wrong in the passing
@@ -39,7 +39,6 @@ from venator.profile.schema import (
     RoleTargetPolicy,
     _TITLE_QUALIFIER,
 )
-from venator.qualify.jev_contract import JevContext
 
 Verdict: TypeAlias = Literal["pass", "kill"]
 FilterResult: TypeAlias = tuple[Verdict, str | None, str]
@@ -517,7 +516,7 @@ _DEGREE_ALTERNATION_GAP = 30
 #: How a stated requirement stands against what the Profile says the Owner has.
 #: Three values rather than two, and the third is the point: a requirement whose
 #: level the Posting never said is unresolved, and an unresolved requirement
-#: reaches Jev instead of killing.
+#: reaches keep scoring instead of killing.
 _Reach: TypeAlias = Literal["met", "unsure", "exceeds"]
 
 
@@ -607,7 +606,7 @@ def _degree_reach(level: str | None, rules: EducationFitPolicy) -> _Reach:
     if rules.in_progress is not None and rung <= DEGREE_LEVELS.index(rules.in_progress):
         # Working toward it and not holding it yet. Employers differ on whether
         # an expected graduation answers this, so the Profile cannot answer it
-        # either: it goes to Jev.
+        # either: it goes to keep scoring.
         return "unsure"
     return "exceeds"
 
@@ -1240,7 +1239,7 @@ def _education_attainment_reading(posting: dict, policy: FilterPolicy = EMPTY_PO
             and not any(reach == "met" for reach, _ in binding)
         ):
             # Every offer either exceeds or could not be read, and one could not
-            # be read. That is "not sure", and it reaches Jev rather than
+            # be read. That is "not sure", and it reaches keep scoring rather than
             # deciding either way here. The token says so too: an abstention and
             # a cleared bar are different readings and must not record alike.
             unread = next(match for reach, match in binding if reach == "unsure")
@@ -1346,7 +1345,7 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
     the ladder and a mid-career applicant targeting its middle are the same rule
     with different data. Conservative on purpose — the title is the only field
     that survives an aggregator's truncation, so a title naming no rung at all is
-    left unplaced and passes to Jev rather than being guessed at.
+    left unplaced and passes to keep scoring rather than being guessed at.
 
     A Posting offering more than one title is read the way ``education_fit`` reads
     a ladder of stated minima: the least demanding *offer* decides. "Engineer II /
@@ -1354,7 +1353,7 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
     half reads a ladder as a floor — the same defect the experience filter already
     fixed, in the same filter pass, in the opposite direction. Words *inside* one
     offered title read the same way: "Senior Research Associate" is ambiguous
-    about its rung, so it reaches Jev as an Associate.
+    about its rung, so it reaches keep scoring as an Associate.
 
     Only the leading segment of a title names a rung at all. What follows the
     first comma, bracket or dash is a department, a product, a site or a shift,
@@ -1413,7 +1412,7 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
     # the old ``(0, 0)`` band asserted on its behalf while killing every rung
     # above it. The rule this filter cannot break applies here exactly as it does
     # to a title the ladder cannot read: what cannot be resolved reaches
-    # Jev. ``exclude`` above is independent of the band and has already run,
+    # keep scoring. ``exclude`` above is independent of the band and has already run,
     # because a Profile can name functions it does not want without naming a
     # rung it does.
     band = rules.band
@@ -1449,7 +1448,7 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
             level.name,
         )
     # An offer the ladder cannot read is one the Owner might want. A gap in the
-    # rung vocabulary has to resolve to "not sure" and reach Jev, never to
+    # rung vocabulary has to resolve to "not sure" and reach keep scoring, never to
     # "no": the word list is a convenience, never the thing keeping a Posting safe.
     #
     # Correction to the record. The commit that added the lowest-offer rule
@@ -1461,7 +1460,7 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
     # greenhouse:lilasciences:4310496009 ("Senior Research Associate /
     # Associate Scientist") actually places, at entry. The rule and the tests
     # were right; the claim about why they worked was not, and the difference
-    # matters: a recovery that is really an abstention is a Posting Jev has to
+    # matters: a recovery that is really an abstention is a Posting keep scoring has to
     # qualify, not a Posting the ladder understood.
     if len(placements) < len(readings):
         return Reading(
@@ -1498,7 +1497,7 @@ def role_target_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> R
 
 
 #: Weekend and night wording. Conservative on purpose: a false kill is worse
-#: than one extra Posting for Jev. Title tokens are the Thermo weekend
+#: than one extra Posting for keep scoring. Title tokens are the Thermo weekend
 #: technician case. Description tokens require ``shift`` so a benefits line
 #: about a gym that is open on weekends does not fire.
 _SHIFT_WEEKEND = re.compile(
@@ -1577,7 +1576,7 @@ def location_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> Read
     """Keep unreadable and remote Postings; reject only known outside sites."""
     if not policy.location_regions:
         return Reading("pass", "location", "no location scope configured", "unconfigured")
-    scope = location_scope(posting)
+    scope = location_scope(posting, employer_has_local=posting.get("_employer_has_local"))
     if scope == "outside":
         return Reading("kill", "location", f"outside New England: {posting.get('location') or 'structured location'}")
     return Reading("pass", "location", f"location scope: {scope}", scope)
@@ -1592,18 +1591,9 @@ HARD_FILTER_RULES: dict[str, HardFilter] = {
 }
 
 
-def hard_filters(policy: FilterPolicy = EMPTY_POLICY, *, jev: JevContext | None = None) -> tuple[HardFilter, ...]:
+def hard_filters(policy: FilterPolicy = EMPTY_POLICY) -> tuple[HardFilter, ...]:
     """The Hard Filters this Profile enables, in the order it names them."""
-    skip_description = policy.qualification_mode == "jev" and jev is not None
-    return tuple(
-        HARD_FILTER_RULES[rule]
-        for rule in policy.enabled
-        if not skip_description or rule not in DESCRIPTION_ONLY_RULES
-    )
-
-
-def _jev_reserved(jev: JevContext) -> dict[str, str]:
-    return {"jev": jev.assessment_key, "jev_input": jev.input_version}
+    return tuple(HARD_FILTER_RULES[rule] for rule in policy.enabled)
 
 
 def _humanized(rules: tuple[str, ...]) -> str:
@@ -1613,43 +1603,15 @@ def _humanized(rules: tuple[str, ...]) -> str:
     return " and ".join(names)
 
 
-def apply_filters(
-    posting: dict,
-    policy: FilterPolicy = EMPTY_POLICY,
-    *,
-    jev: JevContext | None = None,
-) -> Decision:
-    """Apply the Profile's Hard Filters in its order and return the first kill.
-
-    ``jev`` is the current promoted Jev context. Supplying one outside jev
-    mode is a caller error. In jev mode ``None`` is complete deterministic
-    fallback, not provisional delegation. A valid context delegates exactly
-    ``work_authorization`` and ``education_fit``; operational kills still
-    run, then a Jev ``exclude`` becomes ``rule='jev_policy:<primary_rule>'``.
-    ``review`` and ``prioritize`` do not mean operationally suitable.
-
-    On a jev-mode kill the facts object holds only the reserved ``jev`` /
-    ``jev_input`` pair. On a pass it also holds the rule readings. Fallback
-    (no context) leaves those two tokens for ``match.run`` to stamp from the
-    resolution, because this function does not see the current input version.
-    """
-    if jev is not None and policy.qualification_mode != "jev":
-        raise ValueError("a Jev context is only valid when qualification_mode is jev")
-    jev_mode = policy.qualification_mode == "jev"
-    delegate = jev_mode and jev is not None
-
+def apply_filters(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> Decision:
+    """Apply the Profile's Hard Filters in order and return the first kill."""
     def finish_kill(rule: str | None, reason: str) -> Decision:
-        if jev_mode and jev is not None:
-            return Decision("kill", rule, reason, _jev_reserved(jev))
         return Decision("kill", rule, reason)
 
     def finish_pass(reason: str, facts: dict[str, str]) -> Decision:
-        if jev_mode and jev is not None:
-            facts = {**facts, **_jev_reserved(jev)}
         return Decision("pass", None, reason, facts)
 
-    # Employer exclusion is operational: it runs before Jev and before every
-    # description-dependent rule, including on stored Postings during replay.
+    # Employer exclusion runs before description-dependent rules.
     board = str(posting.get("board") or "").strip()
     company = str(posting.get("company") or "").strip()
     resolved = policy.employer_names.get(board, "")
@@ -1659,10 +1621,7 @@ def apply_filters(
             return finish_kill(f"employer_excluded:{label}", f"Employer excluded: {label}")
 
     facts: dict[str, str] = {}
-    if delegate:
-        for rule in DESCRIPTION_ONLY_RULES:
-            facts[rule] = "delegated"
-    for hard_filter in hard_filters(policy, jev=jev):
+    for hard_filter in hard_filters(policy):
         verdict, rule, reason, fact = hard_filter(posting, policy)
         if verdict == "kill":
             return finish_kill(rule, reason)
@@ -1689,41 +1648,27 @@ def apply_filters(
             return finish_kill(reading.rule, reading.reason)
         if reading.rule is not None and reading.fact is not None:
             facts[reading.rule] = reading.fact
-    if delegate and jev is not None and jev.decision == "exclude":
-        primary = jev.primary_rule or "exclude"
-        return finish_kill(
-            f"jev_policy:{primary}",
-            f"Jev policy exclusion ({primary})",
-        )
     if not policy.enabled:
         parts: list[str] = []
         if shift is not None:
             parts.append(shift.reason)
         if parts or facts:
             reason = "; ".join(parts) if parts else "no Hard Filter is configured; passed"
-            if delegate and jev is not None:
-                reason += f"; qualification delegated to Jev {jev.qualifier_version}"
             return finish_pass(reason, facts)
         return finish_pass("no Hard Filter is configured; passed", facts)
-    skip_description = delegate
-    effective_enabled = tuple(
-        rule for rule in policy.enabled
-        if not skip_description or rule not in DESCRIPTION_ONLY_RULES
-    )
+    effective_enabled = tuple(policy.enabled)
     if "eligibility" in facts and "eligibility" not in effective_enabled:
         effective_enabled = (*effective_enabled, "eligibility")
     if "shift" in facts and "shift" not in effective_enabled:
         effective_enabled = (*effective_enabled, "shift")
     reason = (f"passed {_humanized(effective_enabled)} hard filters" if effective_enabled else
               "no deterministic Hard Filter is configured; passed")
-    if delegate and jev is not None:
-        reason = f"{reason}; qualification delegated to Jev {jev.qualifier_version}"
     if shift is not None:
         reason += f"; {shift.reason}"
     # The aggregate reason is what the dashboard shows, so it cannot claim a
     # Posting survived filters that never had the text to run on.
     blind = tuple(rule for rule in DESCRIPTION_ONLY_RULES if rule in policy.enabled)
-    if blind and _truncated(posting) and not delegate:
+    if blind and _truncated(posting):
         return finish_pass(
             f"{reason}, but {_humanized(blind)} could not be assessed: {TRUNCATED_NOTE}",
             facts,

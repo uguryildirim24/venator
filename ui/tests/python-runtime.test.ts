@@ -403,7 +403,7 @@ test("native code is recognised by name in both directions", () => {
 		assert.equal(isForeignNative(name), true, name);
 		assert.equal(isWindowsNative(name), false, name);
 	}
-	for (const name of ["venator/qualify/schemas/qualify-output-2.json", "python313.zip", "playwright/driver/node", "LICENSE.txt"]) {
+	for (const name of ["python313.zip", "playwright/driver/node", "LICENSE.txt"]) {
 		assert.equal(isWindowsNative(name), false, name);
 		assert.equal(isForeignNative(name), false, name);
 	}

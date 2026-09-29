@@ -116,7 +116,6 @@ export type EmployerRegistrationBody = {
 
 type OnboardingRequestBody =
 	| { readonly runtime: "claude" | "codex" }
-	| { readonly jevKey: string }
 	| ProbeBody
 	| { readonly text: string }
 	| { readonly url: string }
@@ -172,7 +171,7 @@ export function probeRuntimes(scope: ProbeScope): Promise<RuntimeProbeResponse> 
 	return postJson<RuntimeProbeResponse>("/runtime/probe", probeBody(scope));
 }
 
-export type InstallSettings = { readonly runtime: "claude" | "codex"; readonly jevKeyPresent: boolean };
+export type InstallSettings = { readonly runtime: "claude" | "codex" };
 
 /** Reads the Install's Profile as the Profile screen shows it, with the files it was read from. */
 export async function readProfileForm(name: string): Promise<ExistingProfileResponse> {
@@ -210,9 +209,7 @@ export function chooseDocumentRuntime(runtime: "claude" | "codex"): Promise<Inst
 	return postJson<InstallSettings>("/settings", { runtime });
 }
 
-export function storeJevKey(jevKey: string): Promise<InstallSettings> {
-	return postJson<InstallSettings>("/settings", { jevKey });
-}
+
 
 /** Reads five contact facts out of resume text. Writes nothing; spends nothing. */
 export function importResumeText(text: string): Promise<ResumeSuggestion> {

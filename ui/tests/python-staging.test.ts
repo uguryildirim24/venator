@@ -440,10 +440,9 @@ test("the pipeline is staged with the files it reads at runtime, and without thi
 		// than about the machine the suite runs on.
 		const checkout = resolve(sandbox, "checkout");
 		const source = resolve(checkout, "src", "venator");
-		mkdirSync(resolve(source, "qualify", "schemas"), { recursive: true });
 		mkdirSync(resolve(source, "__pycache__"), { recursive: true });
 		writeFileSync(resolve(source, "__init__.py"), "");
-		writeFileSync(resolve(source, "qualify", "schemas", "qualify-output-2.json"), "{}\n");
+		writeFileSync(resolve(source, "place_names.json"), "{}\n");
 		writeFileSync(resolve(source, "__pycache__", "__init__.cpython-313.pyc"), "this host's bytes");
 
 		const destination = resolve(sandbox, "staged");
@@ -451,15 +450,14 @@ test("the pipeline is staged with the files it reads at runtime, and without thi
 		stagePipeline(destination, checkout, report.say);
 		assert.deepEqual([...walk(resolve(destination, "src"))].sort(), [
 			"venator/__init__.py",
-			"venator/qualify/schemas/qualify-output-2.json",
+			"venator/place_names.json",
 		]);
-		assert.ok(report.lines.some((line) => line.includes("qualify-output-2.json")));
+		assert.ok(report.lines.some((line) => line.includes("place_names.json")));
 
-		// The schema is read when `venator.qualify.versions` is imported and is not a dependency:
-		// a tree without it fails on the Owner's machine.
-		rmSync(resolve(source, "qualify", "schemas", "qualify-output-2.json"));
+		// Without the lookup, Hard Filters cannot read city locations in an Install.
+		rmSync(resolve(source, "place_names.json"));
 		const failure = await failureOf(() => stagePipeline(resolve(sandbox, "second"), checkout, recorder().say));
-		assert.match(failure, /the staged pipeline is missing venator\/qualify\/schemas\/qualify-output-2\.json/);
+		assert.match(failure, /the staged pipeline is missing venator\/place_names\.json/);
 
 		assert.match(
 			await failureOf(() => stagePipeline(resolve(sandbox, "third"), resolve(sandbox, "empty"), recorder().say)),

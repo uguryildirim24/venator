@@ -9,7 +9,7 @@
  *
  * That is a contract, stated with the loop and in coordination/CONTRACTS.md, and not a
  * licence to parse the pipeline's prose. The loop's live `STAGE_ORDER` is
- * `discover | filters | jev | view | commit`. It follows
+ * `discover | filters | view | commit`. It follows
  * `readProbeDocument`'s discipline exactly: **a line it does not recognise changes no
  * state**, and the authority for what actually happened stays the exit status plus the
  * heartbeat rows the loop wrote. Nothing on screen is inferred from a line that was merely

@@ -853,12 +853,10 @@ export const HOST_ONLY_DIRECTORIES: readonly string[] = ["bin", "include"];
 /**
  * Files the pipeline reads at runtime that no dependency provides and no `.py` glob would catch.
  *
- * `qualify-output-2.json` is not documentation: `venator.qualify.versions` reads it at import to
- * derive the schema version, so a staged tree with the `.py` files and not this one fails on the
- * first import of the qualification modules. Every non-`.py` file under `src/venator/` is named
- * here; `tests/python-runtime.test.ts` walks the tree so a new one fails loudly.
+ * Every non-`.py` file under `src/venator/` is named here;
+ * `tests/python-runtime.test.ts` walks the tree so a new one fails loudly.
  */
 export const REQUIRED_PIPELINE_FILES: readonly string[] = [
 	"venator/__init__.py",
-	"venator/qualify/schemas/qualify-output-2.json",
+	"venator/place_names.json",
 ];

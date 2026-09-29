@@ -8,12 +8,9 @@ import { cors } from "hono/cors";
 
 import {
 	APPLICATION_FILTERS,
-	JEV_TRIAGE_DECISIONS,
 	POSTING_STATUSES,
 	type ApplicationFilter,
 	type ErrorResponse,
-	type JevTriageDecision,
-	type JevTriageResponse,
 	type PostingStatus,
 	type PostingsResponse,
 	type SummaryResponse,
@@ -23,16 +20,13 @@ import { readFromView, ViewSchemaError } from "./db.ts";
 import { readOnboardingState } from "./onboarding/state.ts";
 import { matchingLocationKeys, readLocationSelection } from "./location-filter.ts";
 import {
-	countJevTriageEntries,
 	POSTING_SORTS,
 	readDatabaseInfo,
 	readFunnel,
-	readJevTriageEntries,
 	readPostingDetail,
 	readPostingEntries,
 	countPostingEntryTotals,
 	readSourceHealth,
-	type JevTriageQuery,
 	type PostingQuery,
 	type PostingSort,
 } from "./queries.ts";
@@ -90,16 +84,7 @@ function parseSort(raw: string | undefined, fallback: PostingSort): PostingSort 
 	return sort;
 }
 
-function parseJevDecision(raw: string | undefined): JevTriageDecision | null {
-	if (raw === undefined || raw === "") return null;
-	const decision = JEV_TRIAGE_DECISIONS.find((candidate) => candidate === raw);
-	if (decision === undefined) {
-		throw new BadRequestError(
-			`Unknown Jev decision "${raw}"; expected ${JEV_TRIAGE_DECISIONS.join(", ")}.`,
-		);
-	}
-	return decision;
-}
+
 
 function parseLimit(raw: string | undefined): number {
 	if (raw === undefined || raw === "") return DEFAULT_LIMIT;
@@ -191,24 +176,7 @@ export function createApiRoutes(): Hono {
 		return context.json(detail);
 	});
 
-	api.get("/jev-triage", (context) => {
-		const query: JevTriageQuery = {
-			decision: parseJevDecision(context.req.query("decision")),
-			search: optionalParameter(context.req.query("q")),
-			limit: parseLimit(context.req.query("limit")),
-			offset: parseOffset(context.req.query("offset")),
-		};
-		const response = readFromView((view): JevTriageResponse => {
-			const filtered = { ...query, locationKeys: matchingLocationKeys(view.database, readLocationSelection()) };
-			return {
-				entries: readJevTriageEntries(view.database, filtered),
-				total: countJevTriageEntries(view.database, filtered),
-				limit: query.limit,
-				offset: query.offset,
-			};
-		});
-		return context.json(response);
-	});
+
 
 	api.onError((error, context) => {
 		if (error instanceof BadRequestError) {

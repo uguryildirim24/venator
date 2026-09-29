@@ -85,11 +85,17 @@ class CompactStateBuilder:
             f'Expected graduation: {self.compiled.availability.expected_graduation}; '
             f'total non-overlapping experience: {engine.occupancy_all} months.'
         )
-        policy = self.profile.filters.jev
-        if policy is None:
-            raise ValueError('The keep model requires a Profile policy')
+        policy = self.profile.filters.compact_policy
+        policy_fields = (dataclasses.asdict(policy) if policy is not None else {
+            'restricted_roles': 'review', 'temporary_student_authorization_exclusion': 'review',
+            'no_sponsorship_student': 'review', 'no_sponsorship_nonstudent': 'review',
+            'unmet_completed_degree': 'review', 'domains': (
+                'biochemistry', 'laboratory_research', 'pharmacy', 'quality_control',
+                'biomanufacturing', 'clinical_research', 'computational_life_sciences', 'regulatory_science',
+            ),
+        })
         parts.append('Policy: ' + json.dumps(
-            {k: v for k, v in dataclasses.asdict(policy).items() if k != 'policy_version'},
+            {k: v for k, v in policy_fields.items() if k != 'policy_version'},
             separators=(',', ':'),
         ))
         chosen = [span.text for span in canonical.spans if (

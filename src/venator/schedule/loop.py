@@ -42,7 +42,6 @@ from pathlib import Path
 from typing import Any
 
 from venator.paths import DATA_SUBDIR, StoreRootError, resolve_store_paths
-from venator.qualify.store import as_of_month as parse_as_of_month
 from venator.secrets import scrub, scrub_record
 
 
@@ -134,7 +133,7 @@ def _resolved(repository: Path | None, data_dir: Path | None) -> tuple[Path, Pat
 
 
 #: The stage modules that take ``--as-of``.
-AS_OF_MODULES = frozenset({"venator.match.run", "venator.view.build"})
+AS_OF_MODULES = frozenset({"venator.view.build"})
 
 
 def run_module(
@@ -153,7 +152,7 @@ def run_module(
         [sys.executable, "-m", module, *arguments],
         cwd=repository,
         check=True,
-        env={k: v for k, v in os.environ.items() if k != "TYPESAFE_API_KEY"},
+        env=dict(os.environ),
     )
     return {}
 
@@ -441,7 +440,7 @@ def main() -> int:
     args = parser.parse_args()
     today = args.as_of or date.today().isoformat()
     try:
-        parse_as_of_month(today)
+        date.fromisoformat(today)
     except ValueError as error:
         parser.error(str(error))
     try:

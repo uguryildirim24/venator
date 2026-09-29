@@ -13,8 +13,6 @@ def verify_dashboard(
     postings: Sequence[dict],
     latest_decisions: Mapping[str, dict],
     filters_version: str | None,
-    *,
-    jev_mode: bool = False,
 ) -> None:
     """Validate completeness and recommendation prerequisites, including cache hits.
 
@@ -36,9 +34,7 @@ def verify_dashboard(
     require({row[0] for row in rows} == view_keys, "each posting needs an assessment")
     for key, status, raw_evidence, raw_conflicts, raw_unknowns, listing, kind, verified, assessed_by in rows:
         require(status in {"suitable", "not_suitable", "needs_review", "unassessed"}, f"{key}: invalid assessment status")
-        require(assessed_by in {"deterministic", "jev"}, f"{key}: invalid assessment source")
-        require(not (assessed_by == "jev" and status == "suitable"),
-                f"{key}: Jev cannot publish a suitable status")
+        require(assessed_by == "deterministic", f"{key}: invalid assessment source")
         try:
             evidence, conflicts, unknowns = map(json.loads, (raw_evidence, raw_conflicts, raw_unknowns))
         except (ValueError, TypeError) as error:
@@ -75,28 +71,3 @@ def verify_dashboard(
         "OR needs_detail_check < 0 OR full_verified_details + needs_detail_check > known_jobs"
     ).fetchone()
     require(invalid_coverage is None, "source coverage counts are inconsistent")
-
-    tables = {row[0] for row in database.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    if jev_mode:
-        require("jev_triage" in tables, "jev mode needs a jev_triage table")
-        triage = list(database.execute(
-            "SELECT posting_key, mode, state, decision, fit_probability, fit_score, "
-            "primary_rule, assessment_key, qualifier_version, input_version FROM jev_triage"
-        ))
-        keys = {row[0] for row in triage}
-        require(keys == view_keys, "each posting needs a Jev triage row per mode")
-        pairs = {(row[0], row[1]) for row in triage}
-        required = {(key, mode) for key in view_keys for mode in ("promoted", "shadow")}
-        require(pairs == required, "each posting needs promoted and shadow Jev triage rows")
-        for key, mode, state, decision, fit_probability, fit_score, primary_rule, assessment_key, qualifier_version, input_version in triage:
-            require(mode in {"shadow", "promoted"}, f"{key}: invalid Jev mode")
-            require(state in {"current", "stale", "unavailable"}, f"{key}: invalid Jev state")
-            require(decision in {"prioritize", "review", "exclude", "unassessed"}, f"{key}: invalid Jev decision")
-            if decision == "unassessed":
-                require(fit_probability is None and fit_score is None and primary_rule is None,
-                        f"{key}: unassessed Jev row must have null scores")
-            if state == "current":
-                require(decision != "unassessed" and fit_probability is not None and fit_score is not None
-                        and assessment_key is not None and qualifier_version is not None
-                        and input_version is not None,
-                        f"{key}: current Jev row is incomplete")

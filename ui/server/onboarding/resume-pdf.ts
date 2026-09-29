@@ -49,7 +49,7 @@ import type {
 	ResumeParseMode,
 } from "../../shared/onboarding.ts";
 import { PDF_UNREADABLE_REASONS } from "../../shared/onboarding.ts";
-import { nonJevInheritedEnvironment } from "../runs/environment.ts";
+import { inheritedToolEnvironment } from "../runs/environment.ts";
 import { pipelineWorkingDirectory, pythonInterpreter, systemContext, type LocationContext } from "../locations.ts";
 import { asBoolean, asList, asMapping, asNumber, asText, at, parseJson } from "./json.ts";
 import type { JsonMapping, JsonValue } from "./json.ts";
@@ -392,7 +392,7 @@ function runReader(
 		const child = spawn(pythonInterpreter(context), [...argumentsFor(request)], {
 			cwd: pipelineWorkingDirectory(context),
 			stdio: ["pipe", "pipe", "pipe"],
-			env: nonJevInheritedEnvironment(context),
+			env: inheritedToolEnvironment(context),
 		});
 		let stdout = "";
 		let stderr = "";

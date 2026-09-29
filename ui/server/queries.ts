@@ -18,9 +18,6 @@ import {
 	type DecisionVerdict,
 	type FilterDecision,
 	type Funnel,
-	type JevTriageDecision,
-	type JevTriageEntry,
-	type JevTriageMode,
 	type Posting,
 	type PostingDetail,
 	type PostingEntry,
@@ -32,14 +29,12 @@ import {
 	booleanColumn,
 	integerColumn,
 	memberColumn,
-	ViewDataError,
 	optionalIntegerColumn,
 	optionalTextColumn,
 	textColumn,
 	type SqlRow,
 } from "./rows.ts";
 import { decodeAssessment } from "./assessment.ts";
-import { decodeJevTriage } from "./jev.ts";
 import { readerBlocks } from "./reader.ts";
 
 const STAGES: readonly DecisionStage[] = ["hard_filter", "llm_score"];
@@ -86,10 +81,6 @@ const IS_NEW = `CASE WHEN fw.latest IS NOT NULL
     THEN 1 ELSE 0 END`;
 
 const APP_PROGRESS = "aps.state IN ('approved', 'rejected', 'prepared', 'filled', 'submitted', 'concluded', 'withdrawn')";
-// Selection is a release-wide activation, not a guess from how many current results exist.
-// A promoted release with zero current results must not resurrect shadow results.
-const JEV_MODE = "(SELECT mode FROM jev_selection LIMIT 1)";
-
 /** Live dashboard standing; neither résumé evidence nor a historical Match Score routes a Posting. */
 const STATUS_SQL = `
     CASE
@@ -113,8 +104,8 @@ entries AS (
     p.discovered_at AS discovered_at,
     hf.id AS hf_id, hf.verdict AS hf_verdict, hf.rule AS hf_rule,
     hf.reason AS hf_reason, hf.filters_version AS hf_filters_version,
-    t.mode AS jev_mode, t.state AS jev_state, t.decision AS jev_decision,
     hf.decided_at AS hf_decided_at,
+    k.probability AS keep_probability,
     aps.state AS app_state, aps.detail AS app_detail, aps.since AS app_since,
     coalesce(a.status, 'unassessed') AS assessment_status,
     coalesce(a.summary, 'Refresh jobs and check eligibility to assess this listing.') AS assessment_summary,
@@ -133,7 +124,6 @@ entries AS (
   LEFT JOIN application_states aps ON aps.posting_key = p.key
   LEFT JOIN assessments a ON a.posting_key = p.key
   LEFT JOIN keep_scores k ON k.posting_key = p.key
-  LEFT JOIN jev_triage t ON t.posting_key = p.key AND t.mode = ${JEV_MODE}
 )`;
 }
 
@@ -217,14 +207,6 @@ function decodeApplication(row: SqlRow): ApplicationState | null {
 	};
 }
 
-function decodeEntryJev(row: SqlRow): PostingEntry["jev"] {
-	const decision = optionalTextColumn(row, "jev_decision");
-	const state = optionalTextColumn(row, "jev_state");
-	const mode = optionalTextColumn(row, "jev_mode");
-	return state === "current" && (decision === "prioritize" || decision === "review" || decision === "exclude")
-		&& (mode === "shadow" || mode === "promoted") ? { decision, mode } : null;
-}
-
 function decodeEntry(row: SqlRow): PostingEntry {
 	return {
 		posting: decodePosting(row),
@@ -232,7 +214,6 @@ function decodeEntry(row: SqlRow): PostingEntry {
 		hardFilter: decodeEntryDecision(row, "hf", "hard_filter"),
 		application: decodeApplication(row),
 		assessment: decodeAssessment(row),
-		jev: decodeEntryJev(row),
 		isNew: booleanColumn(row, "is_new"),
 	};
 }
@@ -266,8 +247,9 @@ export function readPostingEntries(
 	query: PostingQuery,
 ): readonly PostingEntry[] {
 	// Sort only keys: pulling evidence JSON into the sort costs a full-corpus read.
+	const keepOrder = query.status === "queued" || query.status === "needs-review" ? "keep_probability DESC, " : "";
 	const keys = database.prepare(
-		`${postingEntries()} SELECT key FROM entries ${ENTRY_FILTER} ORDER BY ${orderClause(query.sort)} LIMIT $limit OFFSET $offset`,
+		`${postingEntries()} SELECT key FROM entries ${ENTRY_FILTER} ORDER BY ${keepOrder}${orderClause(query.sort)} LIMIT $limit OFFSET $offset`,
 	).all({ ...filterParameters(query), limit: query.limit, offset: query.offset ?? 0 })
 		.map((row) => textColumn(row, "key"));
 	if (keys.length === 0) return [];
@@ -383,120 +365,8 @@ export function readPostingDetail(database: DatabaseSync, key: string): PostingD
 		trackEvents: readTrackEvents(database, key),
 		application: decodeApplication(entryRow),
 		assessment: decodeAssessment(entryRow),
-		jev: decodeEntryJev(entryRow),
 	};
-	const jevTriage = readBestJevTriage(database, key);
-	return jevTriage === null ? detail : { ...detail, jevTriage };
-}
-
-function tableExists(database: DatabaseSync, name: string): boolean {
-	const row = database.prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = $name").get({
-		name,
-	});
-	return row !== undefined;
-}
-
-function readBestJevTriage(database: DatabaseSync, key: string) {
-	if (!tableExists(database, "jev_triage")) return null;
-	const row = database
-		.prepare(`SELECT * FROM jev_triage WHERE posting_key = $key AND mode = ${JEV_MODE} LIMIT 1`)
-		.get({ key });
-	return row === undefined ? null : decodeJevTriage(row);
-}
-
-export type JevTriageQuery = {
-	readonly decision: JevTriageDecision | null;
-	readonly locationKeys?: string | null;
-	readonly search: string | null;
-	readonly limit: number;
-	readonly offset: number;
-};
-
-const JEV_TRIAGE_FILTER = `
-  JOIN hard_filter_latest hl ON hl.posting_key = p.key
-  JOIN decisions hf ON hf.id = hl.decision_id AND hf.verdict = 'pass'
-  JOIN assessments a ON a.posting_key = p.key AND a.listing_status = 'open'
-    AND a.description_kind = 'full'
-  LEFT JOIN jev_skip s ON s.posting_key = p.key
-  LEFT JOIN application_states aps ON aps.posting_key = p.key
-  WHERE t.mode = $mode AND (t.state = 'stale' OR (t.state = 'unavailable' AND t.reason IS NOT NULL AND t.reason <> 'credentials_missing'))
-    AND s.posting_key IS NULL
-    AND (aps.state IS NULL OR NOT (${APP_PROGRESS}))
-    AND ($locationKeys IS NULL OR p.key IN (SELECT value FROM json_each($locationKeys)))
-    AND ($decision IS NULL OR t.decision = $decision)
-    AND ($pattern IS NULL OR (
-      lower(p.title) LIKE $pattern
-      OR lower(coalesce(p.company, '')) LIKE $pattern
-      OR lower(p.board) LIKE $pattern
-      OR lower(coalesce(p.location, '')) LIKE $pattern
-      OR lower(p.key) LIKE $pattern
-    ))`;
-
-/** Every list orders by verification recency, never a Jev number. */
-const JEV_TRIAGE_ORDER = `
-  a.last_verified_at DESC,
-  p.discovered_at DESC,
-  t.posting_key ASC`;
-
-function decodeJevTriageEntry(row: SqlRow): JevTriageEntry {
-	return { posting: decodePosting(row), triage: decodeJevTriage(row) };
-}
-
-function preferredJevTriageMode(database: DatabaseSync): JevTriageMode {
-	const row = database.prepare("SELECT mode FROM jev_selection LIMIT 1").get();
-	if (row === undefined) throw new ViewDataError("Jev release selection is missing from the view.");
-	return memberColumn(row, "mode", ["shadow", "promoted"] as const);
-}
-
-/** Older views have no `jev_triage` table; that is an empty diagnostics list. */
-export function readJevTriageEntries(database: DatabaseSync, query: JevTriageQuery): readonly JevTriageEntry[] {
-	if (!tableExists(database, "jev_triage")) return [];
-	const mode = preferredJevTriageMode(database);
-	return database
-		.prepare(
-			`SELECT p.key AS key, p.source AS source, p.board AS board, p.company AS company,
-			        p.title AS title, p.location AS location, p.url AS url, p.posted_at AS posted_at,
-			        p.discovered_at AS discovered_at,
-			        t.posting_key AS posting_key, t.mode AS mode, t.state AS state, t.decision AS decision,
-			        t.primary_rule AS primary_rule, t.exclusions AS exclusions,
-			        t.review_flags AS review_flags, t.diagnostic_flags AS diagnostic_flags,
-			        t.qualifier_version AS qualifier_version, t.assessment_key AS assessment_key,
-			        t.input_version AS input_version, t.policy_hash AS policy_hash, t.model_id AS model_id,
-			        t.as_of_month AS as_of_month, t.decided_at AS decided_at, t.reason AS reason
-			 FROM jev_triage t
-			 JOIN postings p ON p.key = t.posting_key
-			 ${JEV_TRIAGE_FILTER}
-			 ORDER BY ${JEV_TRIAGE_ORDER}
-			 LIMIT $limit OFFSET $offset`,
-		)
-		.all({
-			mode,
-			locationKeys: query.locationKeys ?? null,
-			decision: query.decision,
-			pattern: likePattern(query.search),
-			limit: query.limit,
-			offset: query.offset,
-		})
-		.map(decodeJevTriageEntry);
-}
-
-export function countJevTriageEntries(database: DatabaseSync, query: JevTriageQuery): number {
-	if (!tableExists(database, "jev_triage")) return 0;
-	const mode = preferredJevTriageMode(database);
-	const row = database
-		.prepare(
-			`SELECT COUNT(*) AS total
-			 FROM jev_triage t
-			 JOIN postings p ON p.key = t.posting_key
-			 ${JEV_TRIAGE_FILTER}`,
-		)
-		.get({
-			mode,
-			locationKeys: query.locationKeys ?? null,
-			decision: query.decision,
-			pattern: likePattern(query.search),
-		});
-	return row === undefined ? 0 : integerColumn(row, "total");
+	return detail;
 }
 
 export function readSourceHealth(database: DatabaseSync): readonly SourceHealth[] {

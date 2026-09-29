@@ -6,7 +6,7 @@
  * stages the result and has the Python loader read it back before anything is renamed. What
  * this module adds is presentation and patching: the three files become fields a person can
  * read, and what they changed goes back into the *same document* — comments, key order, the
- * Jev policy, an entry's `primary` flag, everything the form does not show — rather than
+ * keep scoring policy, an entry's `primary` flag, everything the form does not show — rather than
  * into a re-rendering of what the form knows about.
  *
  * Three rules keep that honest:

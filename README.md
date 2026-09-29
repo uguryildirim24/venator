@@ -106,12 +106,15 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   their city; joined place lists split into their cities. Remote spellings share
   one Remote choice. Several locations, No location and Other places have their
   own choices. A Posting with several listed places appears in each one. This
-  doesn't change the Profile or rerun Hard Filters.
+  doesn't change the Profile or rerun Hard Filters. The picker and the location
+  Hard Filter use the same offline GeoNames place lookup
+  ([attribution](docs/geonames-attribution.md)). It recognises US-prefixed cities,
+  counties, foreign remote sites and campus labels.
 - The last-checked line below Employers shows when Discover last checked your boards,
   including checks run from the command line. It says **Not checked yet** until
   a board check has been recorded.
 - **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
-  from 0.014 to below 0.5. **Excluded** holds Hard Filter kills and probabilities
+  from 0.014 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
   below 0.014. **Applications**, **Saved** and **Dismissed** hold what you've acted on.
 - Switching Postings fades and raises the new page. The description opens with
   eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
@@ -122,8 +125,6 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   choice, and **Restore** undoes it. **Prepare Application** drafts a résumé (and a
   cover letter if you want one) from confirmed facts only. **Open Application** hands
   the prepared files to a browser window. **I Applied** records that you applied.
-- **Jev Diagnostics** under **View** only shows historical Jev results; Jev no longer
-  routes the lists.
 
 Nothing is scheduled. Venator only fetches when you press Refresh, unless you set up
 the optional timer in [ops/README.md](ops/README.md).
@@ -200,7 +201,7 @@ configured model metadata go to Modal. The Posting join stays local.
 `uv run python -m venator.score.run --profile NAME --estimate` runs a bounded CPU
 preflight. `--execute` checks the estimate against the $0.50 cap and scores missing
 or stale passes. Scores append under `data/keep-scores`. Nothing trains or downloads
-weights. Jev's historical modules do not route lists.
+weights.
 
 ## Environment variables
 

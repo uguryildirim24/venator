@@ -17,8 +17,6 @@ pnpm --dir ui install --frozen-lockfile
 
 Two things are optional:
 
-- **Jev.** Export `TYPESAFE_API_KEY` only for the command that runs Jev. Preparing
-  applications, the Hard Filters, status, view builds and probes never read it.
 - **Document preparation.** Sign in to the `claude` CLI, or pick the `codex` or
   `api` runtime on purpose (see Completion runtimes below).
 
@@ -115,8 +113,9 @@ When filter code or the Profile's decision inputs change, `filters_version` chan
 and the next run appends a replay. Old rows stay as they are. The effective decision
 is the latest row per `(posting_key, stage)`.
 
-With `qualification_mode: jev`, `--as-of` is required for the historical Jev
-command. Jev never changes a Filter Decision and no longer routes the dashboard.
+The Hard Filter and dashboard location picker share the offline GeoNames place lookup
+([attribution](geonames-attribution.md)). It reads US-prefixed cities, counties,
+foreign remote sites and campus labels without a network request.
 
 ### 3. Score
 
@@ -134,42 +133,6 @@ The estimate is a bounded CPU preflight. Execute uses that receipt, checks the $
 cap, then appends scores under `data/keep-scores`. A partial run resumes without
 rescoring current inputs. Refresh does not run inference.
 
-### Historical Jev CLI
-
-A Profile can run Jev in shadow mode. A preview is local and sends nothing:
-
-```bash
-uv run python -m venator.qualify.jev \
-  --profile NAME --as-of YYYY-MM-DD --mode shadow
-```
-
-The preview lists what would be sent. To send it:
-
-```bash
-export TYPESAFE_API_KEY=...  # set it without printing or saving it
-uv run python -m venator.qualify.jev \
-  --profile NAME --as-of YYYY-MM-DD --mode shadow --execute
-unset TYPESAFE_API_KEY
-```
-
-Options:
-
-- `--max-usd` and `--max-requests` cap one command. Without them there is no cap.
-- `--posting-key` limits the run to the Postings you name.
-- `--offline --execute` records only validated results that are already cached and
-  sends nothing.
-
-The CLI Jev command is separate from Score. Its results stay in historical
-qualification stores and never decide which dashboard list a Posting enters.
-
-Results are appended to `data/qualifications/<date>.jsonl`, and validated responses
-are cached under `data/qualifications/jev/responses/`. Killed, closed, snippet-only
-and protected Postings are never sent. Invariant I10 limits what goes over the wire
-to the student projection, the Posting title and description, and allowed spans.
-
-Don't use `--mode promoted`. Promotion needs an active frozen release and a
-protected final check, and that tool isn't in this repository.
-
 ### 4. Build the view
 
 ```bash
@@ -179,9 +142,8 @@ uv run python -m venator.view.build \
 
 This rebuilds `build/venator.db` from the JSONL stores in one atomic step. The file
 is disposable: delete it and build it again whenever you like. It holds current
-Postings, Filter Decisions, assessments, keep scores, historical Jev results, Track state,
-source health and run heartbeats. Building it makes no network request and never calls Jev or any
-other model.
+Postings, Filter Decisions, assessments, keep scores, Track state, source health
+and run heartbeats. Building it makes no network request and never calls a model.
 
 ### 5. Open the dashboard
 
@@ -191,8 +153,8 @@ pnpm --dir ui desktop   # the same app in a Tauri window
 ```
 
 The API listens only on `127.0.0.1`. **For you** holds keep probabilities at
-least 0.5; **Explore** holds 0.014 to below 0.5; **Excluded** holds Hard Filter
-kills and lower probabilities. Passes without a current score sit in **Awaiting
+least 0.5; **Explore** holds 0.014 to below 0.5. Both show highest keep
+probability first. **Excluded** holds Hard Filter kills and lower probabilities. Passes without a current score sit in **Awaiting
 Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. Employer HTML
 is shown in a sandboxed iframe.
 
@@ -292,17 +254,13 @@ The key endpoint stays off unless `VENATOR_LLM_API_URL`, `VENATOR_LLM_API_MODEL`
 fallback from one runtime to another. Child processes get an allowlisted
 environment, and provider text is never copied into the stores.
 
-TypeSafe (Jev) is not one of these runtimes. Only `venator.qualify.jev --execute`
-reads `TYPESAFE_API_KEY`.
-
 ## Stores
 
 | Path | Written by | Kept |
 |---|---|---|
 | `data/postings/<date>.jsonl` | Discover | append-only |
 | `data/decisions/<date>.jsonl` | Hard Filters | append-only |
-| `data/qualifications/<date>.jsonl` | Jev | append-only |
-| `data/qualifications/jev/responses/` | Jev | validated cache, never edited |
+| `data/keep-scores/` | Score | append-only |
 | `data/track/<date>.jsonl` | Track | append-only |
 | `data/runs.jsonl` | the loop | append-only |
 | `data/applications/` | preparation | versioned bundles |
@@ -326,9 +284,9 @@ directory. It only appends what is missing.
 uv run python -m venator.schedule.loop --dry-run --profile NAME
 ```
 
-The loop knows five stages, in this order: `discover, filters, jev, view, commit`.
+The loop knows four stages, in this order: `discover, filters, view, commit`.
 With no `--only` it runs `discover,filters,view`. `--only` picks a subset but can't
-change the order. `jev` runs only when you name it. `commit` runs only when you name
+change the order. `commit` runs only when you name
 it and `data/` is inside a Git work tree, which an Install normally isn't. The loop
 never pushes.
 
@@ -347,4 +305,4 @@ pnpm --dir ui smoke
 ```
 
 There's no Python linter or type checker. The UI uses strict TypeScript and the
-anti-slop lint rules. None of these checks calls TypeSafe or submits an application.
+anti-slop lint rules. None of these checks calls a paid model or submits an application.

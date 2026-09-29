@@ -27,9 +27,9 @@ test("a fresh Install can enter setup even when an old view file has a stale sch
 	}
 });
 
-// A view from before the Jev pause columns cannot answer the summary query. Two
+// A view from without the run pause columns cannot answer the summary query. Two
 // simultaneous reads must share the same rebuild, and a later read must not rerun it.
-test("a view missing Jev pause columns is rebuilt once", async () => {
+test("a view missing run pause columns is rebuilt once", async () => {
 	const home = mkdtempSync(join(tmpdir(), "venator-view-recovery-"));
 	const previous = process.env["VENATOR_HOME"];
 	try {

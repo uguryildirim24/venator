@@ -96,6 +96,19 @@ def test_employer_exclusion_replays_and_undo_restores_stored_postings(tmp_path: 
     ]
 
 
+def test_location_kill_replays_when_profile_removes_scope(tmp_path: Path) -> None:
+    postings = tmp_path / "postings"
+    decisions = tmp_path / "decisions"
+    write_jsonl(postings / "2026-08-18.jsonl", [
+        {"key": "board:1", "board": "board", "title": "Intern", "location": "San Diego, CA"},
+    ])
+    directory = tmp_path / "profiles" / "local"
+    restricted = profile_at(directory, "filters:\n  enabled: [location]\n  location:\n    regions: [MA, RI, NH, CT, VT, ME]\n")
+    assert run(postings, decisions, profile=restricted)["kill"] == 1
+    unrestricted = profile_at(directory, "filters:\n  enabled: []\n")
+    assert run(postings, decisions, profile=unrestricted)["pass"] == 1
+
+
 def profile_at(directory: Path, targeting: str = "") -> Profile:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "targeting.yaml").write_text(targeting, encoding="utf-8")

@@ -31,14 +31,7 @@ export const CONNECT = {
 	chatgptLine: "Codex, signed in with your ChatGPT plan.",
 	checking: "Checking…",
 	howToInstall: "How to install",
-	jevKey: "Jev key",
 	optional: "Optional",
-	keySaved: "Saved in Keychain",
-	keyPlaceholder: "Paste your TypeSafe key",
-	keyReplacePlaceholder: "Paste a new key to replace the saved one",
-	saveKey: "Save Key",
-	keyCaption: "Jev sorts new jobs into look first, review and skip. The key stays in this Mac’s Keychain.",
-	getKey: "Get a key",
 	about: "About this",
 	aboutLines: [
 		"Venator runs the assistant on this Mac and reads its answers. It never sees your password.",
@@ -171,7 +164,6 @@ export function refreshBody(employers: number): string {
 }
 
 export const LINKS = {
-	typesafeKeys: "https://console.typesafe.ai/keys",
 	claudeInstall: "https://code.claude.com/docs/en/setup",
 	codexInstall: "https://learn.chatgpt.com/docs/codex/cli",
 } as const;

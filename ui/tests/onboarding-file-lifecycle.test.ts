@@ -26,7 +26,7 @@ test("choosing a PDF reads it once, the file survives leaving the step, and Save
 	globalThis.fetch = async (input, init) => {
 		const url = String(input);
 		if ((init?.method ?? "GET") === "GET") {
-			return new Response(JSON.stringify({ runtime: "claude", jevKeyPresent: false }), { status: 200, headers: { "content-type": "application/json" } });
+			return new Response(JSON.stringify({ runtime: "claude" }), { status: 200, headers: { "content-type": "application/json" } });
 		}
 		calls.push({ url, body: init?.body });
 		const answer = url.endsWith("/resume/import") ? READ : { profile: { name: "sample", directory: "sample", files: [] }, replaced: false, warnings: [] };

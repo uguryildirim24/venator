@@ -17,8 +17,6 @@ import type {
 	ApplicationStateName,
 	DecisionStage,
 	DecisionVerdict,
-	JevTriageDecision,
-	JevTriageState,
 	Posting,
 	PostingStatus,
 } from "../shared/contracts.ts";
@@ -516,12 +514,6 @@ export function assessmentNoteLabel(text: string): string {
 	return readable.charAt(0).toUpperCase() + readable.slice(1);
 }
 
-const JEV_DECISIONS = {
-	prioritize: "Look first",
-	review: "Review",
-	exclude: "Skip",
-	unassessed: "Unavailable",
-} satisfies Record<JevTriageDecision, string>;
 
 /** The last Score pause, without model metadata or remote error text. */
 export function scorePauseLabel(reason: string): string {
@@ -534,33 +526,6 @@ export function scorePauseLabel(reason: string): string {
 		"connection-unavailable": "Connection unavailable",
 	};
 	return Object.entries(state).find(([code]) => code === reason)?.[1] ?? "Score paused";
-}
-
-export function jevDecisionLabel(decision: JevTriageDecision): string {
-	return JEV_DECISIONS[decision];
-}
-
-const JEV_STATES = {
-	current: "Current",
-	stale: "Out of date",
-	unavailable: "Jev failed",
-} satisfies Record<JevTriageState, string>;
-
-export function jevStateLabel(state: JevTriageState): string {
-	return JEV_STATES[state];
-}
-
-/** The firing rule, in English. Identifiers never reach the screen as themselves. */
-export function jevRuleLabel(rule: string): string {
-	return sentenceCase(rule);
-}
-
-export function earlyReviewLabel(): string {
-	return "Jev diagnostics";
-}
-
-export function jevSkipLabel(): string {
-	return "Jev: skip";
 }
 
 /**

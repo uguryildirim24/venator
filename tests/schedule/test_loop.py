@@ -76,25 +76,6 @@ def test_stage_order_and_heartbeat_shape(tmp_path: Path) -> None:
     assert all("pending" not in row and "recorded" not in row and "queued" not in row for row in rows)
 
 
-def test_default_loop_never_spawns_jev_or_passes_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from venator.schedule import loop
-
-    seen: list[tuple[str, str | None]] = []
-
-    def fake_run(argv, **kwargs):
-        seen.append((argv[2], kwargs["env"].get("TYPESAFE_API_KEY")))
-        return subprocess.CompletedProcess(argv, 0)
-
-    monkeypatch.setenv("TYPESAFE_API_KEY", "secret-sentinel")
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-    assert run_loop(repository=tmp_path, heartbeat_path=tmp_path / "runs.jsonl") == 0
-    assert seen == [
-        ("venator.discover.run", None),
-        ("venator.match.run", None),
-        ("venator.view.build", None),
-    ]
-
-
 def test_failure_heartbeats_and_aborts_remaining_stages(tmp_path: Path) -> None:
     calls = []
     heartbeat = tmp_path / "runs.jsonl"
@@ -633,7 +614,7 @@ def test_an_unknown_stage_on_the_command_line_exits_with_a_usage_error(tmp_path:
     assert "'submit'" in finished.stderr
 
 
-def test_the_filter_stage_receives_as_of(
+def test_the_filter_stage_receives_profile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from venator.schedule import loop
@@ -642,4 +623,4 @@ def test_the_filter_stage_receives_as_of(
     monkeypatch.setattr(loop, "_resolved", lambda repository, data_dir: (tmp_path, Path("data")))
     monkeypatch.setattr(loop.subprocess, "run", lambda argv, **_kwargs: calls.append(list(argv)))
     loop.default_stage_callables(tmp_path, "example", "2026-09-18")["filters"]()
-    assert calls[0][-4:] == ["--profile", "example", "--as-of", "2026-09-18"]
+    assert calls[0][-2:] == ["--profile", "example"]
