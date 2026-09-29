@@ -284,7 +284,7 @@ export type DatabaseInfo = {
 	 * separately.
 	 */
 	readonly lastFetchAt: string | null;
-	readonly jevPause: { readonly reason: string; readonly waiting: number } | null;
+	readonly scorePause: { readonly reason: string; readonly waiting: number } | null;
 };
 
 export type SummaryResponse = {

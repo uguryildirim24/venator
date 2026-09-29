@@ -45,7 +45,7 @@ The server mounts five routers, in this order (`server/app.ts`):
 
 | Mount | Methods | What it does | Contract |
 |---|---|---|---|
-| `/api/runs` | `POST`, plus `GET` for run state | starts Refresh or Jev it | [RUN-API.md](RUN-API.md) |
+| `/api/runs` | `POST`, plus `GET` for run state | starts Refresh or Score | [RUN-API.md](RUN-API.md) |
 | `/api/applications` | `POST`, plus `GET` for status and files | save, dismiss, restore, prepare, applied, handoff | below |
 | `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | setup and editing a saved Profile | [ONBOARDING-API.md](ONBOARDING-API.md) |
 | `/api/locations` | `GET`, `POST` | read and save this Install's list location choice | below |
@@ -128,34 +128,29 @@ only ever written to `<data directory>/profiles`.
 
 | Route | Screen |
 |---|---|
-| `#/queue` | **For you**: passes Jev says to look at first |
-| `#/queue?list=needs-review` | **Explore**: passes Jev says to review |
-| `#/queue?list=unscored` | **Awaiting Jev**: current Hard Filter passes selected by the Jev plan, with no current result |
+| `#/queue` | **For you**: keep probability at least 0.5 |
+| `#/queue?list=needs-review` | **Explore**: keep probability from 0.014 to below 0.5 |
+| `#/queue?list=unscored` | **Awaiting Score**: Hard Filter passes without a current keep score |
 | `#/queue?list=applied` | **Applications**: prepared, handed off, applied, and what came back |
 | `#/queue?list=saved`, `?list=dismissed` | **Saved** and **Dismissed** |
-| `#/queue?list=filtered` | **Excluded**: Hard Filter kills and Jev exclusions, with the reason |
+| `#/queue?list=filtered` | **Excluded**: Hard Filter kills and keep probabilities below 0.014 |
 | `#/triage` | **Jev Diagnostics**, under **View**: eligible Postings with failed or stale Jev results |
 | `#/postings/<url-encoded key>?from=` | the same window with one Posting open |
 | `#/inspector` | filter inspector: every Posting and its Filter Decision, as a table |
 | `#/inspector?status=hard-killed&rule=education_fit` | everything one rule excluded |
 | `#/employers` | source health, one row per board |
-| `#/onboarding` | setup step 1: connect an assistant, and optionally save a Jev key |
+| `#/onboarding` | setup step 1: connect an assistant |
 | `#/onboarding?step=resume` | setup step 2: add a résumé and tick what's right |
 | `#/onboarding?step=targeting` | setup step 3: job titles, level, places, remote, employers; **Find Jobs** saves the Profile and starts a fetch |
 | `#/profile` | edit the saved Profile's contact, résumé, targets, filters and employers in a form |
 
-The sidebar has plain sections, without group cards. Its 32px rows use 13px text,
-a symbol beside each name and a count at the right. The selected row has a quiet
-grey background. The sidebar is 224px wide. The last-checked caption and Refresh
-sit below Employers, including checks run from the command line. It says **Not
-checked yet** if no check has been recorded. Jev it sits above the Profile account
-row at the bottom; the row shows the active Profile's name. A missing key disables
-Jev it without adding a sentence there. Jev Diagnostics is in the View menu, not
-the sidebar.
+The sidebar groups lists, records and sources. The last-checked caption and
+Refresh sit below Employers, including checks run from the command line. It says
+**Not checked yet** if no check has been recorded. Score sits above the Profile
+account row. Jev Diagnostics remains in the View menu for historical results.
 
 The main screen keeps two columns even at the smallest opening window size.
-The desktop window opens at 1440×900. Lists sort by when a Posting was last
-verified, never by a score. The Posting page's margin is one ledger. It starts
+The desktop window opens at 1440×900. Lists sort by when a Posting was last verified, not by its score. The Posting page's margin is one ledger. It starts
 with **Meets N of M** and a requirements tally, then shows one-line facts from
 the résumé assessment and Hard Filters. Press a requirement line to open the
 description at that line. **Open Listing** appears there when Venator can't
@@ -166,16 +161,16 @@ and the step lives in the URL so Back works. When the app opens with no route an
 real Profile, it goes to setup once. **Profile** in the sidebar opens the saved
 Profile's form instead. Changes are checked before Save; fields the form doesn't
 show remain in the Profile. Save replays Hard Filters on stored Postings and rebuilds
-the view, without fetching or calling Jev. The location choice above the lists filters visible
+the view, without fetching or scoring. The location choice above the lists filters visible
 Postings, page counts and pagination without changing the view database.
 
-Jev it is a separate press above the Profile account row. Its waiting, running and paused
-states stay visible while Refresh remains a fetch-and-filter action. Lists and the
+Score is a separate press above the Profile account row. It uses the person's own
+keep model configured in their Install, not Jev. Refresh remains a fetch-and-filter action. Lists and the
 inspector use lighter transitions, with reduced motion respected. Switching Postings
 fades and raises the new page. The description opens with eight faded lines;
 **Read More** unfolds it and **Read Less** folds it back. Highlighted words stay whole.
 
-The first-run states (No jobs yet, Jev needs a key, Updating your job list) are in
+The first-run states (No jobs yet, Updating your job list) are in
 `src/views/first-run.tsx`. None of them starts anything just by being shown.
 
 ## Keyboard
@@ -318,7 +313,7 @@ server/     Hono API
   db.ts               opening the view and checking its schema
   queries.ts          SQL; rows.ts decodes it; jev.ts decodes Jev rows
   routes.ts           the read-only /api routes
-  install-settings.ts the assistant choice and the Jev key
+  install-settings.ts the assistant choice
   http/               the header and origin check the action routes share
   onboarding/         setup routes, the Profile writer, the Python adapters
   runs/               the run routes, plans, the runner, progress parsing
@@ -348,7 +343,6 @@ tools/      dev, smoke, snapshot, and the sidecar and Python staging scripts
 | `VENATOR_PYTHON` | the Python to run the pipeline with |
 | `VENATOR_BUNDLED_PYTHON` | set by the desktop host; `VENATOR_PYTHON` wins over it |
 | `VENATOR_API_PORT` | the API port (default 5170) |
-| `TYPESAFE_API_KEY` | the Jev key; passed only to the Jev child |
 
 ## Rules for changes
 

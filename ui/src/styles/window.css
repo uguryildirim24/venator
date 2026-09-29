@@ -268,7 +268,7 @@
 .sidebar-check .icon { width: var(--space-3); height: var(--space-3); }
 .sidebar-check .run-note { font-size: var(--size-subheadline); }
 
-/* Jev it and the Profile account row share the sidebar ground. */
+/* Score and the Profile account row share the sidebar ground. */
 .sidebar-footer {
 	display: flex;
 	flex-direction: column;

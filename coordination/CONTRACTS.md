@@ -205,18 +205,16 @@ The dashboard works out one status per Posting (`STATUS_SQL` in
 
 1. Application progress: `applied`.
 2. A Hard Filter kill: `hard-killed`.
-3. A closed listing: `closed`, even if Jev has a result for it.
-4. A Hard Filter pass with a current Jev result from the selected release:
-   prioritize is `queued`, review is `needs-review`, exclude is `hard-killed`.
-5. A pass with a `jev_skip` reason: `protected`, `too-long` or `no-text`.
-6. Any other pass: `unscored`. This is the Awaiting Jev list.
-7. No Hard Filter pass at all: `not-filtered`.
+3. A closed listing: `closed`, even if it has a score.
+4. A Hard Filter pass with a current keep score: at least 0.5 is `queued`,
+   below 0.014 is `hard-killed`, and between them is `needs-review`.
+5. Any other pass: `unscored`. This is Awaiting Score.
+6. No Hard Filter pass at all: `not-filtered`.
 
-`jev_selection` picks the release mode for both the lists and Jev diagnostics, no
-matter how many results are current. Closed and skipped Postings stay searchable in
-the filter inspector and on the Employers page. The résumé assessment shows up as a
-margin note, not as a list. Lists sort by when a Posting was last verified, never by a
-Jev number or an old score.
+Scores bind to a Posting, its compact input hash and model identity. Jev rows remain
+historical and never route a list. Closed Postings stay searchable in the filter
+inspector and on the Employers page. The résumé assessment is a margin note.
+Lists sort by verification recency, not by probability.
 
 ## Dashboard HTTP surfaces
 
@@ -227,9 +225,9 @@ so if `/api` came first it would answer every write path's preflight with
 
 | Surface | Methods | What it does |
 |---|---|---|
-| `/api/runs` | `POST`, plus `GET` for this process's own run state | starts `fetch-and-filter` (`discover,filters,view`) or `jev-it` (Jev, then a view rebuild) from a single-use plan token |
+| `/api/runs` | `POST`, plus `GET` for this process's own run state | starts `fetch-and-filter` (`discover,filters,view`) or `score` (keep inference, then View) from a single-use plan token |
 | `/api/applications` | `POST`, plus `GET` for status and prepared files | status, file, prepare, save, dismiss, restore, applied and handoff through `venator.applications` |
-| `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | creates or edits Profile files under the Install's application data directory, saves the assistant choice and the Jev key; its read and probe routes write nothing |
+| `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | creates or edits Profile files under the Install's application data directory, saves the assistant choice; its read and probe routes write nothing |
 | `/api/locations` | `GET`, `POST` | reads available locations and saves the list choice in this Install; does not change Filter Decisions |
 | `/api` | `GET` | reads `build/venator.db`; starts nothing and writes nothing |
 

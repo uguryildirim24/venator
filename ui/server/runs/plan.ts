@@ -10,8 +10,7 @@
  * measured reason: a second copy of a pipeline rule in TypeScript drifts, and this repository
  * has already paid for one.
  *
- * Asking makes no request and starts no stage. The only write is a disposable Jev plan
- * cache, never a Posting or qualification store.
+ * Asking makes no request, starts no stage, and writes no store.
  *
  * A shape this module does not recognise is reported as a mismatch rather than guessed at,
  * on `readProbeDocument`'s own principle: naming the drift beats rendering something wrong.
@@ -43,16 +42,15 @@ const PLAN_SCRIPT = join(fileURLToPath(new URL(".", import.meta.url)), "plan.py"
  * Loading a Profile and listing a decisions directory. There is no network and no LLM in it,
  * so this bounds a machine that is thrashing rather than work that legitimately takes time.
  */
-// Counting current Jev work requires replaying the local Posting and qualification stores.
+// Counting current Score work replays local Postings and input-bound scores.
 const PLAN_TIMEOUT_MS = 120_000;
 
 /** Exit 3 from the adapter: the pipeline is not importable in this Install. */
 const PIPELINE_MISSING_EXIT = 3;
 
 /** What the pipeline says a run would do. Every field is the pipeline's answer, not ours. */
-export type PipelineJevPlan = {
+export type PipelineScorePlan = {
 	readonly asOf: string;
-	readonly mode: "shadow" | "promoted";
 	readonly postingCount: number;
 	readonly maximumUsd: number;
 	readonly selectionHash: string;
@@ -64,7 +62,7 @@ export type PipelinePlan = {
 	readonly storeRoot: string;
 	readonly viewPath: string;
 	readonly boards: number;
-	readonly jev?: PipelineJevPlan | null;
+	readonly score?: PipelineScorePlan | null;
 };
 
 /**
@@ -113,19 +111,17 @@ export function readPlanDocument(text: string): PlanDocument {
 	const storeRoot = asText(at(document, "storeRoot"));
 	const viewPath = asText(at(document, "viewPath"));
 	const boards = asNumber(at(document, "boards"));
-	const rawJev = at(document, "jev");
-	const jevDocument = rawJev === undefined ? null : asMapping(rawJev);
-	let jev: PipelineJevPlan | null = null;
-	if (jevDocument !== null) {
-		const asOf = asText(at(jevDocument, "asOf"));
-		const rawMode = asText(at(jevDocument, "mode"));
-		const postingCount = asNumber(at(jevDocument, "postingCount"));
-		const maximumUsd = asNumber(at(jevDocument, "maximumUsd"));
-		const selectionHash = asText(at(jevDocument, "selectionHash"));
+	const rawScore = at(document, "score");
+	const scoreDocument = rawScore === undefined ? null : asMapping(rawScore);
+	let score: PipelineScorePlan | null = null;
+	if (scoreDocument !== null) {
+		const asOf = asText(at(scoreDocument, "asOf"));
+		const postingCount = asNumber(at(scoreDocument, "postingCount"));
+		const maximumUsd = asNumber(at(scoreDocument, "maximumUsd"));
+		const selectionHash = asText(at(scoreDocument, "selectionHash"));
 		if (
 			asOf === null ||
 			!/^\d{4}-\d{2}-\d{2}$/u.test(asOf) ||
-			(rawMode !== "shadow" && rawMode !== "promoted") ||
 			postingCount === null ||
 			!Number.isInteger(postingCount) ||
 			postingCount < 0 ||
@@ -137,8 +133,8 @@ export function readPlanDocument(text: string): PlanDocument {
 		) {
 			return { outcome: "mismatch" };
 		}
-		jev = { asOf, mode: rawMode, postingCount, maximumUsd, selectionHash };
-	} else if (rawJev !== undefined) {
+		score = { asOf, postingCount, maximumUsd, selectionHash };
+	} else if (rawScore !== undefined) {
 		return { outcome: "mismatch" };
 	}
 	if (
@@ -155,7 +151,7 @@ export function readPlanDocument(text: string): PlanDocument {
 	const plan: PipelinePlan = { profileName, profileDirectory, storeRoot, viewPath, boards };
 	return {
 		outcome: "plan",
-		plan: jev === null ? plan : { ...plan, jev },
+		plan: score === null ? plan : { ...plan, score },
 	};
 }
 

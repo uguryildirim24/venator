@@ -29,16 +29,9 @@ test("Mail sidebar uses Medium rows on bare ground", () => {
 	assert.match(rule(".sidebar-footer"), /gap: var\(--space-3\)/);
 });
 
-test("Jev it has no idle line or plan tooltip, but keeps the facts below the capsule", () => {
+test("Score keeps the existing capsule layout without an idle explanation", () => {
 	assert.match(status, /idle=\{\[\]\}/);
-	assert.doesNotMatch(status, /awaitingLabel|idleTitle|plan\?\.jev\?\.summary/);
-	assert.match(status, /jevPauseLabel\(jevPause\.reason\)/);
+	assert.match(status, /scorePauseLabel\(scorePause\.reason\)/);
 	assert.match(status, /`Sorted \$\{formatMoment\(sorted\)\}`/);
-	assert.match(status, /planError\.message/);
-});
-
-test("missing key or no startable plan leaves Jev it off without showing the key note", () => {
-	assert.match(status, /const off = plan === null \|\| !plan.startable \|\| keyMissing !== null;/);
-	assert.doesNotMatch(status, /keyMissing\.message/);
-	assert.match(status, /jevPause\.reason !== "no-key" && keyMissing === null/);
+	assert.match(status, /off=\{plan === null \|\| !plan.startable\}/);
 });

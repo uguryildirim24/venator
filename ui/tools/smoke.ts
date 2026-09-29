@@ -207,8 +207,7 @@ function leakedBoardTokens(text: string): readonly string[] {
  * - every held score, and every held probability as a whole number out of 100, as a bare
  *   number or "out of 100", wherever it is not part of a longer number, a time or a date.
  *
- * A dollar amount is not a fraction and passes: a Jev it plan may say what it would spend, and
- * the count it states is not a Jev result.
+ * A dollar amount is not a probability. Plan counts are not model results.
  */
 type HeldNumbers = {
 	readonly fractions: readonly number[];
@@ -296,10 +295,10 @@ const CHECKS: readonly RouteCheck[] = [
 		hash: "#/queue",
 		label: "For you: the sidebar, the list, and the selected Posting as a page with its margin",
 		expected: [
-			// Three cards, Refresh beneath Sources, Jev it above the Profile account row.
+			// Refresh beneath Sources, Score above the Profile account row.
 			"For you",
 			"Explore",
-			"Awaiting Jev",
+			"Awaiting Score",
 			"Applications",
 			"Saved",
 			"Dismissed",
@@ -309,14 +308,12 @@ const CHECKS: readonly RouteCheck[] = [
 			'>Avery Example</span>',
 			SAMPLE_DATA_STAMP,
 			'aria-label="Refresh jobs"',
-			">Jev it<",
+			">Score<",
 			// The list: a toolbar count with the new set, and the first cell selected.
 			"1 Posting",
 			'role="listbox"',
 			'aria-selected="true"',
 			"Summer 2027 Intern, Automation &amp; Lab Informatics",
-			"Jev: look first",
-			"Jev: look first",
 			// The page, and Venator's notes in the margin beside it.
 			"Verified open",
 			"Prepare Application…",
@@ -337,7 +334,6 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: [
 			"1 Posting",
 			"Data Engineering Intern (Remote, US)",
-			"Jev: review",
 		],
 	},
 	{
@@ -364,7 +360,6 @@ const CHECKS: readonly RouteCheck[] = [
 		label: "Excluded: each Posting with its rule, and no application offered",
 		expected: [
 			"9 Postings",
-			"Jev: skip",
 			"Location",
 			"Duplicate",
 			"Education fit",
@@ -394,7 +389,7 @@ const CHECKS: readonly RouteCheck[] = [
 		expected: [
 			"Filter inspector",
 			"19 Postings",
-			"Awaiting Jev",
+			"Awaiting Score",
 			"Potential matches",
 			"Needs review",
 			"Saved &amp; applied",
@@ -474,15 +469,9 @@ const CHECKS: readonly RouteCheck[] = [
 	},
 	{
 		hash: "#/queue?list=unscored",
-		label: "first run: Awaiting Jev with no key keeps the list, selects nothing, and asks for the key",
-		expected: [FIRST_RUN.keyTitle, "Add your TypeSafe key and Jev sorts", "into look first, review and skip. Until then they wait here.", FIRST_RUN.addKey, FIRST_RUN.getKey, 'role="listbox"'],
-		absent: ['aria-selected="true"', "Prepare Application…"],
-	},
-	{
-		hash: "#/queue?list=unscored",
-		label: "first run: Add Key opens a sheet whose key goes to the Keychain",
-		press: FIRST_RUN.addKey,
-		expected: [FIRST_RUN.keySheetTitle, FIRST_RUN.keySheetDescription, "Paste your TypeSafe key", "Save Key"],
+		label: "Awaiting Score keeps Postings readable without a TypeSafe key",
+		expected: ["Awaiting Score", 'role="listbox"', 'aria-selected="true"'],
+		absent: ["Jev needs a key", "Add your TypeSafe key"],
 	},
 ];
 
@@ -595,12 +584,12 @@ const EMPTY_CHECKS: readonly RouteCheck[] = [
 			">Refresh<",
 			// The window around it is the real one: sidebar, toolbar and the fetch footer.
 			"For you",
-			"Awaiting Jev",
+			"Awaiting Score",
 			"Not checked yet",
 			'aria-label="Refresh jobs"',
 		],
-		// Nothing has been discovered, so there is nothing to diagnose and nothing for Jev it.
-		absent: ["Jev diagnostics", ">Jev it<", "could not be read"],
+		// Nothing discovered yet: no diagnostics or Score run.
+		absent: ["Jev diagnostics", ">Score<", "could not be read"],
 	},
 ];
 
@@ -816,92 +805,44 @@ type ProbedCheck = RouteCheck & {
 	readonly response: string;
 };
 
-function fixtureJevCount(path: string): number {
+function fixtureScoreCount(path: string): number {
 	const database = new DatabaseSync(path, { readOnly: true });
 	try {
 		const row = database.prepare(`SELECT COUNT(*) AS count FROM postings p
 			WHERE COALESCE(p.description_html, '') != ''
 			AND (SELECT d.verdict FROM decisions d WHERE d.posting_key = p.key AND d.stage = 'hard_filter'
 				ORDER BY d.decided_at DESC, d.rowid DESC LIMIT 1) = 'pass'
-			AND NOT EXISTS (SELECT 1 FROM jev_triage j WHERE j.posting_key = p.key AND j.state = 'current')`).get();
+			AND EXISTS (SELECT 1 FROM keep_scores k WHERE k.posting_key = p.key AND k.probability IS NULL)`).get();
 		return Number(row?.count);
 	} finally {
 		database.close();
 	}
 }
 
-const JEV_POSTING_COUNT = fixtureJevCount(FIXTURE_DATABASE_PATH);
-const JEV_PLAN_SUMMARY =
-	`${JEV_POSTING_COUNT} Postings passed the Hard Filters, have description text, and have no Jev result under the current release. Jev will pause until an API key is available.`;
-const JEV_KEY_MISSING_NOTE = "No TypeSafe key is saved, so these Postings wait for Jev until you add one.";
-
-/**
- * The footer's Jev row, with the key the pass answers with: none.
- *
- * The capsule is alone with no idle count or plan summary. With no key it is off;
- * the missing-key note does not appear in the foot.
- */
-const JEV_PLAN_CHECK: RouteCheck = {
+const SCORE_POSTING_COUNT = fixtureScoreCount(FIXTURE_DATABASE_PATH);
+const SCORE_PLAN_CHECK: RouteCheck = {
 	hash: "#/queue",
-	label: "runs: without a key, Jev it is off with no key note",
-	expected: [
-		'<button type="button" class="button" data-size="large" disabled="">Jev it</button>',
-	],
-	absent: ["spend allowance", "next refresh", `${JEV_POSTING_COUNT} awaiting Jev`, "Nothing awaiting Jev", "Counting what awaits Jev…", JEV_KEY_MISSING_NOTE, JEV_PLAN_SUMMARY, 'data-tone="prominent">Jev it'],
+	label: "runs: Score is the footer's prominent press without a TypeSafe key",
+	expected: ['<button type="button" class="button" data-size="large" data-tone="prominent">Score</button>'],
+	absent: ["spend allowance", "Jev it", "Jev needs a key"],
 };
 
-/** The same row once a key is saved: the plan carries no note, and the press is ember. */
-const JEV_READY_CHECK: RouteCheck = {
-	hash: "#/queue",
-	label: "runs: with a key saved, Jev it is the footer's ember press",
-	expected: ['<button type="button" class="button" data-size="large" data-tone="prominent">Jev it</button>'],
-	absent: [`${JEV_POSTING_COUNT} awaiting Jev`, "Nothing awaiting Jev", "Counting what awaits Jev…", JEV_KEY_MISSING_NOTE, JEV_PLAN_SUMMARY],
-};
-
-/**
- * Answers the next Jev plans as a plan with a key behind it, and hands back the undo.
- * The zero case has no work to send, so the press must remain off.
- */
-function answerJevPlanWithKey(postingCount?: number): () => void {
+async function checkScoreEmpty(renderer: RouteRenderer): Promise<void> {
 	const previous = globalThis.fetch;
 	globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 		const response = await previous(input, init);
 		const path = new URL(String(input), "http://127.0.0.1").pathname;
-		if (path !== "/api/runs/plan" || JSON.parse(String(init?.body)).kind !== "jev-it") return response;
+		if (path !== "/api/runs/plan" || JSON.parse(String(init?.body)).kind !== "score") return response;
 		const body: PlanResponse = await response.json();
-		const plan: RunPlan = {
-			...body.plan,
-			startable: postingCount === 0 ? false : body.plan.startable,
-			notes: body.plan.notes.filter((note) => note.code !== "jev-key-missing"),
-			jev: postingCount === undefined || body.plan.jev === null ? body.plan.jev : { ...body.plan.jev, postingCount },
-		};
+		const plan: RunPlan = { ...body.plan, startable: false };
 		return new Response(JSON.stringify({ plan }), { status: 200, headers: { "content-type": "application/json" } });
 	};
-	return () => {
-		globalThis.fetch = previous;
-	};
-}
-
-async function checkJevReady(renderer: RouteRenderer): Promise<void> {
 	checked += 1;
-	const restore = answerJevPlanWithKey();
 	try {
-		judge(JEV_READY_CHECK, await renderer.render(JEV_READY_CHECK.hash));
-	} finally {
-		restore();
-	}
-	checked += 1;
-	const restoreZero = answerJevPlanWithKey(0);
-	try {
-		judge({
-			hash: "#/queue",
-			label: "runs: nothing to send leaves Jev it alone and off",
-			expected: ['<button type="button" class="button" data-size="large" disabled="">Jev it</button>'],
-			absent: ["Nothing awaiting Jev", "Counting what awaits Jev…", `${JEV_POSTING_COUNT} awaiting Jev`, JEV_PLAN_SUMMARY],
+		judge({ hash: "#/queue", label: "runs: no waiting Postings leaves Score off",
+			expected: ['<button type="button" class="button" data-size="large" disabled="">Score</button>'],
 		}, await renderer.render("#/queue"));
-	} finally {
-		restoreZero();
-	}
+	} finally { globalThis.fetch = previous; }
 }
 
 /**
@@ -984,22 +925,19 @@ function fixtureAnswer(view: "fixture" | "empty"): FixtureResponse {
 		if (method === "GET" && path === "/api/runs/recent") return json('{"runs":[]}');
 		if (method === "POST" && path === "/api/runs/plan") {
 			const kind = JSON.parse(String(init?.body)).kind;
-			if (kind !== "jev-it" && kind !== "fetch-and-filter") throw new Error("smoke: unexpected run plan");
+			if (kind !== "score" && kind !== "fetch-and-filter") throw new Error("smoke: unexpected run plan");
 			const plan = {
 				token: "smoke-plan", kind, profile: "smoke", profileDirectory: "/smoke/profile",
-				stages: kind === "jev-it" ? ["view"] : ["discover", "filters", "view"],
+				stages: kind === "score" ? ["score", "view"] : ["discover", "filters", "view"],
 				storeRoot: "/smoke/data", viewPath: "/smoke/view.db", dashboardViewPath: "/smoke/view.db",
-				// A new Install can Refresh; the sample one cannot. Jev it is startable with waiting Postings.
 				boards: FIXTURE_BOARDS.length,
-				startable: kind === "jev-it" ? JEV_POSTING_COUNT > 0 : view === "empty",
-				notes: kind === "jev-it"
-					? [{ code: "jev-key-missing", message: "No TypeSafe key is saved, so these Postings wait for Jev until you add one." }]
-					: view === "empty" ? [] : [{ code: "preview-only", message: "This example cannot start a run." }],
+				startable: kind === "score" ? SCORE_POSTING_COUNT > 0 : view === "empty",
+				notes: [],
 			};
-			if (kind === "jev-it") {
-				return json(JSON.stringify({ plan: { ...plan, jev: {
-					asOf: "2026-09-23", mode: "shadow", postingCount: JEV_POSTING_COUNT, maximumUsd: 10,
-					selectionHash: "a".repeat(64), summary: JEV_PLAN_SUMMARY,
+			if (kind === "score") {
+				return json(JSON.stringify({ plan: { ...plan, score: {
+					asOf: "2026-09-29", postingCount: SCORE_POSTING_COUNT, maximumUsd: 0.5,
+					selectionHash: "a".repeat(64),
 				} } }));
 			}
 			return json(JSON.stringify({ plan }));
@@ -1022,7 +960,7 @@ const UPDATING_CHECK: RouteCheck = {
 	hash: "#/queue",
 	label: "first run: a job list being rebuilt says so in the window, the toolbar and the sidebar",
 	expected: [FIRST_RUN.updatingTitle, FIRST_RUN.updatingBody, FIRST_RUN.updatingToolbar, FIRST_RUN.updatingSidebar, "data-indeterminate"],
-	absent: ['aria-label="Refresh jobs"', ">Jev it<", 'role="listbox"'],
+	absent: ['aria-label="Refresh jobs"', ">Score<", 'role="listbox"'],
 };
 
 async function checkUpdating(renderer: RouteRenderer): Promise<void> {
@@ -1040,10 +978,10 @@ async function checkUpdating(renderer: RouteRenderer): Promise<void> {
 	}
 }
 
-async function checkJevPlanWords(renderer: RouteRenderer): Promise<void> {
+async function checkScorePlanWords(renderer: RouteRenderer): Promise<void> {
 	checked += 1;
-	judge(JEV_PLAN_CHECK, await renderer.render(JEV_PLAN_CHECK.hash));
-	await checkJevReady(renderer);
+	judge(SCORE_PLAN_CHECK, await renderer.render(SCORE_PLAN_CHECK.hash));
+	await checkScoreEmpty(renderer);
 }
 
 /** One runtime, in the shape `venator.llm.probe` reports it. */
@@ -1108,8 +1046,8 @@ type PassOptions = {
 	readonly setup?: boolean;
 	/** True for the pass that also reads the API directly: see `checkWireCarriesNoNumber`. */
 	readonly wire?: boolean;
-	/** True for the pass that checks the Jev plan words against a fixed wire answer. */
-	readonly jevPlan?: boolean;
+	/** Check the Score press against a fixed wire answer. */
+	readonly scorePlan?: boolean;
 	/** True for the pass that holds the job list's reads open: see `checkUpdating`. */
 	readonly updating?: boolean;
 };
@@ -1165,7 +1103,7 @@ async function pass(
 		if (options.setup === true) await runSetupChecks(renderer, checks);
 		else await runChecks(renderer, checks);
 		await runProbedChecks(renderer, probed);
-		if (options.jevPlan === true) await checkJevPlanWords(renderer);
+		if (options.scorePlan === true) await checkScorePlanWords(renderer);
 		if (options.updating === true) await checkUpdating(renderer);
 		if (options.wire === true) await checkWireCarriesNoNumber(api.origin);
 	} finally {
@@ -1229,7 +1167,7 @@ await pass(FIXTURE_DATABASE_PATH, SMOKE_PORT, [...CHECKS, ...POSTING_PAGES, ...O
 	// are unaffected — and the probed checks below it, which press on purpose, run outside it.
 	setup: true,
 	wire: true,
-	jevPlan: true,
+	scorePlan: true,
 	updating: true,
 });
 await pass(EMPTY_DATABASE_PATH, EMPTY_SMOKE_PORT, EMPTY_CHECKS, []);

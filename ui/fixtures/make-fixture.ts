@@ -96,7 +96,10 @@ CREATE TABLE application_states (posting_key TEXT PRIMARY KEY, state TEXT, detai
   since TEXT);
 CREATE TABLE runs (id INTEGER PRIMARY KEY, at TEXT, status TEXT, stage TEXT, pause_reason TEXT, waiting INTEGER);
 CREATE TABLE jev_skip (posting_key TEXT PRIMARY KEY, reason TEXT NOT NULL);
-CREATE TABLE jev_awaiting (posting_key TEXT PRIMARY KEY);
+CREATE TABLE keep_scores (
+  posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
+  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
+);
 CREATE TABLE assessments (posting_key TEXT PRIMARY KEY, status TEXT, summary TEXT,
   evidence TEXT, conflicts TEXT, unknowns TEXT, listing_status TEXT, last_verified_at TEXT,
   description_kind TEXT, apply_url TEXT, opportunity_type TEXT, input_version TEXT,
@@ -1325,13 +1328,14 @@ function writeView(path: string, decisions: readonly FixtureDecision[]): void {
 			});
 		}
 
-		// The sample View marks passes without a current Jev result as selected,
-		// just as a pipeline-built View materializes the plan's selected keys.
-		database.exec(`INSERT INTO jev_awaiting (posting_key)
-			SELECT d.posting_key FROM hard_filter_latest hl
-			JOIN decisions d ON d.id = hl.decision_id AND d.verdict = 'pass'
-			WHERE NOT EXISTS (SELECT 1 FROM jev_triage t WHERE t.posting_key = d.posting_key
-				AND t.mode = 'shadow' AND t.state = 'current')`);
+		// Synthetic scores for the sample View; no private model outputs live here.
+		database.exec(`INSERT INTO keep_scores (posting_key, input_hash, model_id, probability)
+			SELECT d.posting_key, 'fixture-input', 'fixture-model',
+				CASE WHEN d.posting_key = 'greenhouse:ginkgobioworks:5185285007' THEN 0.8
+				WHEN d.posting_key = 'greenhouse:recursionpharmaceuticals:6612991' THEN 0.2
+				WHEN d.posting_key = 'greenhouse:generatebiomedicines:4728845' THEN 0.001 END
+			FROM hard_filter_latest hl
+			JOIN decisions d ON d.id = hl.decision_id AND d.verdict = 'pass'`);
 
 		const insertSourceHealth = database.prepare(
 			`INSERT INTO source_health (source_key, status, last_attempt_at, last_success_at, count, message, known_jobs, full_verified_details, needs_detail_check)

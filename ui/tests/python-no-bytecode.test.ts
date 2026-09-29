@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { jevRunEnvironment, nonJevInheritedEnvironment, runEnvironment } from "../server/runs/environment.ts";
+import { nonJevInheritedEnvironment, runEnvironment } from "../server/runs/environment.ts";
 import type { LocationContext } from "../server/locations.ts";
 import { removeBytecode } from "../tools/python-staging.ts";
 
@@ -22,11 +22,10 @@ const context: LocationContext = {
 
 test("every Python child environment disables bytecode even when inherited as disabled", () => {
 	assert.equal(runEnvironment(context).PYTHONDONTWRITEBYTECODE, "1");
-	assert.equal(jevRunEnvironment(context).PYTHONDONTWRITEBYTECODE, "1");
 	assert.equal(nonJevInheritedEnvironment(context).PYTHONDONTWRITEBYTECODE, "1");
 });
 
-// These are all server launches of Python: Refresh/Hard Filters/View, Jev it, view recovery,
+// These are all server launches of Python: Refresh/Hard Filters/View, Score, view recovery,
 // planning, applications/handoff, setup/load-back, board resolution and résumé adapters.
 // Keep the list exhaustive: adding a new spawn path requires choosing its environment here.
 const PYTHON_SITES = {
@@ -66,8 +65,7 @@ test("each server spawn of Python uses a no-bytecode child environment", () => {
 	}
 	assert.deepEqual(found.sort(), Object.keys(PYTHON_SITES).sort());
 	const runner = read("ui/server/runs/runner.ts");
-	assert.match(runner, /let environment = runEnvironment\(context\)/u);
-	assert.match(runner, /environment = \{ \.\.\.jevRunEnvironment\(context\)/u);
+	assert.match(runner, /const environment = runEnvironment\(context\)/u);
 });
 
 test("staging discards archived and wheel bytecode, keeping source files", () => {

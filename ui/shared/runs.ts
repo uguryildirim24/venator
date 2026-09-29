@@ -36,25 +36,25 @@ export const RUN_REQUEST_HEADER = "x-venator-run";
 export const RUN_REQUEST_HEADER_VALUE = "1";
 
 /** The stages of `venator.schedule.loop` a run may include. `commit` is not one of them. */
-export type RunStage = "discover" | "filters" | "jev" | "view";
+export type RunStage = "discover" | "filters" | "score" | "view";
 
-export const RUN_STAGES: readonly RunStage[] = ["discover", "filters", "jev", "view"];
+export const RUN_STAGES: readonly RunStage[] = ["discover", "filters", "score", "view"];
 
 /**
  * What the runner can start. Profile replay is internal to Save, never an HTTP plan.
  * Fetching Postings, recording Filter Decisions and rebuilding the disposable view.
  */
-export type RunKind = "fetch-and-filter" | "jev-it" | "profile-replay";
+export type RunKind = "fetch-and-filter" | "score" | "profile-replay";
 
-export const RUN_KINDS: readonly RunKind[] = ["fetch-and-filter", "jev-it", "profile-replay"];
+export const RUN_KINDS: readonly RunKind[] = ["fetch-and-filter", "score", "profile-replay"];
 
 /**
  * What a person can **ask about** before a start. Keeping this closed set separate makes a
  * plan request explicit and keeps the internal Profile replay off the HTTP surface.
  */
-export type PlanKind = "fetch-and-filter" | "jev-it";
+export type PlanKind = "fetch-and-filter" | "score";
 
-export const PLAN_KINDS: readonly PlanKind[] = ["fetch-and-filter", "jev-it"];
+export const PLAN_KINDS: readonly PlanKind[] = ["fetch-and-filter", "score"];
 
 /**
  * The `RunKind` this plan kind is, or null if the two closed sets drift.
@@ -74,7 +74,7 @@ export function runKindOf(kind: RunPlan["kind"]): RunKind | null {
  */
 export const RUN_KIND_STAGES = {
 	"fetch-and-filter": ["discover", "filters", "view"],
-	"jev-it": ["view"],
+	score: ["score", "view"],
 	"profile-replay": ["filters", "view"],
 } satisfies Record<RunKind, readonly RunStage[]>;
 
@@ -84,7 +84,7 @@ export const RUN_KIND_STAGES = {
  * `data/` is append-only, so this is not bookkeeping: it is what lets a half-finished run be
  * described as what actually happened rather than as one undifferentiated failure.
  */
-export const STORE_WRITING_STAGES: readonly RunStage[] = ["discover", "filters", "jev"];
+export const STORE_WRITING_STAGES: readonly RunStage[] = ["discover", "filters", "score"];
 
 /** Something true about this plan that is not a refusal. Nothing here is an error. */
 export type PlanNoteCode =
@@ -92,10 +92,8 @@ export type PlanNoteCode =
 	| "no-boards"
 	/** The run would rebuild a view database this dashboard is not the one reading. */
 	| "view-elsewhere"
-	/** No Posting currently needs Jev under this release. */
-	| "nothing-to-qualify"
-	/** The dashboard server cannot authorise a Jev child without its TypeSafe credential. */
-	| "jev-key-missing";
+	/** Every current Hard Filter pass has a current keep score. */
+	| "nothing-to-score";
 
 export type PlanNote = {
 	readonly code: PlanNoteCode;
@@ -114,15 +112,12 @@ export type PlanNote = {
  * was shown a plan for is not expressible. It is opaque, single-use, this process only, and
  * short-lived.
  */
-export type JevRunPlan = {
+export type ScoreRunPlan = {
 	readonly asOf: string;
-	readonly mode: "shadow" | "promoted";
 	readonly postingCount: number;
 	readonly maximumUsd: number;
 	/** Opaque binding for the selected inputs, even if count and allowance stay unchanged. */
 	readonly selectionHash: string;
-	/** The two plan facts in words, ready for the press that authorises them. */
-	readonly summary: string;
 };
 
 export type RunPlan = {
@@ -146,8 +141,8 @@ export type RunPlan = {
 	readonly dashboardViewPath: string;
 	/** How many boards the Profile registers. Zero is why a first run can find nothing. */
 	readonly boards: number;
-	/** Present only for the `jev-it` kind. No credential or secret-derived value is included. */
-	readonly jev?: JevRunPlan | null;
+	/** Present only for Score. Private model metadata never enters this contract. */
+	readonly score?: ScoreRunPlan | null;
 	/** False when running would be pointless rather than wrong; `notes` says why. */
 	readonly startable: boolean;
 	readonly notes: readonly PlanNote[];

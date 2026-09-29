@@ -161,11 +161,6 @@ export const FIRST_RUN = {
 	updatingBody: "Your jobs will be back in a moment.",
 	updatingToolbar: "Updating…",
 	updatingSidebar: "Updating your job list",
-	keyTitle: "Jev needs a key",
-	addKey: "Add Key…",
-	getKey: "Get a Key",
-	keySheetTitle: "Add your Jev key",
-	keySheetDescription: "The key stays in this Mac’s Keychain. Venator passes it only to Jev.",
 	employersSheetTitle: "Add employers",
 	employersSheetDescription: "Venator checks these employers’ job boards each time you refresh.",
 	register: "Add to Profile",
@@ -173,10 +168,6 @@ export const FIRST_RUN = {
 
 export function refreshBody(employers: number): string {
 	return `Refresh to find jobs from your ${String(employers)} ${employers === 1 ? "employer" : "employers"}.`;
-}
-
-export function keyBody(waiting: number): string {
-	return `Add your TypeSafe key and Jev sorts ${waiting === 1 ? "this job" : `these ${String(waiting)} jobs`} into look first, review and skip. Until then they wait here.`;
 }
 
 export const LINKS = {

@@ -15,8 +15,6 @@ import {
 	applicationStateLabel,
 	earlyReviewLabel,
 	homeListLabel,
-	jevDecisionLabel,
-	jevSkipLabel,
 	jevStateLabel,
 	originLabel,
 	postingCountLabel,
@@ -38,7 +36,7 @@ import {
 	type Route,
 } from "../router.ts";
 import { EmptyList } from "./empty-list.tsx";
-import { AwaitingKey, UpdatingState, useJevKeyMissing } from "./first-run.tsx";
+import { UpdatingState } from "./first-run.tsx";
 import { FIRST_RUN } from "./onboarding/copy.ts";
 import { nextPostingArrival } from "./posting-arrival.ts";
 
@@ -76,7 +74,7 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	const state = entry.application?.state ?? null;
 	let status: Cell["status"] = null;
 	if (entry.status === "hard-killed") {
-		status = { text: entry.hardFilter?.verdict === "kill" && entry.hardFilter.rule ? ruleLabel(entry.hardFilter.rule) : entry.jev?.decision === "exclude" ? jevSkipLabel() : "Excluded", glyph: "excluded" };
+		status = { text: entry.hardFilter?.verdict === "kill" && entry.hardFilter.rule ? ruleLabel(entry.hardFilter.rule) : homeListLabel("filtered"), glyph: "excluded" };
 	} else if (list === "applied" && state !== null) {
 		status = {
 			text: `${applicationStateLabel(state)}${entry.application?.since ? ` · ${formatDay(entry.application.since)}` : ""}`,
@@ -84,8 +82,7 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 		};
 	} else if (state === "prepared") {
 		status = { text: "Documents ready", glyph: "ready" };
-	} else if (entry.jev?.decision === "prioritize" || entry.jev?.decision === "review") {
-		status = { text: `Jev: ${jevDecisionLabel(entry.jev.decision).toLowerCase()}`, glyph: "info" };
+
 	}
 	return {
 		key: posting.key,
@@ -173,15 +170,7 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 		return postings.status === "ready" ? dayGroups(postings.value.entries, source.kind === "list" ? source.list : null) : [];
 	}, [source, postings, triage]);
 
-	/*
-	 * Awaiting Jev with no key: the list stays, nothing is selected for the person, and the
-	 * page's place says what the Postings are waiting for. Opening one still shows it.
-	 */
-	const [keyToken, setKeyToken] = useState(0);
-	const awaitingList = source.kind === "list" && source.list === "unscored" && source.search === "";
-	const keyMissing = useJevKeyMissing(awaitingList, reloadToken + keyToken);
-	const awaitingKey = awaitingList && keyMissing && route.name !== "posting" && keys.length > 0;
-	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || keys.includes(route.key)) ? route.key : awaitingKey ? null : (keys[0] ?? null);
+	const selectedKey = route.name === "posting" && (!locationFiltered || listState.status !== "ready" || keys.includes(route.key)) ? route.key : (keys[0] ?? null);
 	const detailPane = useRef<HTMLDivElement>(null);
 	const [arrival, setArrival] = useState(() => ({ key: selectedKey, at: performance.now(), animate: false }));
 	useLayoutEffect(() => {
@@ -312,7 +301,6 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 						</div>
 					) : null}
 					{current === null ? null : <PostingPage key={current.posting.key} detail={current} control={control} arriving={arrival.key === selectedKey && arrival.animate} />}
-					{awaitingKey ? <AwaitingKey waiting={total ?? keys.length} onSaved={() => setKeyToken((value) => value + 1)} /> : null}
 				</div>
 			</div>
 			)}

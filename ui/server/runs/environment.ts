@@ -96,17 +96,3 @@ export function runEnvironment(context: LocationContext): ChildEnvironment {
 	named.push(["VENATOR_LLM_RUNTIME", documentRuntime(context)]);
 	return Object.fromEntries(named);
 }
-
-/**
- * The one child environment allowed to carry the TypeSafe credential.
- *
- * Plans, view rebuilds and every non-Jev child use `runEnvironment`.
- * Only the on-demand Jev loop sequencer receives
- * this extension. The value is copied without being printed or inspected.
- */
-export function jevRunEnvironment(context: LocationContext): ChildEnvironment {
-	const environment = runEnvironment(context);
-	const key = context.environment(TYPESAFE_API_KEY_ENVIRONMENT);
-	if (key !== undefined && key.trim() !== "") environment[TYPESAFE_API_KEY_ENVIRONMENT] = key;
-	return environment;
-}

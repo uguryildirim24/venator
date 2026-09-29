@@ -47,11 +47,10 @@ from venator.secrets import scrub, scrub_record
 
 
 COMMIT_MESSAGE = "chore(data): record scheduled pipeline run"
-STAGE_ORDER = ("discover", "filters", "jev", "view", "commit")
+STAGE_ORDER = ("discover", "filters", "view", "commit")
 STAGE_DESCRIPTIONS = {
     "discover": "python -m venator.discover.run",
     "filters": "python -m venator.match.run",
-    "jev": "python -m venator.qualify.jev --execute --pipeline --hard-filter-passes",
     "view": "python -m venator.view.build",
     "commit": (
         f"git add data/ && git commit -m {COMMIT_MESSAGE!r} "
@@ -157,25 +156,6 @@ def run_module(
         env={k: v for k, v in os.environ.items() if k != "TYPESAFE_API_KEY"},
     )
     return {}
-
-
-def run_jev(repository: Path | None, profile: str | None, as_of: str | None) -> dict[str, Any]:
-    """Only the Jev child inherits the key; its output never enters run transcripts."""
-    repository, _ = _resolved(repository, None)
-    arguments = ["--execute", "--pipeline", "--hard-filter-passes", "--as-of", as_of or date.today().isoformat()]
-    if profile:
-        arguments.extend(["--profile", profile])
-    child = subprocess.run(
-        [sys.executable, "-m", "venator.qualify.jev", *arguments],
-        cwd=repository, env=os.environ.copy(), capture_output=True, text=True,
-    )
-    if child.returncode != 0:
-        raise RuntimeError("Jev stage could not finish (see local Jev diagnostics)")
-    try:
-        report = json.loads(child.stdout)
-        return {"paused": report.get("paused"), "waiting": report.get("waiting", 0)}
-    except (ValueError, AttributeError):
-        raise RuntimeError("Jev stage returned no report") from None
 
 
 def git_work_tree_for(path: Path) -> Path | None:
@@ -308,7 +288,6 @@ def default_stage_callables(
             extra=("--interactive",) if interactive_discover else (),
         ),
         "filters": lambda: run_module("venator.match.run", repository, profile, as_of),
-        "jev": lambda: run_jev(repository, profile, as_of),
         "view": lambda: run_module("venator.view.build", repository, profile, as_of),
         "commit": lambda: commit_data(repository),
     }
@@ -420,7 +399,7 @@ def run_loop(
             print(f"{stage}: ERROR — {error}", file=sys.stderr, flush=True)
             return 1
         try:
-            paused = metrics.get("paused") if stage == "jev" else None
+            paused = metrics.get("paused")
             append_heartbeat(
                 heartbeat_path, stage, "paused" if paused else "ok", metrics,
                 pause_reason=paused, waiting=metrics.get("waiting", 0),

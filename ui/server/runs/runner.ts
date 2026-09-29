@@ -3,15 +3,15 @@
  *
  * **What it starts, and nothing else.** `fetch-and-filter` starts `python -m
  * venator.schedule.loop --only discover,filters,view --profile <name>`. Profile Save starts
- * `--only filters,view` through this runner, without Discover or Jev. `jev-it` starts
- * `python -m venator.schedule.loop --only jev` with the plan-bound date and spend cap, then
+ * `--only filters,view` through this runner. `score` starts
+ * `python -m venator.score.run --execute` with the plan-bound date, then
  * `python -m venator.view.build --profile <name>`. There is no route into this module that
  * takes a module name, argument list or store path, and `commit` is not a stage any kind
  * names.
  *
  * **Why the loop remains the fetch sequencer.** It already owns the order, stop-at-first-
- * failure and per-stage heartbeat for Discover, Hard Filters and View. Jev it separately
- * runs Jev with the key; a pause leaves a heartbeat before its View rebuild.
+ * failure and per-stage heartbeat for Discover, Hard Filters and View. Score separately
+ * records its scores and pause heartbeat before its View rebuild.
  *
  * **One run at a time, and what that guard is not.** It is one process's memory, not a lock.
  * A person who also runs `python -m venator.match.run` in a terminal is outside it, and
@@ -46,7 +46,7 @@ import {
 	type RunState,
 } from "../../shared/runs.ts";
 import { pipelineWorkingDirectory, pythonInterpreter, systemContext, type LocationContext } from "../locations.ts";
-import { jevRunEnvironment, runEnvironment } from "./environment.ts";
+import { runEnvironment } from "./environment.ts";
 import { RunError } from "./errors.ts";
 import { applicationIsActive } from "../applications/activity.ts";
 import { initialProgress, readStageLine, settleProgress, splitLines, type ProgressState } from "./progress.ts";
@@ -110,8 +110,8 @@ type LiveRun = {
 	/** True while the recovery view rebuild is running; the run stays live until it settles. */
 	recovering: boolean;
 	viewRecovered: boolean;
-	/** The Jev child reached the OS and may therefore have appended qualification rows. */
-	jevStarted: boolean;
+	/** The Score child reached the OS and may have appended scores. */
+	scoreStarted: boolean;
 	settled: RunPhase | null;
 	failure: RunState["failure"];
 	timer: NodeJS.Timeout | null;
@@ -123,7 +123,7 @@ let recent: RunState[] = [];
 const pendingReplays = new Map<string, { context: LocationContext; spawnChild: SpawnChild }>();
 let replayTimer: NodeJS.Timeout | null = null;
 
-/** A saved Profile needs a replay, not a Discover fetch or a paid Jev request. */
+/** A saved Profile needs a replay, not a Discover fetch or paid Score run. */
 export function queueProfileReplay(profile: string, context: LocationContext = systemContext(), spawnChild: SpawnChild = spawn): void {
 	pendingReplays.set(profile, { context, spawnChild });
 	startPendingReplay();
@@ -161,10 +161,8 @@ function now(): string {
 }
 
 function append(run: LiveRun, chunk: string): void {
-	// A child can echo only a fragment of its credential (or write more than the
-	// transcript limit between fragments). Replacing full keys after concatenating
-	// output cannot make that safe. Jev output is never exposed to the dashboard.
-	if (run.kind === "jev-it") return;
+	// Modal output and private model metadata never enter dashboard transcripts.
+	if (run.kind === "score") return;
 	const combined = run.transcript + chunk;
 	run.transcript = combined.length > TRANSCRIPT_LIMIT ? combined.slice(-TRANSCRIPT_LIMIT) : combined;
 }
@@ -180,7 +178,7 @@ function append(run: LiveRun, chunk: string): void {
  * — which is why only Discover is named here.
  */
 function wroteRows(run: LiveRun): boolean {
-	if (run.kind === "jev-it" && run.jevStarted) return true;
+	if (run.kind === "score" && run.scoreStarted) return true;
 	return run.progress.stages.some((entry) => {
 		if (entry.stage === "discover") return entry.state !== "waiting" && entry.state !== "not-reached";
 		return STORE_WRITING_STAGES.includes(entry.stage) && entry.state === "ok";
@@ -232,7 +230,7 @@ function failureFor(run: LiveRun, phase: RunPhase): RunState["failure"] {
 const STAGE_SENTENCE = {
 	discover: "fetching Postings",
 	filters: "the Hard Filters",
-	jev: "checking with Jev",
+	score: "scoring Postings",
 	view: "rebuilding what the dashboard reads",
 } satisfies Record<RunStage, string>;
 
@@ -389,8 +387,8 @@ export function recentRuns(limit: number): readonly RunState[] {
 	return recent.slice(0, limit);
 }
 
-/** The second fixed command in a Jev run, started only after Jev exits successfully. */
-function startJevView(run: LiveRun): void {
+/** The second fixed command in Score, including after a clean pause. */
+function startScoreView(run: LiveRun): void {
 	run.progress = readStageLine(run.progress, "view: starting", now());
 	const child = spawnViewStage(run.plan.profile, run.context, run.spawnChild);
 	run.child = child;
@@ -460,22 +458,12 @@ export function startRun(
 	}
 	const stages = RUN_KIND_STAGES[kind];
 	let argv: readonly string[];
-	let environment = runEnvironment(context);
-	if (kind === "jev-it") {
-		if (plan.jev == null) {
-			throw new RunError("not_startable", "That plan does not describe a Jev run.");
+	const environment = runEnvironment(context);
+	if (kind === "score") {
+		if (plan.score == null) {
+			throw new RunError("not_startable", "That plan does not describe a Score run.");
 		}
-		environment = { ...jevRunEnvironment(context), VENATOR_JEV_MAX_USD: plan.jev.maximumUsd.toFixed(2) };
-		argv = [
-			"-m",
-			"venator.schedule.loop",
-			"--only",
-			"jev",
-			"--as-of",
-			plan.jev.asOf,
-			"--profile",
-			plan.profile,
-		];
+		argv = ["-m", "venator.score.run", "--execute", "--as-of", plan.score.asOf, "--profile", plan.profile];
 	} else {
 		argv = [
 			"-m",
@@ -489,7 +477,7 @@ export function startRun(
 	}
 	const child = spawnChild(pythonInterpreter(context), argv, {
 		cwd: pipelineWorkingDirectory(context),
-		stdio: kind === "jev-it" ? ["ignore", "ignore", "ignore"] : ["ignore", "pipe", "pipe"],
+		stdio: kind === "score" ? ["ignore", "ignore", "ignore"] : ["ignore", "pipe", "pipe"],
 		env: environment,
 		// Its own process group, so a stop reaches the whole closed command tree.
 		detached: context.platform !== "win32",
@@ -510,7 +498,7 @@ export function startRun(
 		timedOut: false,
 		recovering: false,
 		viewRecovered: false,
-		jevStarted: false,
+		scoreStarted: false,
 		settled: null,
 		failure: null,
 		timer: null,
@@ -523,9 +511,10 @@ export function startRun(
 		signalTree(run.child, "SIGKILL", context);
 	}, RUN_CEILING_MS);
 
-	if (kind === "jev-it") {
+	if (kind === "score") {
+		run.progress = readStageLine(run.progress, "score: starting", now());
 		child.on("spawn", () => {
-			run.jevStarted = true;
+			run.scoreStarted = true;
 		});
 		child.on("error", () => {
 			run.transcript = "";
@@ -541,7 +530,8 @@ export function startRun(
 				finish(run, "failed");
 				return;
 			}
-			startJevView(run);
+			run.progress = readStageLine(run.progress, "score: ok", now());
+			startScoreView(run);
 		});
 	} else {
 		let outRest = "";

@@ -463,7 +463,6 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 				page: detail.page,
 				decisions: detail.decisions,
 				assessment,
-				jevTriage: detail.jevTriage,
 			}),
 		[detail, assessment],
 	);

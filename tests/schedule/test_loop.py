@@ -76,29 +76,6 @@ def test_stage_order_and_heartbeat_shape(tmp_path: Path) -> None:
     assert all("pending" not in row and "recorded" not in row and "queued" not in row for row in rows)
 
 
-def test_key_only_reaches_jev_child(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from venator.schedule import loop
-
-    seen: list[tuple[str, str | None]] = []
-
-    def fake_run(argv, **kwargs):
-        seen.append((argv[2], kwargs["env"].get("TYPESAFE_API_KEY")))
-        if argv[2] == "venator.qualify.jev":
-            return subprocess.CompletedProcess(argv, 0, '{"paused": "no-key", "waiting": 1}', "")
-        return subprocess.CompletedProcess(argv, 0)
-
-    monkeypatch.setenv("TYPESAFE_API_KEY", "secret-sentinel")
-    monkeypatch.setattr(loop.subprocess, "run", fake_run)
-    loop.run_module("venator.discover.run", tmp_path)
-    loop.run_module("venator.match.run", tmp_path)
-    loop.run_jev(tmp_path, None, "2026-09-18")
-    loop.run_module("venator.view.build", tmp_path)
-    assert seen == [
-        ("venator.discover.run", None), ("venator.match.run", None),
-        ("venator.qualify.jev", "secret-sentinel"), ("venator.view.build", None),
-    ]
-
-
 def test_default_loop_never_spawns_jev_or_passes_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from venator.schedule import loop
 
@@ -116,23 +93,6 @@ def test_default_loop_never_spawns_jev_or_passes_key(tmp_path: Path, monkeypatch
         ("venator.match.run", None),
         ("venator.view.build", None),
     ]
-
-
-def test_paused_jev_still_builds_view(tmp_path: Path) -> None:
-    heartbeat = tmp_path / "runs.jsonl"
-    called: list[str] = []
-    actions = {
-        name: (lambda name=name: called.append(name) or
-               ({"paused": "out-of-credit", "waiting": 3} if name == "jev" else {}))
-        for name in STAGE_ORDER
-    }
-    assert run_loop(only=["jev", "view"], stage_callables=actions, heartbeat_path=heartbeat) == 0
-    assert called == ["jev", "view"]
-    rows = read_heartbeats(heartbeat)
-    assert rows[0]["status"] == "paused"
-    assert rows[0]["pause_reason"] == "out-of-credit"
-    assert rows[0]["waiting"] == 3
-    assert rows[1]["status"] == "ok"
 
 
 def test_failure_heartbeats_and_aborts_remaining_stages(tmp_path: Path) -> None:
@@ -637,7 +597,7 @@ def test_dry_run_names_the_subset_and_says_nothing_about_stages_nobody_asked_for
     assert "1. discover:" in printed
     assert "2. filters:" in printed
     assert "3. view:" in printed
-    assert "not selected by --only: jev, commit" in printed
+    assert "not selected by --only: commit" in printed
     # The commit stage was not asked for, so its work-tree note is noise here.
     assert "commit: would be skipped" not in printed
     assert not heartbeat.exists()
@@ -657,7 +617,7 @@ def test_the_only_flag_reaches_run_loop_from_the_command_line(tmp_path: Path) ->
     assert "1. discover:" in finished.stdout
     assert "2. view:" in finished.stdout
     assert "2. filters:" not in finished.stdout
-    assert "not selected by --only: filters, jev, commit" in finished.stdout
+    assert "not selected by --only: filters, commit" in finished.stdout
 
 
 def test_an_unknown_stage_on_the_command_line_exits_with_a_usage_error(tmp_path: Path) -> None:

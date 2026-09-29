@@ -1,6 +1,6 @@
 """Report what a pipeline run would do, in JSON, for the dashboard's run surface.
 
-    python plan.py --kind fetch-and-filter|jev-it [--profile NAME]
+    python plan.py --kind fetch-and-filter|score [--profile NAME]
 
 This is an **adapter**, not a second pipeline. Every rule it applies belongs to
 ``src/venator/``: which Profile a run would load and how a name resolves to a
@@ -17,8 +17,8 @@ normalisation on the Node side.
 
 Three properties are deliberate:
 
-* **It starts nothing.** Only the disposable Jev plan cache may be written;
-  no store is created, no stage is run, and no request leaves this machine.
+* **It starts nothing.** No store is created, no stage is run, and no request
+  leaves this machine.
 * **A refusal is data.** A Profile that cannot be chosen, or a store this
   Profile may not read, comes back as a ``failure`` object with the pipeline's
   own sentence in it — exit 0 — so the dashboard can put that sentence next to a
@@ -50,7 +50,7 @@ try:
     from venator.match.store import verify_decisions_dir
     from venator.paths import StoreRootError, install_stores
     from venator.profile import ProfileError, resolve_profile
-    from venator.qualify.plan_cache import jev_plan
+    from venator.score.selection import score_plan
 except Exception as err:  # pragma: no cover - exercised by an Install without the pipeline
     print(f"plan: the pipeline could not be imported: {err}", file=sys.stderr)
     raise SystemExit(3) from err
@@ -58,10 +58,6 @@ except Exception as err:  # pragma: no cover - exercised by an Install without t
 
 def _failure(kind: str, message: str | None) -> dict:
     return {"failure": {"kind": kind, "message": message}}
-
-
-def _jev_plan(profile, stores, as_of: str) -> dict:
-    return jev_plan(profile, stores, as_of)
 
 
 def _document(profile, stores, as_of: str, kind: str) -> dict:
@@ -82,15 +78,15 @@ def _document(profile, stores, as_of: str, kind: str) -> dict:
         # than after it.
         "boards": sum(len(tokens) for tokens in profile.sources.boards.values()),
     }
-    if kind == "jev-it":
-        document["jev"] = _jev_plan(profile, stores, as_of)
+    if kind == "score":
+        document["score"] = score_plan(profile, stores, as_of)
     return document
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="What a pipeline run would do.")
     parser.add_argument("--profile", default=None)
-    parser.add_argument("--kind", choices=("fetch-and-filter", "jev-it"), required=True)
+    parser.add_argument("--kind", choices=("fetch-and-filter", "score"), required=True)
     args = parser.parse_args(argv)
 
     with contextlib.redirect_stdout(sys.stderr):
@@ -113,7 +109,7 @@ def main(argv: list[str]) -> int:
                     # claimed by another Profile is refused here, before
                     # Discover has appended anything, rather than partway
                     # through a run — `data/` is append-only.
-                    if args.kind != "jev-it" and stores.decisions_dir.exists():
+                    if stores.decisions_dir.exists():
                         verify_decisions_dir(stores.decisions_dir, profile.identifier)
                     payload = _document(profile, stores, date.today().isoformat(), args.kind)
                 except (OSError, ValueError) as err:
