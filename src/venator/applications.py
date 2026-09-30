@@ -174,22 +174,29 @@ def perform(args: argparse.Namespace) -> dict:
         handoff = _read_json(handoff_state_path(directory)) or {}
         marker = handoff.get("marker")
         parts = args.key.split(":")
-        confirmed = (handoff.get("state") == "applied" and isinstance(marker, dict)
-                     and len(parts) == 3 and parts[0] == "greenhouse"
-                     and marker.get("system") == parts[0] and marker.get("board") == parts[1]
-                     and marker.get("job_id") == parts[2])
+        confirmed = False
+        if handoff.get("state") == "applied" and isinstance(marker, dict) and len(parts) == 3:
+            if parts[0] == "greenhouse":
+                confirmed = (marker.get("system") == "greenhouse" and marker.get("board") == parts[1]
+                             and marker.get("job_id") == parts[2])
+            elif parts[0] == "workday":
+                # A Candidate Home row bound to the same title and requisition.
+                confirmed = (marker.get("system") == "workday" and marker.get("board") == parts[1]
+                             and marker.get("job_id") == parts[2] and marker.get("requisition") == parts[2]
+                             and bool(marker.get("title")))
         if confirmed:
             from venator.track.record import record_event
             from venator.track.store import load_events
             from venator.view.build import build_database
             if not any(row.get("posting_key") == args.key and row.get("event") == "submit"
                        for row in load_events(stores["track_dir"])):
-                record_event("submit", args.key, "employer confirmation: greenhouse",
+                record_event("submit", args.key, f"employer confirmation: {parts[0]}",
                              identifier=profile.identifier, postings_dir=stores["postings_dir"],
                              decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
                 build_database(profile=profile)
         session = {"handoff": handoff.get("state") if handoff.get("state") in {"ready", "closed", "applied"} else None,
-                   "applied": confirmed, "candidates": handoff.get("candidates", []) if handoff.get("state") in {"ready", "closed", "applied"} else []}
+                   "applied": confirmed, "candidates": handoff.get("candidates", []) if handoff.get("state") in {"ready", "closed", "applied"} else [],
+                   "warnings": [str(item) for item in handoff.get("warnings", []) if item][:50] if handoff.get("state") in {"ready", "closed", "applied"} else []}
         try:
             record = manifest(directory)
             if record.get("prepared") is True:
@@ -245,11 +252,17 @@ def perform(args: argparse.Namespace) -> dict:
                 raise ValueError("Choose reviewed passages to edit.")
             return edit_application(directory, record, edits, posting, profile)
         from venator.browser.handoff import start_handoff
+        from venator.answers.store import latest
+        library = [row for row in latest(stores["data_dir"] / "answers", profile.identifier).values()
+                   if row.get("answer") is not None]
         return start_handoff(posting, profile, resume_file, directory,
                              letter_file=document_path(directory, record, "letter.pdf")
                              if isinstance(record.get("letterText"), str) else None,
                              questions=record.get("formQuestions", []),
-                             form_memory=stores["data_dir"] / "answers" / "forms")
+                             form_memory=stores["data_dir"] / "answers" / "forms",
+                             answers=library,
+                             prepared_resume=record.get("renderedResume")
+                             if isinstance(record.get("renderedResume"), Mapping) else None)
 
     from venator.discover.refresh import refresh_posting
     from venator.discover.store import append_observations
@@ -285,16 +298,20 @@ def perform(args: argparse.Namespace) -> dict:
 
     if args.action == "apply":
         from venator.answers.store import latest
-        from venator.apply.form import ashby_questions, greenhouse_questions, review_questions
+        from venator.apply.form import ashby_questions, greenhouse_questions, review_questions, workday_questions
         from venator.tailor.prepare import prepare_application
         question_rows: list[dict] = []
         pins: list[dict] = []
         read_form = False
-        if refreshed.get("source") in {"greenhouse", "ashby"}:
+        if refreshed.get("source") in {"greenhouse", "ashby", "workday"}:
             try:
-                questions = (greenhouse_questions(refreshed) if refreshed.get("source") == "greenhouse"
+                source = refreshed.get("source")
+                questions = (greenhouse_questions(refreshed) if source == "greenhouse"
                              else ashby_questions(stores["data_dir"] / "answers" / "forms",
-                                                  refreshed, profile.identifier))
+                                                  refreshed, profile.identifier)
+                             if source == "ashby"
+                             else workday_questions(stores["data_dir"] / "answers" / "forms",
+                                                    refreshed, profile.identifier))
                 if questions:
                     question_rows, pins = review_questions(refreshed, profile, stores["data_dir"] / "answers", questions)
                     read_form = True
@@ -302,8 +319,10 @@ def perform(args: argparse.Namespace) -> dict:
                 pass
         library = latest(stores["data_dir"] / "answers", profile.identifier)
         statements = [row for row in library.values() if row.get("kind") == "statement" and row.get("answer")]
-        # Ashby form memory describes another Posting, not necessarily this one's uploads.
-        needs_letter = (refreshed.get("source") == "ashby" or not read_form
+        # Ashby form memory describes another Posting, not necessarily this one's uploads;
+        # Workday's letter upload is never part of the question memory because a file
+        # field is not a question. Both always draft a letter.
+        needs_letter = (refreshed.get("source") in {"ashby", "workday"} or not read_form
                         or any(row["kind"] == "file" and "letter" in row["label"].casefold()
                                for row in question_rows))
         result = prepare_application(refreshed, profile, directory, provider="claude", cover_letter=needs_letter,

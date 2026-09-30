@@ -876,6 +876,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_SHA: ${{ github.sha }}
           GUARD: .github/scripts/filters_version_guard.py
+          # The probe imports venator.match.store, which imports orjson at
+          # module scope; PyYAML alone fails with ModuleNotFoundError.
+          VENATOR_GUARD_PYTHON: uv run --quiet --no-project --with pyyaml --with orjson --python 3.13 python
         run: |
           set -euo pipefail
 

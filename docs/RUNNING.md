@@ -201,8 +201,8 @@ uv run python -m venator.applications applied POSTING_KEY --profile NAME
 `applied` records that you applied. It sends nothing to the employer.
 
 Apply checks the live Posting and reruns Hard Filters. It reads Greenhouse form
-questions when available, remembers Ashby questions per employer for the next
-Apply, and drafts a résumé and a letter if the form asks for one,
+questions when available, remembers Ashby and Workday questions per employer for
+the next Apply, and drafts a résumé and a letter if the form asks for one,
 and checks drafted passages against confirmed Profile facts. You can edit the text;
 each edit makes a new version. Reviewed files are hashed under `data/applications/`.
 
@@ -232,10 +232,27 @@ uv run python -m venator.applications fill POSTING_KEY --profile NAME
 
 It opens a visible browser with its own saved profile, so logins stick. On
 Greenhouse or Ashby it fills confirmed fields and uploads only the reviewed PDFs
-when the trusted form belongs to the Posting. Lever opens for you to fill in by
-hand. Review the form, answer what's missing, deal with any CAPTCHA and press
-Submit yourself. A detected Greenhouse confirmation records an applied
-Application; use `applied` after Ashby or if you submitted without detection.
+when the trusted form belongs to the Posting. On Workday, sign in and pick
+**Autofill with Resume**. Venator puts the verified tailored résumé in the upload
+field; you press Continue to let Workday parse it. Between steps, Venator fills
+blanks and corrects parser values from your confirmed Profile facts, the prepared
+version and your answer library. It picks a drop-down option only when its text
+matches exactly, and types dates by keyboard. You press every **Save and Continue**
+and **Submit**. Venator never presses Back, Add or Delete, and stops filling if a
+drop-down pick triggers a save. If an old résumé is attached, remove it yourself.
+
+Your `resume.yaml` can hold `contact.legal_name`, `contact.address`,
+`contact.phone_type` and `languages` with proficiency levels; see
+`profiles/example/resume.yaml`. Missing facts stay for you to fill. EEO fields
+need explicit EEO answers in your answer library; an explicit universal row can
+be reused across employers.
+
+Lever opens for you to fill in by hand. Review the form, answer what's missing,
+deal with any CAPTCHA and press Submit yourself. A detected Greenhouse
+confirmation records an applied Application. Workday records Applied only after
+your Submit and a Candidate Home row matching the Posting's title and requisition;
+a URL or completion modal alone is not enough. Use `applied` after Ashby or if you
+submitted without detection.
 
 ## Dry Run browser tools
 

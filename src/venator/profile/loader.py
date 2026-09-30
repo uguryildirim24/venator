@@ -25,10 +25,14 @@ from venator.profile.schema import (
     REMOTE_PREFERENCES,
     SHIFT_PREFERENCES,
     BoardRegistry,
+    ContactFacts,
     EducationFitPolicy,
     FilterPolicy,
     CompactPolicy,
+    LanguageProficiency,
+    LegalName,
     Matcher,
+    PostalAddress,
     Profile,
     RoleLevel,
     RoleTargetPolicy,
@@ -144,6 +148,55 @@ def _flag(value: object, at: _Field, default: bool = False) -> bool:
     if not isinstance(value, bool):
         raise at.reject("must be true or false", value)
     return value
+
+
+def _contact_facts(resume: Mapping[str, object], at: _Field) -> ContactFacts:
+    """Read the contact facts an employer form asks for, and validate their shape.
+
+    ``resume.yaml`` is free-form everywhere else; these keys are the ones a
+    fill path reads by position, so a number where a street should be is
+    rejected here rather than typed into a form. Every key is optional and a
+    missing one leaves that form field for the Owner.
+    """
+
+    contact = _mapping(resume.get("contact"), at.child("contact"))
+    name_at = at.child("contact").child("legal_name")
+    name = _mapping(contact.get("legal_name"), name_at)
+    address_at = at.child("contact").child("address")
+    address = _mapping(contact.get("address"), address_at)
+    languages_value = resume.get("languages")
+    languages: tuple[LanguageProficiency, ...] = ()
+    if languages_value is not None:
+        languages_at = at.child("languages")
+        if isinstance(languages_value, str) or not isinstance(languages_value, Sequence):
+            raise languages_at.reject("must be a list of language entries", languages_value)
+        entries: list[LanguageProficiency] = []
+        for index, entry in enumerate(languages_value):
+            entry_at = languages_at.child(str(index))
+            row = _mapping(entry, entry_at)
+            language = _text(row.get("language"), entry_at.child("language")).strip()
+            proficiency = _text(row.get("proficiency"), entry_at.child("proficiency")).strip()
+            if not language or not proficiency:
+                raise entry_at.reject("must name a language and its proficiency", entry)
+            entries.append(LanguageProficiency(language, proficiency))
+        languages = tuple(entries)
+    return ContactFacts(
+        legal_name=LegalName(
+            first=_text(name.get("first"), name_at.child("first")).strip(),
+            middle=_text(name.get("middle"), name_at.child("middle")).strip(),
+            last=_text(name.get("last"), name_at.child("last")).strip(),
+        ),
+        address=PostalAddress(
+            line1=_text(address.get("line1"), address_at.child("line1")).strip(),
+            line2=_text(address.get("line2"), address_at.child("line2")).strip(),
+            city=_text(address.get("city"), address_at.child("city")).strip(),
+            state=_text(address.get("state"), address_at.child("state")).strip(),
+            postal_code=_text(address.get("postal_code"), address_at.child("postal_code")).strip(),
+            country=_text(address.get("country"), address_at.child("country")).strip(),
+        ),
+        phone_type=_text(contact.get("phone_type"), at.child("contact").child("phone_type")).strip(),
+        languages=languages,
+    )
 
 
 @overload
@@ -739,6 +792,7 @@ def load_profile(directory: Path) -> Profile:
         )
 
     resume = _read_yaml(directory / "resume.yaml")
+    contact = _contact_facts(resume, _Field(directory / "resume.yaml"))
     constraints = _read_yaml(directory / "constraints.yaml")
     targeting_path = directory / "targeting.yaml"
     targeting = _read_yaml(targeting_path)
@@ -786,4 +840,5 @@ def load_profile(directory: Path) -> Profile:
         search=search,
         sources=sources,
         filters=filters,
+        contact=contact,
     )

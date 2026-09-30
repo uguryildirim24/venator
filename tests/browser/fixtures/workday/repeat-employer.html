@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Synthetic Workday repeat employer</title></head>
+<body>
+<!--
+  Synthetic repeat-employer Autofill step: an earlier application's résumé is
+  attached, so Workday shows Delete Resume.pdf where the file input was.
+  Removing it is the person's click; once removed the file input returns.
+  Workday automation ids with a made-up attachment.
+-->
+<main data-automation-id="applyFlowPage">
+  <ol data-automation-id="progressBar">
+    <li data-automation-id="progressBarActiveStep">
+      <label aria-live="polite">current step 1 of 7</label>
+      <label id="active-step-label">Autofill with Resume</label>
+    </li>
+  </ol>
+  <section data-automation-id="applyFlowAutoFillPage">
+    <p id="use-last-application">Use My Last Application</p>
+    <div id="attachment" data-automation-id="formField-">
+      <button type="button" id="delete-old" data-automation-id="delete-file" aria-label="Delete Resume.pdf">Delete Resume.pdf</button>
+    </div>
+  </section>
+  <div data-automation-id="pageFooter">
+    <button type="button" id="next" data-automation-id="pageFooterNextButton">Continue</button>
+  </div>
+</main>
+<script>
+window.__fixtureClicks = [];
+document.getElementById("delete-old").addEventListener("click", (event) => {
+  if (event.isTrusted) window.__fixtureClicks.push(event.target.id);
+  document.getElementById("attachment").remove();
+  const upload = document.createElement("div");
+  upload.setAttribute("data-automation-id", "formField-");
+  upload.innerHTML = '<button type="button" data-automation-id="select-files" id="repeat-select">Select file</button>'
+    + '<input type="file" id="repeat-file" data-automation-id="file-upload-input-ref">';
+  document.querySelector("section").appendChild(upload);
+});
+</script>
+</body>
+</html>

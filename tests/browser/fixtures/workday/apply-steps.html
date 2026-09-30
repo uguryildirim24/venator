@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synthetic Workday apply wizard</title>
+<style>
+  [hidden] { display: none !important; }
+  .field { margin: 8px 0; }
+  label { display: block; }
+</style>
+</head>
+<body>
+<!--
+  Synthetic Workday fixture. Workday automation ids, labels and step order,
+  with made-up person values. No personal data.
+
+  The fixture never submits a DOM form: Workday's pageFooterNextButton does not
+  fire a submit event, and this page models that. A combobox opens its own
+  listbox and choosing an option changes only that field; the tests are the
+  only code that ever presses the footer button.
+-->
+<main data-automation-id="applyFlowPage">
+  <ol data-automation-id="progressBar">
+    <li data-automation-id="progressBarCompletedStep"><label>completed step 1 of 7</label><label>Start</label></li>
+    <li data-automation-id="progressBarActiveStep">
+      <label aria-live="polite">current step 1 of 7</label>
+      <label id="active-step-label">Autofill with Resume</label>
+    </li>
+  </ol>
+
+  <section data-step="0" data-automation-id="applyFlowAutoFillPage">
+    <h2>Autofill with Resume</h2>
+    <p id="use-last-application">Use My Last Application</p>
+    <div class="field" data-automation-id="formField-">
+      <button type="button" data-automation-id="select-files" id="select-files">Select file</button>
+      <input type="file" id="autofill-file" data-automation-id="file-upload-input-ref">
+    </div>
+  </section>
+
+  <section data-step="1" data-automation-id="applyFlowMyInfoPage" hidden>
+    <h2>My Information</h2>
+    <div class="field" data-automation-id="formField-legalName--firstName">
+      <label for="name--legalName--firstName"><span>First Name<abbr>*</abbr></span></label>
+      <input type="text" id="name--legalName--firstName" name="legalName--firstName" aria-required="true">
+    </div>
+    <div class="field" data-automation-id="formField-legalName--lastName">
+      <label for="name--legalName--lastName"><span>Last Name<abbr>*</abbr></span></label>
+      <input type="text" id="name--legalName--lastName" name="legalName--lastName" aria-required="true" value="Example-Q">
+    </div>
+    <div class="field" data-automation-id="formField-addressLine1">
+      <label for="address--addressLine1"><span>Address Line 1<abbr>*</abbr></span></label>
+      <input type="text" id="address--addressLine1" name="addressLine1" aria-required="true">
+    </div>
+    <div class="field" data-automation-id="formField-addressLine2">
+      <label for="address--addressLine2"><span>Address Line 2</span></label>
+      <input type="text" id="address--addressLine2" name="addressLine2">
+    </div>
+    <div class="field" data-automation-id="formField-city">
+      <label for="address--city"><span>City<abbr>*</abbr></span></label>
+      <input type="text" id="address--city" name="city" aria-required="true" value="Madison">
+    </div>
+    <div class="field" data-automation-id="formField-country">
+      <label for="country--country"><span>Country<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="country--country" name="country" aria-label="Country Select One Required">Select One</button>
+      <input type="hidden" id="country--value" aria-hidden="true">
+    </div>
+    <div class="field" data-automation-id="formField-countryRegion">
+      <label for="address--countryRegion"><span>State<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="address--countryRegion" name="countryRegion" aria-label="State Select One Required">Select One</button>
+      <input type="hidden" id="region--value" aria-hidden="true">
+    </div>
+    <div class="field" data-automation-id="formField-postalCode">
+      <label for="address--postalCode"><span>Postal Code<abbr>*</abbr></span></label>
+      <input type="text" id="address--postalCode" name="postalCode" aria-required="true">
+    </div>
+    <div class="field" data-automation-id="formField-phoneNumber">
+      <label for="phoneNumber--phoneNumber"><span>Phone Number<abbr>*</abbr></span></label>
+      <input type="text" id="phoneNumber--phoneNumber" name="phoneNumber" aria-required="true">
+    </div>
+    <div class="field" data-automation-id="formField-phoneType">
+      <label for="phoneNumber--phoneType"><span>Phone Device Type<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="phoneNumber--phoneType" name="phoneType" aria-label="Phone Device Type Select One Required">Select One</button>
+      <input type="hidden" id="phoneType--value" aria-hidden="true">
+    </div>
+    <div class="field" data-automation-id="formField-source">
+      <label for="source--source"><span>How Did You Hear About Us?<abbr>*</abbr></span></label>
+      <input type="text" id="source--source" name="source" aria-required="true">
+    </div>
+    <div class="field" data-automation-id="formField-candidateIsPreviousWorker">
+      <fieldset>
+        <legend><label id="radio-label1"><span>Did you work previously at Fixture Labs?<abbr>*</abbr></span></label></legend>
+        <div class="field">
+          <input type="radio" id="previous-yes" name="candidateIsPreviousWorker" value="Yes" aria-checked="false">
+          <label for="previous-yes">Yes</label>
+          <input type="radio" id="previous-no" name="candidateIsPreviousWorker" value="No" aria-checked="false">
+          <label for="previous-no">No</label>
+        </div>
+      </fieldset>
+    </div>
+  </section>
+
+  <section data-step="2" data-automation-id="applyFlowMyExpPage" hidden>
+    <h2>My Experience</h2>
+    <!-- Experience row: the parser dropped a title qualifier and put the
+         location into the description. -->
+    <div data-automation-id="formField-jobTitle">
+      <label for="workExperience-10--jobTitle"><span>Job Title<abbr>*</abbr></span></label>
+      <input type="text" id="workExperience-10--jobTitle" name="jobTitle" value="Chemistry Assistant" aria-required="true">
+    </div>
+    <div data-automation-id="formField-companyName">
+      <label for="workExperience-10--companyName"><span>Company<abbr>*</abbr></span></label>
+      <input type="text" id="workExperience-10--companyName" name="companyName" value="Fixture Laboratory" aria-required="true">
+    </div>
+    <div data-automation-id="formField-location">
+      <label for="workExperience-10--location"><span>Location</span></label>
+      <input type="text" id="workExperience-10--location" name="location" value="Chicago, IL">
+    </div>
+    <div data-automation-id="formField-currentlyWorkHere">
+      <label for="workExperience-10--currentlyWorkHere"><span>I currently work here</span></label>
+      <input type="checkbox" id="workExperience-10--currentlyWorkHere" name="currentlyWorkHere">
+    </div>
+    <div data-automation-id="formField-startDate">
+      <label for="workExperience-10--startDate-dateSectionMonth-input"><span>From<abbr>*</abbr></span></label>
+      <input role="spinbutton" inputmode="numeric" aria-label="Month" aria-valuenow="8" aria-valuetext="8" value="8" id="workExperience-10--startDate-dateSectionMonth-input" data-automation-id="dateSectionMonth-input">
+      <input role="spinbutton" inputmode="numeric" aria-label="Year" aria-valuenow="2025" aria-valuetext="2025" value="2025" id="workExperience-10--startDate-dateSectionYear-input" data-automation-id="dateSectionYear-input">
+    </div>
+    <div data-automation-id="formField-roleDescription">
+      <label for="workExperience-10--roleDescription"><span>Role Description</span></label>
+      <textarea id="workExperience-10--roleDescription" name="roleDescription">Chicago, IL</textarea>
+    </div>
+    <div data-automation-id="formField-jobTitle">
+      <label for="workExperience-11--jobTitle"><span>Job Title<abbr>*</abbr></span></label>
+      <input type="text" id="workExperience-11--jobTitle" name="jobTitle" value="Research Technician" aria-required="true">
+    </div>
+    <div data-automation-id="formField-companyName">
+      <label for="workExperience-11--companyName"><span>Company<abbr>*</abbr></span></label>
+      <input type="text" id="workExperience-11--companyName" name="companyName" value="Fixture Research Center" aria-required="true">
+    </div>
+    <div data-automation-id="formField-location">
+      <label for="workExperience-11--location"><span>Location</span></label>
+      <input type="text" id="workExperience-11--location" name="location" value="Madison, WI">
+    </div>
+    <div data-automation-id="formField-currentlyWorkHere">
+      <label for="workExperience-11--currentlyWorkHere"><span>I currently work here</span></label>
+      <input type="checkbox" id="workExperience-11--currentlyWorkHere" name="currentlyWorkHere">
+    </div>
+    <div data-automation-id="formField-startDate">
+      <label for="workExperience-11--startDate-dateSectionMonth-input"><span>From<abbr>*</abbr></span></label>
+      <input role="spinbutton" inputmode="numeric" aria-label="Month" aria-valuenow="1" aria-valuetext="1" value="1" id="workExperience-11--startDate-dateSectionMonth-input" data-automation-id="dateSectionMonth-input">
+      <input role="spinbutton" inputmode="numeric" aria-label="Year" aria-valuenow="2025" aria-valuetext="2025" value="2025" id="workExperience-11--startDate-dateSectionYear-input" data-automation-id="dateSectionYear-input">
+    </div>
+    <div data-automation-id="formField-endDate">
+      <label for="workExperience-11--endDate-dateSectionMonth-input"><span>To<abbr>*</abbr></span></label>
+      <input role="spinbutton" inputmode="numeric" aria-label="Month" aria-valuenow="4" aria-valuetext="4" value="4" id="workExperience-11--endDate-dateSectionMonth-input" data-automation-id="dateSectionMonth-input">
+      <input role="spinbutton" inputmode="numeric" aria-label="Year" aria-valuenow="2026" aria-valuetext="2026" value="2026" id="workExperience-11--endDate-dateSectionYear-input" data-automation-id="dateSectionYear-input">
+    </div>
+    <div data-automation-id="formField-roleDescription">
+      <label for="workExperience-11--roleDescription"><span>Role Description</span></label>
+      <textarea id="workExperience-11--roleDescription" name="roleDescription">Catalogued samples under supervision.</textarea>
+    </div>
+    <div data-automation-id="formField-schoolName">
+      <label for="education-50--schoolName"><span>School or University<abbr>*</abbr></span></label>
+      <input type="text" id="education-50--schoolName" name="schoolName" value="Example University" aria-required="true">
+    </div>
+    <div data-automation-id="formField-degree">
+      <label for="education-50--degree"><span>Degree<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="education-50--degree" name="degree" aria-label="Degree Select One Required">Select One</button>
+      <input type="hidden" id="degree--value" aria-hidden="true">
+    </div>
+    <div data-automation-id="formField-fieldOfStudy">
+      <label for="education-50--fieldOfStudy"><span>Field of Study</span></label>
+      <input type="text" id="education-50--fieldOfStudy" name="fieldOfStudy">
+    </div>
+    <div data-automation-id="formField-gradeAverage">
+      <label for="education-50--gradeAverage"><span>Overall Result (GPA)</span></label>
+      <input type="text" id="education-50--gradeAverage" name="gradeAverage">
+    </div>
+    <div data-automation-id="formField-language">
+      <label for="language-31--language"><span>Language<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="language-31--language" name="language" aria-label="Language English Required">English</button>
+      <input type="hidden" id="language-31--value" aria-hidden="true">
+    </div>
+    <div data-automation-id="formField-native">
+      <label for="language-31--native"><span>I am fluent in this language.</span></label>
+      <input type="checkbox" id="language-31--native" name="native">
+    </div>
+    <div data-automation-id="formField-overall">
+      <label for="language-31--overall"><span>Overall<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="language-31--overall" name="overall" aria-label="Overall Select One Required">Select One</button>
+      <input type="hidden" id="language-31--overall-value" aria-hidden="true">
+    </div>
+    <div data-automation-id="formField-language">
+      <label for="language-32--language"><span>Language<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="language-32--language" name="language" aria-label="Language Spanish Required">Spanish</button>
+      <input type="hidden" id="language-32--value" aria-hidden="true">
+    </div>
+    <div data-automation-id="formField-native">
+      <label for="language-32--native"><span>I am fluent in this language.</span></label>
+      <input type="checkbox" id="language-32--native" name="native">
+    </div>
+    <div data-automation-id="formField-overall">
+      <label for="language-32--overall"><span>Overall<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" id="language-32--overall" name="overall" aria-label="Overall Select One Required">Select One</button>
+      <input type="hidden" id="language-32--overall-value" aria-hidden="true">
+    </div>
+    <div data-automation-id="formField-resume">
+      <label for="experience-resume"><span>Upload a file (5MB max)<abbr>*</abbr></span></label>
+      <button type="button" data-automation-id="select-files" id="experience-select-files">Select file</button>
+      <input type="file" id="experience-resume" data-automation-id="file-upload-input-ref">
+    </div>
+    <div data-automation-id="formField-linkedInAccount">
+      <label for="socialNetworkAccounts--linkedInAccount"><span>LinkedIn</span></label>
+      <input type="text" id="socialNetworkAccounts--linkedInAccount" name="linkedInAccount">
+    </div>
+  </section>
+
+  <section data-step="3" data-automation-id="applyFlowAppQuestionsPage" hidden>
+    <h2>Application Questions</h2>
+    <div data-automation-id="formField-salary">
+      <label for="salary--salary"><span>What is your expected salary?</span></label>
+      <input type="text" id="salary--salary" name="salary">
+    </div>
+    <div data-automation-id="formField-eligibility">
+      <fieldset>
+        <legend><label id="eligibility-label"><span>Are you legally eligible to work in the country to which you are applying?</span></label></legend>
+        <div class="field">
+          <input type="radio" id="eligible-yes" name="eligibility" value="Yes">
+          <label for="eligible-yes">Yes</label>
+          <input type="radio" id="eligible-no" name="eligibility" value="No">
+          <label for="eligible-no">No</label>
+        </div>
+      </fieldset>
+    </div>
+    <div data-automation-id="formField-sponsorship">
+      <fieldset>
+        <legend><label id="sponsorship-label"><span>Do you now, or will you in the future, require sponsorship for a work visa, including the transfer of an existing work authorization to Fixture Labs or its affiliates?<abbr>*</abbr></span></label></legend>
+        <div class="field">
+          <input type="radio" id="sponsor-yes" name="sponsorship" value="Yes">
+          <label for="sponsor-yes">Yes</label>
+          <input type="radio" id="sponsor-no" name="sponsorship" value="No">
+          <label for="sponsor-no">No</label>
+        </div>
+      </fieldset>
+    </div>
+    <div data-automation-id="formField-gender">
+      <label for="gender--gender"><span>Gender</span></label>
+      <input type="text" id="gender--gender" name="gender">
+    </div>
+    <div data-automation-id="formField-noticePeriod">
+      <label for="noticePeriod--noticePeriod"><span>What is your notice period?</span></label>
+      <button type="button" aria-haspopup="listbox" aria-label="What is your notice period? Select One" id="noticePeriod--noticePeriod" name="noticePeriod">Select One</button>
+      <input type="hidden" id="noticePeriod--value" aria-hidden="true">
+    </div>
+  </section>
+
+  <section data-step="4" data-automation-id="applyFlowVoluntaryPage" hidden>
+    <h2>Voluntary Disclosures</h2>
+    <p>Voluntary Disclosures form fields are drop-down buttons on the real tenant.</p>
+  </section>
+
+  <section data-step="5" data-automation-id="applyFlowSelfIdentifyPage" hidden>
+    <h2>Self Identify</h2>
+    <div data-automation-id="formField-veteranStatus">
+      <label for="veteran--veteranStatus"><span>Protected veteran status</span></label>
+      <button type="button" aria-haspopup="listbox" aria-label="Protected veteran status Select One" id="veteran--veteranStatus" name="veteranStatus">Select One</button>
+      <input type="hidden" id="veteranStatus--value" aria-hidden="true">
+    </div>
+  </section>
+
+  <section data-step="6" data-automation-id="applyFlowReviewPage" hidden>
+    <h2>Review</h2>
+    <p>Review the application. Venator fills nothing here and presses nothing.</p>
+  </section>
+
+  <section id="candidate-home" hidden>
+    <h2>Candidate Home</h2>
+    <div role="dialog" data-automation-id="candidateHomeTaskModal">
+      <h3>Application Submitted</h3>
+      <p>We have received your application and are currently reviewing your experience and qualifications.</p>
+    </div>
+    <table data-automation-id="taskListContainer">
+      <thead><tr><th>Job Title</th><th>Job Req</th><th>My Application Status</th></tr></thead>
+      <tbody>
+        <tr data-automation-id="taskListRow">
+          <th><div data-automation-id="applicationTitle">Research Associate</div></th>
+          <td>R123456</td>
+          <td><div data-automation-id="applicationStatus">Under Review</div></td>
+        </tr>
+        <tr data-automation-id="taskListRow">
+          <th><div data-automation-id="applicationTitle">Another Opening</div></th>
+          <td>R000000</td>
+          <td><div data-automation-id="applicationStatus">Under Review</div></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div data-automation-id="pageFooter">
+    <button type="button" data-automation-id="pageFooterBackButton">Back</button>
+    <button type="button" id="next" data-automation-id="pageFooterNextButton">Continue</button>
+  </div>
+</main>
+
+<script>
+window.__fixtureClicks = [];
+window.__fixtureClickDetails = [];
+window.__fixtureSubmitEvents = 0;
+window.__fixtureSaveOnPick = false;
+document.addEventListener("submit", () => { window.__fixtureSubmitEvents += 1; }, true);
+
+// Every trusted click is recorded, so the tests can prove which controls Venator
+// pressed. The real Workday footer fires no DOM submit; this fixture models that.
+function recordClick(target) {
+  const control = target.closest("button, [role=option], [role=combobox], input, textarea, select") || target;
+  const detail = {
+    id: control.id || "",
+    text: (control.textContent || "").replace(/\s+/g, " ").trim(),
+    role: control.getAttribute("role") || "",
+    automation_id: control.getAttribute("data-automation-id") || "",
+    in_field: Boolean(control.closest('[data-automation-id^="formField-"]')) || Boolean(control.closest('[role="listbox"]')),
+  };
+  window.__fixtureClicks.push({id: detail.id, text: detail.text});
+  window.__fixtureClickDetails.push(detail);
+}
+document.addEventListener("click", (event) => {
+  if (event.isTrusted) recordClick(event.target);
+}, true);
+
+// A combobox opens its own listbox and chooses an option; it never touches the
+// footer. The option menu text echoes the real tenant's option labels.
+const COMBO_MENUS = {
+  "country--country": ["Select One", "United States of America", "Canada"],
+  "address--countryRegion": ["Select One", "Illinois", "Massachusetts"],
+  "phoneNumber--phoneType": ["Select One", "Mobile", "Office"],
+  "education-50--degree": ["Select One", "Bachelor of Science in Biochemistry", "1st level degree (e.g. Bachelor)"],
+  "language-31--language": ["Select One", "English", "Spanish"],
+  "language-31--overall": ["Select One", "Native or bi-lingual proficiency", "Professional working proficiency"],
+  "language-32--language": ["Select One", "English", "Spanish"],
+  "language-32--overall": ["Select One", "Native or bilingual", "Professional working proficiency"],
+  "noticePeriod--noticePeriod": ["Select One", "Immediately", "Two weeks", "One month"],
+  "veteran--veteranStatus": ["Select One", "I am a protected veteran", "I am not a protected veteran"],
+};
+
+let openCombo = null;
+
+function closeCombo() {
+  if (!openCombo) return;
+  openCombo.button.setAttribute("aria-expanded", "false");
+  openCombo.popup.remove();
+  openCombo = null;
+}
+
+function openComboMenu(button) {
+  const texts = COMBO_MENUS[button.id];
+  if (!texts) return;
+  closeCombo();
+  const wrapper = document.createElement("div");
+  wrapper.setAttribute("visibility", "opened");
+  const list = document.createElement("ul");
+  list.setAttribute("role", "listbox");
+  list.setAttribute("tabindex", "-1");
+  list.id = "combo-" + button.id + "-listbox";
+  texts.forEach((text, i) => {
+    const item = document.createElement("li");
+    item.setAttribute("role", "option");
+    item.setAttribute("data-value", text.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+    item.id = "combo-" + button.id + "-option-" + i;
+    if (i === 0) { item.setAttribute("aria-disabled", "true"); item.setAttribute("aria-selected", "true"); }
+    const inner = document.createElement("div");
+    inner.textContent = text;
+    item.appendChild(inner);
+    item.addEventListener("click", (event) => {
+      if (i === 0 || !event.isTrusted) return;
+      button.textContent = text;
+      const proxy = button.closest('[data-automation-id^="formField-"]').querySelector('input[type="hidden"]');
+      if (proxy) proxy.value = item.dataset.value;
+      closeCombo();
+      if (window.__fixtureSaveOnPick) {
+        fetch("https://fixture.wd1.myworkdayjobs.com/wday/calypso/cxs/jobapplication/fixture/package/1/validate",
+              {method: "PUT", body: "{}"});
+      }
+    });
+    list.appendChild(item);
+  });
+  wrapper.appendChild(list);
+  document.body.appendChild(wrapper);
+  button.setAttribute("aria-expanded", "true");
+  button.setAttribute("aria-controls", list.id);
+  openCombo = {button, popup: wrapper};
+}
+
+for (const button of document.querySelectorAll('button[aria-haspopup="listbox"]')) {
+  button.addEventListener("click", () => {
+    if (openCombo && openCombo.button === button) { closeCombo(); return; }
+    openComboMenu(button);
+  });
+  button.addEventListener("keydown", (event) => { if (event.key === "Escape") closeCombo(); });
+}
+
+// The date spinbuttons accept keystrokes and report the entered value.
+for (const spin of document.querySelectorAll('input[role="spinbutton"]')) {
+  const normalize = () => {
+    const digits = spin.value.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+    spin.setAttribute("aria-valuenow", digits);
+    spin.setAttribute("aria-valuetext", spin.value.trim());
+  };
+  spin.addEventListener("input", normalize);
+  spin.addEventListener("change", normalize);
+}
+
+const steps = ["Autofill with Resume", "My Information", "My Experience",
+               "Application Questions", "Voluntary Disclosures", "Self Identify", "Review"];
+let index = 0;
+
+window.__showStep = function (target) {
+  closeCombo();
+  index = target;
+  for (const section of document.querySelectorAll("[data-step]")) {
+    section.hidden = section.dataset.step !== String(index);
+  }
+  document.getElementById("active-step-label").textContent = steps[index];
+  const next = document.getElementById("next");
+  next.textContent = steps[index] === "Review" ? "Submit"
+    : steps[index] === "Autofill with Resume" ? "Continue" : "Save and Continue";
+};
+
+document.getElementById("next").addEventListener("click", (event) => {
+  if (steps[index] === "Review") {
+    document.getElementById("candidate-home").hidden = false;
+    return;
+  }
+  window.__showStep(index + 1);
+});
+</script>
+</body>
+</html>

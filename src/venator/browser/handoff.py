@@ -7,7 +7,7 @@ intercepts or submits a request.  The caller waits only for a small ready
 handshake from a detached worker; the worker owns the browser for the rest of
 its lifetime.
 
-Greenhouse and Ashby are assisted sources. Other sources open for manual completion.
+Greenhouse, Ashby and Workday are assisted sources. Other sources open for manual completion.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from venator.fill.plan import create_fill_plan
 from venator.profile import Profile
 
 
-SUPPORTED_SOURCES = frozenset({"greenhouse", "ashby"})
+SUPPORTED_SOURCES = frozenset({"greenhouse", "ashby", "workday"})
 STARTUP_TIMEOUT = 60.0
 ASSIST_TIMEOUT = 15.0
 NAVIGATION_TIMEOUT_MS = 8_000
@@ -169,18 +169,41 @@ def _request_payload(
     questions: list[dict] | None = None,
     form_memory: Path | None = None,
     profile_id: str | None = None,
+    answers: list[dict] | None = None,
+    prepared_resume: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    contact = profile.contact
     return {
         "posting": {
             "key": posting.get("key"),
             "source": posting.get("source"),
             "board": posting.get("board"),
+            "company": posting.get("company"),
             "title": posting.get("title"),
             "apply_url": posting.get("apply_url"),
             "url": posting.get("url"),
         },
         "profile_resume": dict(profile.resume),
         "profile_constraints": dict(profile.constraints),
+        "profile_contact": {
+            "legal_name": {
+                "first": contact.legal_name.first,
+                "middle": contact.legal_name.middle,
+                "last": contact.legal_name.last,
+            },
+            "address": {
+                "line1": contact.address.line1,
+                "line2": contact.address.line2,
+                "city": contact.address.city,
+                "state": contact.address.state,
+                "postal_code": contact.address.postal_code,
+                "country": contact.address.country,
+            },
+            "phone_type": contact.phone_type,
+            "languages": [
+                {"language": row.language, "proficiency": row.proficiency} for row in contact.languages
+            ],
+        },
         "profile_resume_source": profile.resume_path.as_posix(),
         "profile_constraints_source": profile.constraints_path.as_posix(),
         "resume_file": str(Path(resume_file)),
@@ -189,6 +212,8 @@ def _request_payload(
         "browser_directory": str(profile.directory.resolve() / ".venator-browser"),
         "debugging_port": debugging_port,
         "questions": questions or [],
+        "answers": answers or [],
+        "prepared_resume": dict(prepared_resume) if isinstance(prepared_resume, Mapping) else None,
         "form_memory": str(form_memory) if form_memory else None,
         "profile_id": profile_id,
     }
@@ -207,11 +232,15 @@ def _trusted_url(url: str, *, allow_test_urls: bool = False) -> bool:
     parsed = urlparse(url)
     if allow_test_urls and parsed.scheme == "file":
         return True
-    return parsed.scheme == "https" and parsed.netloc in {
+    if parsed.scheme == "https" and parsed.netloc in {
         "boards.greenhouse.io", "job-boards.greenhouse.io",
         "boards.eu.greenhouse.io", "job-boards.eu.greenhouse.io",
         "jobs.ashbyhq.com",
-    }
+    }:
+        return True
+    from venator.browser.workday import is_workday_host
+
+    return parsed.scheme == "https" and is_workday_host(parsed.hostname)
 
 
 def _trusted_document(url: str, posting: Mapping[str, Any], *, allow_test_urls: bool = False) -> bool:
@@ -224,6 +253,10 @@ def _trusted_document(url: str, posting: Mapping[str, Any], *, allow_test_urls: 
     if len(key) != 3:
         return False
     parts = parsed.path.strip("/").split("/")
+    if key[0] == "workday":
+        from venator.browser.workday import workday_identity
+
+        return workday_identity(url, posting)
     if key[0] == "ashby":
         return parsed.hostname == "jobs.ashbyhq.com" and parts in (
             [key[1], key[2]], [key[1], key[2], "application"]
@@ -488,6 +521,10 @@ def _assist_form(
 
 
 def _source_message(source: str, assisted: bool, *, filled: int) -> str:
+    if source == "workday" and assisted:
+        return (f"Opened Workday in a persistent browser; {filled} confirmed field(s) filled on the first step. "
+                "Venator fills the step that is on screen and presses no Save and Continue, Back, Add, Delete "
+                "or Submit; press each Save and Continue yourself.")
     if assisted:
         return f"Opened the {source} application in a persistent browser; {filled} confirmed fields filled. Review and submit manually."
     return f"Opened the {source} application in a persistent browser for manual completion."
@@ -576,7 +613,19 @@ def _navigation_and_fill(request: Mapping[str, Any], page: Page) -> tuple[dict[s
         warnings.append("The application requires a login; sign in manually before entering Profile facts.")
     if source in SUPPORTED_SOURCES and not host_confirmed:
         warnings.append("The navigated page is outside this Posting's form; no fields or uploads were attempted.")
-    if assisted:
+    if assisted and source == "workday":
+        from venator.browser import workday
+
+        workday_first: dict[str, Any] = {}
+        try:
+            step = workday.fill_current_step(page, request)
+            filled = int(step.get("filled") or 0)
+            details = [field for field in step.get("fields") or [] if isinstance(field, Mapping)]
+            warnings.extend(str(item) for item in step.get("warnings") or [])
+            workday_first = step
+        except Exception as error:
+            warnings.append(f"Workday assistance stopped before the first step: {str(error).strip()}.")
+    elif assisted:
         try:
             filled, assist_warnings, details = _assist_form(
                 page,
@@ -621,6 +670,8 @@ def _navigation_and_fill(request: Mapping[str, Any], page: Page) -> tuple[dict[s
         "submit_events": submit_events,
         "fields": details,
     }
+    if source == "workday":
+        result["_workday"] = workday_first if assisted else {}
     return result, filled, warnings
 
 
@@ -631,12 +682,19 @@ _WATCH_SCRIPT = r"""
   const blank = new WeakSet();
   const inventory = () => {
     document.querySelectorAll('input, select, textarea').forEach(el => {
-      if (!el.value && !el.checked) blank.add(el);
+      if (!el.value && !el.checked && el.getClientRects().length) blank.add(el);
     });
   };
   inventory();
+  // A wizard that replaces its DOM in place re-arms this after each step, so a
+  // field the person answered by hand stays a candidate in later steps.
+  window.__venatorHandoffBlankInventory = inventory;
   document.addEventListener('click', event => {
-    if (event.isTrusted) window.venatorHandoffEvent({event: 'action'});
+    if (!event.isTrusted) return;
+    const button = event.target.closest('button');
+    window.venatorHandoffEvent({event: 'action', submit: Boolean(button
+      && button.getAttribute('data-automation-id') === 'pageFooterNextButton'
+      && button.textContent.trim().toLowerCase() === 'submit')});
   }, true);
   document.addEventListener('keydown', event => {
     if (event.isTrusted) window.venatorHandoffEvent({event: 'action'});
@@ -656,18 +714,37 @@ _WATCH_SCRIPT = r"""
 """
 
 
-def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_path: Path, state: dict) -> None:
-    """The worker writes a bounded receipt; the app is the sole Track writer."""
+def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_path: Path, state: dict) -> Any:
+    """The worker writes a bounded receipt; the app is the sole Track writer.
+
+    Returns the frame inspector so a worker that owns a polling loop can call
+    it again; a wizard whose confirmation is a row in a swapped-in panel, like
+    Workday's Candidate Home, has no navigation event to hang off.
+    """
     from venator.apply.classify import reserved
 
     posting = request.get("posting") or {}
     if posting.get("source") not in SUPPORTED_SOURCES:
-        return
+        return lambda _frame: None
     acted = False
     allow_test_urls = bool(request.get("allow_test_urls"))
 
     def inspect(frame: Frame) -> None:
-        if posting.get("source") != "greenhouse" or not acted or (_read_json(state_path) or {}).get("state") == "applied":
+        if not acted or (_read_json(state_path) or {}).get("state") == "applied":
+            return
+        source = posting.get("source")
+        if source == "workday":
+            from venator.browser.workday import candidate_home_marker
+
+            marker = candidate_home_marker(frame, posting, allow_test_urls=allow_test_urls)
+            if marker is None:
+                # No URL or employer text is persisted in the receipt state.
+                return
+            _write_json(state_path, {"state": "applied", "pid": state["pid"], "marker": marker,
+                                     "candidates": state.get("candidates", []),
+                                     "warnings": state.get("warnings", [])})
+            return
+        if source != "greenhouse":
             return
         host = _confirmation_host(frame.url, posting, allow_test_urls=allow_test_urls)
         if host is None:
@@ -694,7 +771,8 @@ def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_
         if frame is None or not _trusted_document(frame.url, posting, allow_test_urls=allow_test_urls):
             return
         if payload.get("event") == "action":
-            acted = True
+            if posting.get("source") != "workday" or payload.get("submit") is True:
+                acted = True
             return
         if payload.get("event") != "change" or payload.get("login") is True:
             return
@@ -730,6 +808,7 @@ def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_
     context.on("page", attach)
     for page in context.pages:
         attach(page)
+    return inspect
 
 
 def _worker_main(request_path: Path, ready_path: Path, lock_path: Path, state_path: Path) -> int:
@@ -756,6 +835,7 @@ def _worker_main(request_path: Path, ready_path: Path, lock_path: Path, state_pa
             """
         )
         result, _filled, _warnings = _navigation_and_fill(request, page)
+        workday_first = result.pop("_workday", {}) if isinstance(result.get("_workday"), Mapping) else {}
         state = {
             "state": "ready",
             "token": token,
@@ -768,7 +848,15 @@ def _worker_main(request_path: Path, ready_path: Path, lock_path: Path, state_pa
             "fields": result.get("fields", []),
         }
         _write_json(state_path, state)
-        _install_confirmation_watch(context, request, state_path, state)
+        inspect = _install_confirmation_watch(context, request, state_path, state)
+        source = str((request.get("posting") or {}).get("source") or "")
+        session = None
+        if source == "workday":
+            from venator.browser import workday
+
+            session = workday.WorkdaySession(context, page, request,
+                                             first_report=workday_first or None)
+            session.warnings = list(dict.fromkeys([*result.get("warnings", []), *session.warnings]))
         _write_json(ready_path, {"ready": True, **result})
         _write_json(lock_path, {"token": token, "pid": os.getpid(), "state": "ready"})
         # Keep the persistent context alive until the user closes its pages.
@@ -779,6 +867,19 @@ def _worker_main(request_path: Path, ready_path: Path, lock_path: Path, state_pa
                 # Closing the tab we were waiting on must not close other tabs.
                 if not context.pages:
                     break
+            if session is not None and (_read_json(state_path) or {}).get("state") == "ready":
+                session.tick()
+                current = _read_json(state_path) or {}
+                if (session.steps != (current.get("workday") or {}).get("steps", [])
+                        or session.warnings != current.get("warnings", [])):
+                    _write_json(state_path, {**current, "filled": session.total_filled,
+                                             "warnings": session.warnings,
+                                             "workday": {"steps": session.steps}})
+            for open_page in context.pages:
+                try:
+                    inspect(open_page.main_frame)
+                except Exception:
+                    pass
         return 0
     except Exception as error:
         message = " ".join(str(error).split())[:900] or "browser handoff failed"
@@ -837,6 +938,8 @@ def start_handoff(
     allow_test_urls: bool = False,
     questions: list[dict] | None = None,
     form_memory: Path | None = None,
+    answers: list[dict] | None = None,
+    prepared_resume: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Start a detached visible handoff and return after its ready handshake.
 
@@ -873,6 +976,8 @@ def start_handoff(
         questions,
         form_memory,
         profile.identifier,
+        answers,
+        prepared_resume,
     )
     request["allow_test_urls"] = allow_test_urls
     request["token"] = token
