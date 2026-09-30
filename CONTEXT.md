@@ -65,7 +65,7 @@ Owner never applies twice.
 **Score**
 A keep probability from a person's own model configured in their Install. A score
 binds to the compact Posting input and model identity. No model ships with Venator.
-For you starts at 0.5; below 0.014 is Excluded; Explore is between those cuts.
+For you starts at 0.5; below 0.1 is Excluded; Explore is between those cuts.
 For you and Explore show the highest keep probability first.
 
 **Refresh and Score**

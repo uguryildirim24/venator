@@ -88,7 +88,7 @@ const STATUS_SQL = `
       WHEN hf.verdict = 'kill' THEN 'hard-killed'
       WHEN a.listing_status = 'closed' THEN 'closed'
       WHEN hf.verdict = 'pass' AND k.probability >= 0.5 THEN 'queued'
-      WHEN hf.verdict = 'pass' AND k.probability < 0.014 THEN 'hard-killed'
+      WHEN hf.verdict = 'pass' AND k.probability < 0.1 THEN 'hard-killed'
       WHEN hf.verdict = 'pass' AND k.probability IS NOT NULL THEN 'needs-review'
       WHEN hf.verdict = 'pass' AND k.posting_key IS NOT NULL THEN 'unscored'
       ELSE 'not-filtered'

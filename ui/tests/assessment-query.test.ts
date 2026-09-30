@@ -10,8 +10,8 @@ test("only current keep scores route passes at the exact cutoffs; résumé evide
 	try {
 		const cases = [
 			["high", 1, "queued"], ["half", 0.5, "queued"],
-			["below-half", 0.49999, "needs-review"], ["hidden-cut", 0.014, "needs-review"],
-			["below-hidden", 0.013999, "hard-killed"], ["zero", 0, "hard-killed"],
+			["below-half", 0.49999, "needs-review"], ["hidden-cut", 0.1, "needs-review"],
+			["below-hidden", 0.099999, "hard-killed"], ["zero", 0, "hard-killed"],
 			["waiting", null, "unscored"], ["closed", 0.8, "closed"],
 			["killed", 0.9, "hard-killed"], ["applied", 0, "applied"],
 		] as const;
