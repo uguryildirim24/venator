@@ -6,8 +6,29 @@ name: Avery Example
 contact:
   location: Chicago, IL
   phone: 555-555-0100
+  # The device type and the address a Workday-style form asks for are separate
+  # facts from `location`. Every part is optional.
+  phone_type: Mobile
   email: avery@example.com
   linkedin: www.linkedin.com/in/avery-example
+  legal_name:
+    first: Avery
+    middle: Quinn
+    last: Example
+  address:
+    line1: 100 Example Avenue
+    line2: Suite 2
+    city: Chicago
+    state: IL
+    postal_code: "60601"
+    country: United States of America
+
+# Languages and levels as a Workday-style language row asks for them. Every
+# language needs both a name and a proficiency; the fill path uses the
+# proficiency to decide whether "I am fluent" applies.
+languages:
+  - language: English
+    proficiency: Native or bilingual
 
 # Add a `sections:` list here to name your own section titles and their order
 # (see this file's sections list); without one the renderer uses its defaults.

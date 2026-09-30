@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Synthetic Workday sign-in</title></head>
+<body>
+<!-- Synthetic sign-in page. Venator types nothing here and captures nothing. -->
+<main>
+  <h1>Sign In</h1>
+  <form onsubmit="window.__fixtureSubmitEvents = (window.__fixtureSubmitEvents || 0) + 1; return false;">
+    <label for="login-email">Email Address</label>
+    <input type="text" id="login-email" name="email" autocomplete="username">
+    <label for="login-password">Password</label>
+    <input type="password" id="login-password" name="password" autocomplete="current-password">
+    <button type="submit">Sign In</button>
+  </form>
+</main>
+</body>
+</html>

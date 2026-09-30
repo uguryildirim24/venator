@@ -96,3 +96,46 @@ def test_scope_company_short_name_options_eeo_and_filters_version(tmp_path: Path
 ])
 def test_reserved_wording_never_reaches_general_answers(label: str, category: str):
     assert reserved(label) == category
+
+
+def test_workday_questions_are_scoped_per_tenant_and_profile(tmp_path: Path):
+    from venator.apply.form import remember_workday_form, workday_questions
+
+    posting = {"key": "workday:acme.wd1~AcmeCareers:R123456", "company": "Acme Labs"}
+    rows = [{"name": "source", "label": "How Did You Hear About Us?", "kind": "text", "required": True,
+             "options": None, "maxlength": None}]
+    memory = tmp_path / "forms"
+    remember_workday_form(memory, posting, rows, "fixture")
+    assert workday_questions(memory, posting, "fixture") == rows
+    assert (memory / ".profile").read_text().strip() == "fixture"
+    # Another requisition on the same tenant reads the same question set.
+    assert workday_questions(memory, {**posting, "key": "workday:acme.wd1~AcmeCareers:R2"}, "fixture") == rows
+    # Another tenant gets nothing.
+    assert workday_questions(memory, {"key": "workday:other.wd1~Other:R1"}, "fixture") == []
+    with pytest.raises(ValueError, match="another Profile"):
+        workday_questions(memory, posting, "different")
+    # An unchanged set is not appended twice.
+    remember_workday_form(memory, posting, rows, "fixture")
+    assert len(list(memory.glob("*.jsonl"))) == 1
+    assert len((memory / next(iter(memory.glob("*.jsonl"))).name).read_text().splitlines()) == 1
+    # A later wizard step's questions merge into the tenant's set, not replace it.
+    later = {"name": "question_2", "label": "Do you require sponsorship?", "kind": "select",
+             "required": True, "options": None, "maxlength": None}
+    remember_workday_form(memory, posting, [later], "fixture")
+    assert [row["name"] for row in workday_questions(memory, posting, "fixture")] == ["source", "question_2"]
+
+
+def test_universal_eeo_rows_apply_on_every_tenant(tmp_path: Path):
+    directory = tmp_path / "answers"
+    row = append(directory, "fixture", text="Gender", kind="select", answer="Woman",
+                 board="acme.wd1~AcmeCareers", universal=True, eeo=True)
+    assert row["scope"] == "any" and row["eeo"] is True
+    entries = latest(directory, "fixture")
+    matched = match(entries, text="Gender", board="other.wd5~OtherSite", company="Other Corp",
+                    kind="select", options=["Woman", "Man", "Decline"])
+    assert matched is not None and matched["answer"] == "Woman"
+    # Without an EEO row there is nothing to match, and a general row cannot be
+    # stored for the same reserved question at all.
+    with pytest.raises(ValueError, match="cannot be stored"):
+        append(directory, "fixture", text="Gender", kind="select", answer="Woman",
+               board="other.wd5~OtherSite")

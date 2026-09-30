@@ -52,8 +52,11 @@ def application_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                            "letter_paragraphs": [{"source_ids": ["lab:fact"], "text": "I measured synthetic samples."},
                                                  {"source_ids": ["lab:fact"], "text": "My samples were measured."}]})
 
-    def browser(posting, profile, resume_file, directory, *, letter_file, questions, form_memory):
+    def browser(posting, profile, resume_file, directory, *, letter_file, questions, form_memory, answers=None, prepared_resume=None):
         assert form_memory == install / "data" / "answers" / "forms"
+        # Workday corrections read the tailored version this Posting prepared,
+        # never the base resume.yaml wording.
+        assert prepared_resume is not None and "experience" in prepared_resume
         run.browser_calls.append((posting, resume_file, letter_file))
         assert questions and questions[0]["name"] == "cover_letter"
         assert resume_file.read_bytes().startswith(b"%PDF")
@@ -239,3 +242,30 @@ def test_changed_profile_refuses_fill(application_run):
     with pytest.raises(ValueError, match="job or your profile changed"):
         run.perform("fill")
     assert run.browser_calls == []
+
+
+def test_workday_confirmation_needs_the_candidate_home_binding(application_run):
+    from venator.track.store import load_events
+
+    run = application_run
+    posting = {**run.refreshed, "key": "workday:fixture.wd1~FixtureSite:R123456", "source": "workday",
+               "board": "fixture.wd1~FixtureSite", "external_id": "R123456", "company": "Fixture Laboratory",
+               "url": "https://fixture.wd1.myworkdayjobs.com/en-US/FixtureSite/job/R123456"}
+    append_observations(run.install / "data" / "postings", [posting])
+    directory = applications.application_directory({"data_dir": run.install / "data"}, "candidate-test", posting["key"])
+    directory.mkdir(parents=True, exist_ok=True)
+
+    def status(marker):
+        (directory / ".handoff-session.json").write_text(json.dumps({"state": "applied", "marker": marker}))
+        return applications.perform(argparse.Namespace(action="status", key=posting["key"], profile="candidate",
+                                                       profile_dir=None, file=None, edits="[]", version=None))
+
+    base = {"system": "workday", "board": posting["board"], "job_id": "R123456",
+            "host": "fixture.wd1.myworkdayjobs.com", "at": 1}
+    # A generic completion marker without the requisition and title is not a receipt.
+    assert status(base)["applied"] is False
+    assert status({**base, "requisition": "R123456"})["applied"] is False
+    assert status({**base, "requisition": "R000000", "title": "Fixture Technician"})["applied"] is False
+    assert status({**base, "requisition": "R123456", "title": "Fixture Technician"})["applied"] is True
+    events = load_events(run.install / "data" / "track")
+    assert sum(row["event"] == "submit" and row["posting_key"] == posting["key"] for row in events) == 1

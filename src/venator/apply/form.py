@@ -95,6 +95,65 @@ def ashby_questions(directory: Path, posting: Mapping[str, Any], profile_id: str
     return questions
 
 
+def remember_workday_form(directory: Path, posting: Mapping[str, Any], questions: list[dict],
+                          profile_id: str | None = None) -> None:
+    """Remember one Workday tenant's question metadata, never a typed value.
+
+    The next Apply on the same board can show the questions it saw last time
+    before the account wall opens. Only labels, kinds, options and limits are
+    stored; the session state holds the values the Owner typed and the Answer
+    library is the only place an answer persists. Steps replace the DOM, so a
+    set seen on a later step merges into the earlier steps' set by name.
+    """
+    from venator.profile.claim import claim_store
+
+    parts = str(posting.get("key") or "").split(":")
+    if len(parts) != 3 or parts[0] != "workday" or not profile_id or not parts[1]:
+        return
+    incoming: dict[str, dict] = {}
+    for question in questions:
+        if not isinstance(question, dict) or not isinstance(question.get("name"), str):
+            continue
+        if not question.get("name") or not isinstance(question.get("label"), str) or not question.get("label"):
+            continue
+        incoming.setdefault(question["name"],
+                            {key: question.get(key) for key in ("name", "label", "kind", "required", "options", "maxlength")})
+    if not incoming:
+        return
+    existing = workday_questions(directory, posting, profile_id)
+    merged = {row["name"]: row for row in existing}
+    merged.update(incoming)
+    stored = list(merged.values())
+    if stored == existing:
+        return
+    claim_store(directory, profile_id)
+    now = datetime.now(timezone.utc)
+    with (directory / f"{now.date().isoformat()}.jsonl").open("a", encoding="utf-8", newline="\n") as output:
+        output.write(json.dumps({"board": parts[1], "profile_id": profile_id, "questions": stored},
+                                ensure_ascii=False) + "\n")
+
+
+def workday_questions(directory: Path, posting: Mapping[str, Any], profile_id: str) -> list[dict]:
+    """The last question set observed on this Workday tenant, for review only."""
+    from venator.profile.claim import store_owner
+
+    parts = str(posting.get("key") or "").split(":")
+    if len(parts) != 3 or parts[0] != "workday":
+        raise ValueError("This Posting is not on Workday.")
+    owner = store_owner(directory)
+    if owner is not None and owner != profile_id:
+        raise ValueError("The form memory belongs to another Profile.")
+    questions: list[dict] = []
+    for path in sorted(directory.glob("????-??-??.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            if row.get("profile_id") != profile_id:
+                raise ValueError("The form memory belongs to another Profile.")
+            if row.get("board") == parts[1]:
+                questions = row["questions"]
+    return questions
+
+
 def review_questions(posting: Mapping[str, Any], profile: Any, directory: Any,
                      questions: list[dict]) -> tuple[list[dict], list[dict]]:
     """Bucket every API question; only literal options can be reused."""

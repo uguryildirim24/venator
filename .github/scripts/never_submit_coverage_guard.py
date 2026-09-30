@@ -180,6 +180,32 @@ EXPECTED_BROWSER_TEST_IDS: frozenset[str] = frozenset(
     | {
         "tests.browser.test_handoff_headless::test_handoff_headless_option_is_honoured",
     }
+    | {
+        "tests.browser.test_workday_fill::" + name
+        for name in (
+            "test_workday_autofill_uploads_resume_and_fills_each_step_pressing_no_footer",
+            "test_workday_combobox_pick_uses_the_fields_own_listbox",
+            "test_workday_combobox_without_an_exact_option_is_left_alone",
+            "test_workday_combobox_guard_refuses_footer_delete_and_add_buttons",
+            "test_workday_date_spinbuttons_fill_by_keyboard",
+            "test_workday_selection_that_triggers_a_save_stops_filling",
+            "test_workday_session_preserves_manual_edits_on_the_same_step",
+            "test_workday_review_does_not_fill_retained_fields",
+            "test_workday_first_step_save_keeps_the_session_stopped",
+            "test_workday_unknown_dates_do_not_clear_current_employment",
+            "test_workday_eeo_field_takes_only_an_explicit_eeo_answer",
+            "test_workday_sign_in_page_gets_nothing_typed_or_captured",
+            "test_workday_captures_a_typed_value_before_the_step_is_replaced",
+            "test_workday_applied_receipt_only_from_a_matching_candidate_home_row",
+            "test_workday_repeat_employer_tells_the_person_to_remove_the_old_resume",
+            "test_workday_document_identity_names_the_tenant_site_and_requisition",
+            "test_workday_host_is_bound_to_the_postings_tenant[same-tenant]",
+            "test_workday_host_is_bound_to_the_postings_tenant[lookalike-tenant]",
+            "test_workday_host_is_bound_to_the_postings_tenant[other-tenant]",
+            "test_workday_host_is_bound_to_the_postings_tenant[suffix-lookalike]",
+            "test_workday_host_is_bound_to_the_postings_tenant[another-system]",
+        )
+    }
 )
 
 #: How many test cases that is. Derived from the list above rather than written

@@ -31,10 +31,14 @@ yourself. Venator never presses submit for you.
   facts. You can edit the drafts; each edit makes a new reviewed version.
 - **Fill** opens the employer's form in a visible browser. On Greenhouse and
   Ashby it fills confirmed answers and uploads only reviewed, hash-checked PDFs
-  when the form belongs to the Posting. Ashby questions are remembered per employer
-  for the next Apply. Lever stays manual. You check the form and press Submit
-  yourself. Greenhouse confirmation can be recorded automatically; for Ashby,
-  use **I Applied** after submitting.
+  when the form belongs to the Posting. On Workday, you sign in and pick
+  **Autofill with Resume**; Venator uploads the tailored résumé, fills gaps and
+  corrects parser values between steps. Drop-downs need an exact option match.
+  You press every **Save and Continue** and **Submit** yourself. Ashby and Workday
+  questions are remembered per employer for the next Apply. Lever stays manual.
+  You check the form before submitting. Greenhouse confirmation can be recorded
+  automatically; Workday also needs your Submit and an exact Candidate Home row.
+  For Ashby, use **I Applied** after submitting.
 
 Everything personal (your Profile, the Postings, every decision) stays in a folder on
 your computer, outside this repository.

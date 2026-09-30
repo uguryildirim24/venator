@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Synthetic Workday forbidden buttons</title></head>
+<body>
+<!--
+  Synthetic guard fixture. The known field wrappers carry buttons that would
+  submit, navigate, delete or add a row if Venator ever pressed a drop-down
+  without checking what it is. Venator must refuse each one before pressing
+  anything. Workday automation ids with made-up values.
+-->
+<main data-automation-id="applyFlowPage">
+  <ol data-automation-id="progressBar">
+    <li data-automation-id="progressBarActiveStep">
+      <label aria-live="polite">current step 2 of 7</label>
+      <label id="active-step-label">My Information</label>
+    </li>
+  </ol>
+  <section data-step="1" data-automation-id="applyFlowMyInfoPage">
+    <div data-automation-id="formField-country">
+      <label for="country--country"><span>Country<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" aria-label="Country Select One Required" id="country--country" data-automation-id="pageFooterNextButton">Save and Continue</button>
+    </div>
+    <div data-automation-id="formField-countryRegion">
+      <label for="address--countryRegion"><span>State<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" aria-label="State Select One Required" id="address--countryRegion" data-automation-id="delete-file">Delete Resume.pdf</button>
+    </div>
+    <div data-automation-id="formField-phoneType">
+      <label for="phoneNumber--phoneType"><span>Phone Device Type<abbr>*</abbr></span></label>
+      <button type="button" aria-haspopup="listbox" aria-label="Phone Device Type Select One Required" id="phoneNumber--phoneType" data-automation-id="add-button">Add Another</button>
+    </div>
+  </section>
+  <div data-automation-id="pageFooter">
+    <button type="button" id="back" data-automation-id="pageFooterBackButton">Back</button>
+    <button type="button" id="next" data-automation-id="pageFooterNextButton">Save and Continue</button>
+    <button type="button" id="delete-old" data-automation-id="delete-file">Delete</button>
+    <button type="button" id="add-row" data-automation-id="add-button">Add</button>
+  </div>
+</main>
+<script>
+window.__fixtureClicks = [];
+window.__fixtureClickDetails = [];
+document.addEventListener("click", (event) => {
+  if (!event.isTrusted) return;
+  const control = event.target.closest("button, [role=option]") || event.target;
+  window.__fixtureClicks.push(control.id || "");
+  window.__fixtureClickDetails.push({id: control.id || "", text: control.textContent.replace(/\s+/g, " ").trim(),
+                                     automation_id: control.getAttribute("data-automation-id") || ""});
+}, true);
+</script>
+</body>
+</html>

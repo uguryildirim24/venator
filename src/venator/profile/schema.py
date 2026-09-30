@@ -565,6 +565,67 @@ class BoardRegistry:
 
 
 @dataclass(frozen=True)
+class LegalName:
+    """The legal name parts an application form asks for.
+
+    Distinct from ``resume.yaml: name``, which is the display name the résumé
+    prints. A form asking for First and Last Name is asking for the legal
+    parts, and a display name with a preferred name in it is not an answer to
+    that question.
+    """
+
+    first: str = ""
+    middle: str = ""
+    last: str = ""
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.first or self.middle or self.last)
+
+
+@dataclass(frozen=True)
+class PostalAddress:
+    """One street address, as an employer's form asks for it."""
+
+    line1: str = ""
+    line2: str = ""
+    city: str = ""
+    state: str = ""
+    postal_code: str = ""
+    country: str = ""
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.line1 or self.line2 or self.city or self.state or self.postal_code or self.country)
+
+
+@dataclass(frozen=True)
+class LanguageProficiency:
+    """One language the Owner writes or speaks, and how well."""
+
+    language: str = ""
+    proficiency: str = ""
+
+
+@dataclass(frozen=True)
+class ContactFacts:
+    """The contact facts an employer form asks for, loaded from ``resume.yaml``.
+
+    Every part is optional. A Profile that never writes ``legal_name`` or
+    ``address`` still loads and simply leaves those form fields for the Owner.
+    """
+
+    legal_name: LegalName = field(default_factory=LegalName)
+    address: PostalAddress = field(default_factory=PostalAddress)
+    phone_type: str = ""
+    languages: tuple[LanguageProficiency, ...] = ()
+
+    @property
+    def configured(self) -> bool:
+        return self.legal_name.configured or self.address.configured or bool(self.phone_type or self.languages)
+
+
+@dataclass(frozen=True)
 class Profile:
     """One person's Profile: the loaded files plus everything derived from them."""
 
@@ -581,6 +642,7 @@ class Profile:
     search: SearchTargeting = field(default_factory=SearchTargeting)
     sources: BoardRegistry = field(default_factory=BoardRegistry)
     filters: FilterPolicy = field(default_factory=FilterPolicy)
+    contact: ContactFacts = field(default_factory=ContactFacts)
 
     @property
     def identifier(self) -> str:

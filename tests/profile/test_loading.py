@@ -104,6 +104,81 @@ def test_a_profile_file_holding_a_list_is_rejected(tmp_path: Path) -> None:
     assert "resume.yaml must contain a YAML mapping, not a list" in str(error.value)
 
 
+def test_contact_facts_load_into_the_profile(tmp_path: Path) -> None:
+    resume = """
+name: Avery Example
+contact:
+  location: Chicago, IL
+  phone: (555) 010-0100
+  phone_type: Mobile
+  email: avery@example.com
+  legal_name:
+    first: Avery
+    middle: Quinn
+    last: Example
+  address:
+    line1: 100 Example Avenue
+    line2: Suite 2
+    city: Chicago
+    state: IL
+    postal_code: "60601"
+    country: United States of America
+languages:
+  - language: English
+    proficiency: Native or bilingual
+  - language: Spanish
+    proficiency: Professional working proficiency
+"""
+    profile = load_profile(write_profile(tmp_path / "contact", resume=resume))
+
+    assert profile.contact.legal_name.first == "Avery"
+    assert profile.contact.legal_name.middle == "Quinn"
+    assert profile.contact.legal_name.last == "Example"
+    assert profile.contact.address.line1 == "100 Example Avenue"
+    assert profile.contact.address.city == "Chicago"
+    assert profile.contact.address.state == "IL"
+    assert profile.contact.address.postal_code == "60601"
+    assert profile.contact.address.country == "United States of America"
+    assert profile.contact.phone_type == "Mobile"
+    assert [(row.language, row.proficiency) for row in profile.contact.languages] == [
+        ("English", "Native or bilingual"),
+        ("Spanish", "Professional working proficiency"),
+    ]
+    assert profile.contact.configured is True
+
+
+def test_a_profile_without_contact_facts_loads_empty(tmp_path: Path) -> None:
+    profile = load_profile(write_profile(tmp_path / "plain", resume="name: Avery Example\n"))
+
+    assert profile.contact.configured is False
+    assert profile.contact.legal_name.first == ""
+    assert profile.contact.languages == ()
+
+
+@pytest.mark.parametrize(
+    ("resume", "expected"),
+    [
+        ("contact:\n  legal_name: Avery\n", "resume.yaml: contact.legal_name must be a mapping"),
+        ("contact:\n  legal_name:\n    first: 12\n", "contact.legal_name.first must be a string"),
+        ("contact:\n  address: 100 Example Avenue\n", "resume.yaml: contact.address must be a mapping"),
+        ("contact:\n  phone_type: [Mobile]\n", "resume.yaml: contact.phone_type must be a string"),
+        ("languages: English\n", "resume.yaml: languages must be a list of language entries"),
+        ("languages:\n  - language: English\n", "resume.yaml: languages.0 must name a language and its proficiency"),
+        ("languages:\n  - language: 5\n    proficiency: Native\n", "languages.0.language must be a string"),
+    ],
+)
+def test_malformed_contact_facts_name_their_field_and_file(
+    tmp_path: Path, resume: str, expected: str
+) -> None:
+    directory = write_profile(tmp_path / "broken-contact", resume=resume)
+
+    with pytest.raises(ProfileError) as error:
+        load_profile(directory)
+
+    assert expected in str(error.value)
+    assert str(directory / "resume.yaml") in str(error.value)
+
+
 def test_the_only_non_scaffold_profile_is_implied(tmp_path: Path) -> None:
     profiles = tmp_path / "profiles"
     write_profile(profiles / "someone", targeting="profile:\n  name: someone\n")
