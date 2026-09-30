@@ -7,7 +7,8 @@ import { LocationFilter } from "../components/location-filter.tsx";
 import { Toolbar } from "../components/toolbar.tsx";
 import { formatDay, formatMoment } from "../format.ts";
 import { useListNavigation } from "../keys.ts";
-import { originLabel, postingCountLabel, ruleLabel, statusLabel } from "../labels.ts";
+import { hiddenKeepLabel, originLabel, postingCountLabel, ruleLabel, statusLabel } from "../labels.ts";
+import { scoreHidden } from "../triage.ts";
 import { homeListOf, inspectorQuery } from "../lists.ts";
 import { inspectorHash, navigate, PAGE_SIZE, postingHash, replaceRoute, type InspectorFilters } from "../router.ts";
 
@@ -145,7 +146,7 @@ export function InspectorView({ filters, page, funnel, reloadToken, onReload, se
 												open(index);
 											}}
 										>
-											<td>{statusLabel(entry.status)}</td>
+											<td>{entry.status === "hard-killed" && scoreHidden(decision, entry.keepProbability) && entry.keepProbability !== null ? hiddenKeepLabel(entry.keepProbability) : statusLabel(entry.status)}</td>
 											<td className="secondary" title={decision?.reason ?? undefined}>
 												{decision?.rule === null || decision?.rule === undefined ? "" : ruleLabel(decision.rule)}
 											</td>

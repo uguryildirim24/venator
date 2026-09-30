@@ -166,6 +166,14 @@ Postings stay searchable in the filter inspector and on the Employers page.
 The résumé assessment is a margin note. For you and Explore sort by keep
 probability, highest first, then verification recency.
 
+Entry and detail responses carry nullable `keepProbability`. A `hard-killed`
+Posting with a latest Hard Filter pass and a probability below 0.1 is score-hidden,
+not killed by a rule. It shows **Hidden: low keep score** and its percentage.
+Save and Dismiss remain available, including **s** and **x**, but Apply does not.
+A latest Hard Filter kill closes triage even if a keep score exists. Save writes
+`approve`, routes to `applied` and Saved; Dismiss writes `reject`, routes to
+`applied` and Dismissed.
+
 ## Dashboard HTTP surfaces
 
 The server listens on `127.0.0.1` only. The action routers are mounted before the
@@ -186,7 +194,12 @@ Each action surface needs its own header (`X-Venator-Run`, `X-Venator-Applicatio
 
 The location Hard Filter and dashboard picker use the same offline GeoNames
 lookup ([attribution](../docs/geonames-attribution.md)). It covers US-prefixed
-cities, counties, foreign remote sites and campus labels.
+cities, counties, foreign remote sites and campus labels. An explicit non-US
+source country binds sites without their own country to that foreign country,
+including Workday requisition countries and Ashby postal countries. An employer's
+local sites cannot make those sites local. Explicitly US New England secondary
+sites still keep a foreign-primary Posting local. Ashby normalization retains the
+postal country in `locations` and the address in `source_facts`.
 
 Onboarding writes one Profile at a time inside a server process. It refuses lone
 surrogates and symbolic links, stages the YAML, loads it back through

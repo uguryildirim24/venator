@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import type { PostingDetail } from "../../shared/contracts.ts";
 import { preparation, type ApplicationControl } from "../application.ts";
 import { reservesTrafficLights } from "../platform.ts";
+import { latestHardFilter, triageAllowed } from "../triage.ts";
 import { ExternalLink } from "./external-link.tsx";
 
 export type SearchProps = {
@@ -79,7 +80,7 @@ type PostingActionsProps = {
  */
 export function PostingActions({ detail, control }: PostingActionsProps) {
 	const state = detail.application?.state ?? null;
-	const excluded = detail.status === "hard-killed";
+	const excluded = !triageAllowed(detail, latestHardFilter(detail));
 	const busy = control.busy !== null;
 	const canApply = preparation(detail).allowed;
 	// Saving is the first step of an application; once there is a later one, it has happened.
@@ -109,7 +110,7 @@ export function PostingActions({ detail, control }: PostingActionsProps) {
 					</>
 				)}
 			</div>
-			{excluded ? null : state === "rejected" ? (
+			{excluded || detail.status === "hard-killed" ? null : state === "rejected" ? (
 				<button type="button" className="capsule" data-tone="plain" disabled={busy} onClick={() => control.run("restore")}>
 					{control.busy === "restore" ? "Restoring…" : "Restore"}
 				</button>

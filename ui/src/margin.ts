@@ -24,10 +24,12 @@ import {
 	assessmentNoteLabel,
 	assessmentNotePlace,
 	evidenceSourceLabel,
+	hiddenKeepLabel,
 	requirementFinding,
 	ruleLabel,
 } from "./labels.ts";
 import { inspectorHash } from "./router.ts";
+import { scoreHidden } from "./triage.ts";
 
 export type NoteTone = "green" | "ember" | "neutral";
 
@@ -74,6 +76,7 @@ export type MarginInput = {
 	readonly page: readonly ReaderBlock[];
 	readonly decisions: readonly FilterDecision[];
 	readonly assessment?: JobAssessment | undefined;
+	readonly keepProbability?: number | null;
 };
 
 /* --------------------------------------------------------------- matching */
@@ -231,6 +234,10 @@ export function buildMargin(input: MarginInput): Margin {
 
 	// Requirement clauses and every other sentence.
 	const header: MarginNote[] = [];
+	const filterDecision = input.decisions.findLast((decision) => decision.stage === "hard_filter" && decision.latest) ?? null;
+	if (input.keepProbability != null && scoreHidden(filterDecision, input.keepProbability)) {
+		header.push({ key: "keep-hidden", tone: "neutral", title: hiddenKeepLabel(input.keepProbability), subtitle: null });
+	}
 	const filterNotes: MarginNote[] = [];
 	const requirementNotes: MarginNote[] = [...unplacedEvidence];
 	const unplaced: { clause: string; title: string; subtitle: string | null }[] = [];

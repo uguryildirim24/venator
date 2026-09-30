@@ -72,6 +72,15 @@ export function optionalIntegerColumn(row: SqlRow, name: string): number | null 
 	return value;
 }
 
+export function optionalNumberColumn(row: SqlRow, name: string): number | null {
+	const value = column(row, name);
+	if (value === null) return null;
+	if (!isNumeric(value)) {
+		throw new ViewDataError(`Column \`${name}\` holds a non-numeric value; REAL or NULL expected.`);
+	}
+	return value;
+}
+
 export function booleanColumn(row: SqlRow, name: string): boolean {
 	return integerColumn(row, name) !== 0;
 }

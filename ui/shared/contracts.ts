@@ -109,6 +109,7 @@ export type PostingEntry = {
 	readonly posting: Posting;
 	readonly status: PostingStatus;
 	readonly hardFilter: FilterDecision | null;
+	readonly keepProbability: number | null;
 	/** Null until the Track stage records a lifecycle row for this Posting. */
 	readonly application: ApplicationState | null;
 	readonly assessment?: JobAssessment;
@@ -141,6 +142,7 @@ export type TrackEvent = {
 export type PostingDetail = {
 	readonly posting: Posting;
 	readonly status: PostingStatus;
+	readonly keepProbability: number | null;
 	readonly descriptionHtml: string;
 	/** The reader page, extracted from `descriptionHtml`. Empty when there is no description. */
 	readonly page: readonly ReaderBlock[];

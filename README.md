@@ -125,7 +125,12 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   see its sites; each site's Posting is still kept in history.
 - **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
   from 0.1 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
-  below 0.1. **Applications**, **Saved** and **Dismissed** hold what you've acted on.
+  below 0.1. A passing Posting below 0.1 reads **Hidden: low keep score**, with
+  its percentage, not as excluded by a rule. You can still **Save** or **Dismiss**
+  it, or press **s** or **x**. Saving moves it to **Saved**; dismissing moves it to
+  **Dismissed**. Hard Filter kills offer neither action, and hidden Postings do
+  not offer Apply. **Applications**, **Saved** and **Dismissed** hold what you've
+  acted on.
 - Switching Postings fades and raises the new page. The description opens with
   eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
 - A Posting's margin is one ledger. It starts with **Meets N of M** and a tally
@@ -185,8 +190,12 @@ filters:
 
 Use all six codes, once each. A Posting with a New England site passes. A remote
 site tied to a state counts only in that state, not everywhere. Only a physical
-local site can vouch for an unreadable site from the same employer. A Posting is
-excluded when its sites clearly fall outside New England. This is a Hard Filter
+local site can vouch for an unreadable site from the same employer. An explicit
+non-US source country, including Workday's requisition country or Ashby's postal
+country, puts that site outside even if the employer has local sites. A foreign
+primary site doesn't erase an explicitly US New England secondary site: that
+Posting still passes. A Posting is excluded when its sites clearly fall outside
+New England. This is a Hard Filter
 on Postings, separate from the location choice above a dashboard list.
 
 `education_fit` treats “<2 years experience” as a ceiling, not a two-year

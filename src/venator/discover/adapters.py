@@ -33,6 +33,7 @@ from venator.discover.common import (
     html_text,
     location_text,
     normalize_locations,
+    source_country,
     source_updated,
     text,
 )
@@ -471,7 +472,7 @@ def normalize_ashby_job(board: str, job: Mapping[str, Any]) -> dict:
     locations = normalize_locations(
         job.get("location") or job.get("locations"),
         job.get("secondaryLocations") or job.get("additionalLocations"),
-        country=first_text(job, "country", "countryCode", "country_code"),
+        country=source_country(job),
     )
     legacy_location = location_text(locations, first_text(job, "location"))
     description = _description_value(job.get("descriptionHtml") or job.get("description"))

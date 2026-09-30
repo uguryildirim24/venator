@@ -128,6 +128,10 @@ export function statusLabel(status: PostingStatus): string {
 	return "Awaiting Score";
 }
 
+export function hiddenKeepLabel(probability: number): string {
+	return `Hidden: low keep score · ${(probability * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
+}
+
 /** The sidebar's name for each home list; the toolbar title reuses the same words. */
 export function homeListLabel(list: HomeList): string {
 	if (list === "queued") return "For you";

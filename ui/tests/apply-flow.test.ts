@@ -9,7 +9,7 @@ import { installDom } from "../tools/dom-harness.ts";
 
 const detail: PostingDetail = {
 	posting: { key: "greenhouse:fixture:1", source: "greenhouse", board: "fixture", company: "Fixture", title: "Lab", location: "Boston", url: "https://example.test/job", postedAt: null, discoveredAt: "2026-09-26" },
-	status: "unscored", descriptionHtml: "Fixture", page: [], decisions: [], trackEvents: [], application: null,
+	status: "unscored", keepProbability: null, descriptionHtml: "Fixture", page: [], decisions: [], trackEvents: [], application: null,
 };
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 
