@@ -103,8 +103,11 @@ site is in New England or is US-wide remote. A remote site tied to a state
 counts only in that state. Only physical local sites vouch for an unreadable
 site from the same employer. Postings clearly outside New England are killed,
 including sites in named US territories. Workday's “2 Locations” label does not hide its other sites: the
-filter also reads sites in `source_facts`, including on older Postings. The
-location choice on the dashboard only narrows what's displayed.
+filter also reads sites in `source_facts`, including on older Postings. An explicit
+non-US source country, such as Workday's requisition country or Ashby's postal
+country, makes that site outside; the employer's local sites cannot vouch for it.
+An explicitly US New England secondary site still keeps a foreign-primary
+Posting local. The location choice on the dashboard only narrows what's displayed.
 
 `education_fit` reads “<2 years experience” as an upper bound, not a minimum.
 It counts a required MD/DO, PharmD, PhD or MS as an advanced degree only in
@@ -176,8 +179,11 @@ pnpm --dir ui desktop   # the same app in a Tauri window
 The API listens only on `127.0.0.1`. **For you** holds keep probabilities at
 least 0.5; **Explore** holds 0.1 to below 0.5. Both show highest keep
 probability first. **Excluded** holds Hard Filter kills and lower probabilities. Passes without a current score sit in **Awaiting
-Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. Employer HTML
-is shown in a sandboxed iframe.
+Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. A passing
+Posting below 0.1 is labelled **Hidden: low keep score**, with its percentage.
+You can **Save** it with **s** or **Dismiss** it with **x**, moving it to **Saved**
+or **Dismissed**. Hard Filter kills stay closed to those actions. Hidden Postings
+do not offer Apply. Employer HTML is shown in a sandboxed iframe.
 
 ## Applying
 

@@ -7,6 +7,7 @@ import { preparation, type ApplicationControl } from "../application.ts";
 import { formatDay, formatMoment, hostOf } from "../format.ts";
 import { assessmentNoteLabel, decisionTitle, employerLabel, ruleLabel, sourceLabel, statusLabel, trackEventLabel } from "../labels.ts";
 import { buildMargin, type Margin, type MarginNote, type MarkedBlock } from "../margin.ts";
+import { latestHardFilter, triageAllowed } from "../triage.ts";
 import { ExternalLink } from "./external-link.tsx";
 import { PageBlockText } from "./page-block-text.ts";
 import { Sheet } from "./sheet.tsx";
@@ -232,7 +233,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 	}, [control.busy, control.manifest, control.error, control.reviewVersion, awaitingReview]);
 	const state = detail.application?.state ?? null;
 	const since = detail.application?.since ?? null;
-	const { allowed } = preparation(detail);
+	const allowed = detail.status !== "hard-killed" && preparation(detail).allowed;
 	const manifest = control.manifest.status === "ready" ? control.manifest.value : null;
 
 	let body: ReactNode;
@@ -331,13 +332,13 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 				</div>
 			) : null}
 			{allowed && control.busy === null && control.failedAction === "apply" && control.prepared ? <button type="button" className="button" onClick={() => { control.run("apply"); setAwaitingReview(true); }}>Retry Apply</button> : null}
-			{!allowed || control.error === null ? null : (
+			{control.error === null ? null : (
 				<div className="note" role="alert">
 					<span className="note-title">That did not go through</span>
 					<span className="note-subtitle">{control.error}</span>
 				</div>
 			)}
-			{!allowed || control.notice === null ? null : (
+			{control.notice === null ? null : (
 				<p className="note-subtitle" role="status">
 					{control.notice}
 				</p>
@@ -436,10 +437,11 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 				page: detail.page,
 				decisions: detail.decisions,
 				assessment,
+				keepProbability: detail.status === "hard-killed" ? detail.keepProbability : null,
 			}),
 		[detail, assessment],
 	);
-	const excluded = detail.status === "hard-killed";
+	const excluded = !triageAllowed(detail, latestHardFilter(detail));
 	const employer = employerLabel(posting) ?? `via ${sourceLabel(posting.source)}`;
 	const eyebrow = posting.location === null || posting.location === "" ? employer : `${employer} · ${posting.location}`;
 	const host = hostOf(assessment?.applyUrl || posting.url);

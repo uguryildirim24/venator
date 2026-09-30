@@ -11,7 +11,7 @@ import { installDom } from "../tools/dom-harness.ts";
 
 const detail: PostingDetail = {
 	posting: { key: "quest:lab", source: "other", board: "quest", company: "Quest", title: "Lab", location: "Boston", url: "https://example.org/jobs", postedAt: null, discoveredAt: "2026-09-26" },
-	status: "unscored", descriptionHtml: "<p>Original</p>",
+	status: "unscored", keepProbability: null, descriptionHtml: "<p>Original</p>",
 	page: [
 		{ kind: "heading", text: "Overview" },
 		{ kind: "paragraph", text: "Work in the lab." },

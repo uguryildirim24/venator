@@ -153,6 +153,11 @@ Refresh sit below Employers, including checks run from the command line. It says
 **Not checked yet** if no check has been recorded. Score sits above the Profile
 account row.
 
+In Excluded, a Hard Filter pass below 0.1 shows **Hidden: low keep score** and its
+percentage instead of a rule exclusion. **Save** and **Dismiss** still work, as do
+**s** and **x**; they move the Posting to Saved or Dismissed. Hard Filter kills
+stay closed to those actions. Neither offers Apply while excluded.
+
 The main screen keeps two columns even at the smallest opening window size.
 The desktop window opens at 1440×900. For you and Explore sort by keep
 probability, highest first, then verification recency. The Posting page's margin is one ledger. It starts

@@ -14,6 +14,7 @@ import { useKeyBindings, type KeyBinding } from "../keys.ts";
 import {
 	applicationStateLabel,
 	homeListLabel,
+	hiddenKeepLabel,
 	originLabel,
 	postingCountLabel,
 	ruleLabel,
@@ -36,6 +37,7 @@ import { EmptyList } from "./empty-list.tsx";
 import { UpdatingState } from "./first-run.tsx";
 import { FIRST_RUN } from "./onboarding/copy.ts";
 import { nextPostingArrival } from "./posting-arrival.ts";
+import { latestHardFilter, scoreHidden, triageAllowed } from "../triage.ts";
 
 /** What the list column is showing: a home list or the inspector's results. */
 type Source =
@@ -68,7 +70,7 @@ function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	const state = entry.application?.state ?? null;
 	let status: Cell["status"] = null;
 	if (entry.status === "hard-killed") {
-		status = { text: entry.hardFilter?.verdict === "kill" && entry.hardFilter.rule ? ruleLabel(entry.hardFilter.rule) : homeListLabel("filtered"), glyph: "excluded" };
+		status = { text: scoreHidden(entry.hardFilter, entry.keepProbability) && entry.keepProbability !== null ? hiddenKeepLabel(entry.keepProbability) : entry.hardFilter?.rule ? ruleLabel(entry.hardFilter.rule) : homeListLabel("filtered"), glyph: "excluded" };
 	} else if (list === "applied" && state !== null) {
 		status = {
 			text: `${applicationStateLabel(state)}${entry.application?.since ? ` · ${formatDay(entry.application.since)}` : ""}`,
@@ -181,7 +183,10 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 		[keys, postings, select, selectedKey],
 	);
 	const selectedEntry = postings.status === "ready" ? postings.value.entries.find((entry) => entry.groupKeys?.includes(selectedKey ?? "")) : undefined;
-	const canTriage = selectedEntry !== undefined && selectedEntry.status !== "hard-killed" && control.busy === null;
+	const current = detail.status === "ready" && detail.value.posting.key === selectedKey ? detail.value : null;
+	const selectedPosting = current ?? (selectedEntry?.posting.key === selectedKey ? selectedEntry : undefined);
+	const selectedFilter = current === null ? selectedEntry?.hardFilter ?? null : latestHardFilter(current);
+	const canTriage = selectedPosting !== undefined && triageAllowed(selectedPosting, selectedFilter) && control.busy === null;
 	const bindings = useMemo<readonly KeyBinding[]>(
 		() => [
 			{ keys: ["j", "ArrowDown"], label: "j", description: "next Posting", run: () => move((index) => index + 1) },
@@ -189,13 +194,13 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 			{ keys: ["g"], label: "g", description: "first Posting", run: () => move(() => 0) },
 			{ keys: ["G"], label: "G", description: "last Posting", run: () => move(() => keys.length - 1) },
 			{ keys: ["s"], label: "s", description: "Save Posting", run: () => {
-				if (canTriage && (selectedEntry?.application?.state === null || selectedEntry?.application?.state === undefined || selectedEntry.application.state === "queued")) control.run("save");
+				if (canTriage && (selectedPosting?.application?.state === null || selectedPosting?.application?.state === undefined || selectedPosting.application.state === "queued")) control.run("save");
 			} },
 			{ keys: ["x"], label: "x", description: "Dismiss Posting", run: () => {
-				if (canTriage && selectedEntry?.application?.state !== "rejected") control.run("dismiss");
+				if (canTriage && selectedPosting?.application?.state !== "rejected") control.run("dismiss");
 			} },
 		],
-		[canTriage, control, keys.length, move, selectedEntry],
+		[canTriage, control, keys.length, move, selectedPosting],
 	);
 	useKeyBindings(bindings);
 
@@ -224,7 +229,6 @@ export function Workspace({ route, reloadToken, onReload, funnel, searchField, s
 
 	const shown = postings.status === "ready" ? postings.value.entries.length : 0;
 	const pages = total === null || total <= PAGE_SIZE ? null : { first: offset + 1, last: offset + shown, total };
-	const current = detail.status === "ready" && detail.value.posting.key === selectedKey ? detail.value : null;
 	const requisitions = postings.status === "ready" ? postings.value.entries.find((entry) => entry.groupKeys?.includes(selectedKey ?? ""))?.groupKeys ?? [] : [];
 
 	return (

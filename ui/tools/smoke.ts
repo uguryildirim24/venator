@@ -25,10 +25,9 @@
  * Then the fixture twice more as the desktop host, once as a Mac and once as Windows, for the
  * one property of the window that is not words: the frame.
  *
- * Every check in every pass is also held to one rule the design makes absolute: **no score
- * number and no score, anywhere.** The view still holds both, so the values are read out of the
- * database the pass serves and looked for on every screen, and the first pass also asks the
- * API for every Posting and proves neither number crosses the wire. See `HELD_NUMBERS`.
+ * Historical decision scores stay off every screen and off the wire. A score-hidden Posting
+ * names its live keep probability instead. The fixture's historical values are checked on
+ * every screen, and the first pass asks the API for every Posting. See `HELD_WHOLE_NUMBERS`.
  */
 
 import "./isolate-install.ts";
@@ -217,13 +216,15 @@ function wholeNumbersOf(held: HeldNumbers): readonly number[] {
 }
 
 function numbersOnScreen(text: string, wholes: readonly number[]): readonly string[] {
+	// A score-hidden Posting names its keep probability; historical decision scores stay hidden.
+	const withoutKeepLabels = text.replace(/Hidden: low keep score · \d+(?:\.\d+)?%/gu, "");
 	const found: string[] = [];
 	for (const refused of [DECIMAL_FRACTION, PERCENTAGE]) {
-		const match = refused.exec(text);
+		const match = refused.exec(withoutKeepLabels);
 		if (match !== null) found.push(match[0]);
 	}
 	for (const whole of wholes) {
-		const match = new RegExp(`(?<![\\w:.,$/-])${whole}(?:/100)?(?![\\w:])`, "u").exec(text);
+		const match = new RegExp(`(?<![\\w:.,$/-])${whole}(?:/100)?(?![\\w:])`, "u").exec(withoutKeepLabels);
 		if (match !== null) found.push(match[0]);
 	}
 	return found;
@@ -332,9 +333,10 @@ const CHECKS: readonly RouteCheck[] = [
 	},
 	{
 		hash: "#/queue?list=filtered",
-		label: "Excluded: each Posting with its rule, and no application offered",
+		label: "Excluded: Hard Filter rules or a low keep score, with no Apply offered",
 		expected: [
 			"9 Postings",
+			"Hidden: low keep score",
 			"Location",
 			"Duplicate",
 			"Education fit",
@@ -602,7 +604,7 @@ const HELD_WHOLE_NUMBERS = wholeNumbersOf(readHeldNumbers(FIXTURE_DATABASE_PATH)
 
 /**
  * Every Posting the fixture holds, opened as a page: the margin is built per Posting from its
- * own evidence, so "no number anywhere" is only proved by opening every one of them.
+ * own evidence. Historical decision scores stay hidden; low keep probabilities are named.
  */
 function readPostingPages(path: string): readonly RouteCheck[] {
 	const database = new DatabaseSync(path, { readOnly: true });
@@ -612,7 +614,7 @@ function readPostingPages(path: string): readonly RouteCheck[] {
 			.all()
 			.map((row) => ({
 				hash: `#/postings/${encodeURIComponent(String(row.key))}`,
-				label: `every Posting: ${String(row.title)}, with no number in its margin`,
+				label: `every Posting: ${String(row.title)}, with no historical score in its margin`,
 				expected: [asMarkup(String(row.title))],
 			}));
 	} finally {
@@ -1005,12 +1007,12 @@ type PassOptions = {
 };
 
 /**
- * The other half of "no score": neither leaves the server.
+ * Historical decision scores never leave the server; keepProbability is a live field.
  *
  * A screen that shows no number can still be one render away from showing one if the number
  * is on the wire, so every read route a screen uses is asked for everything it has — every
  * list, every Posting's detail, and the early review — and no key in any answer may name a
- * probability or a score.
+ * historical probability or score (the live keepProbability is separate).
  */
 async function checkWireCarriesNoNumber(origin: string): Promise<void> {
 	checked += 1;
@@ -1029,7 +1031,7 @@ async function checkWireCarriesNoNumber(origin: string): Promise<void> {
 		for (const match of (await response.text()).matchAll(NUMBER_FIELD)) found.push(`${path} ${match[0]}`);
 	}
 	if (found.length === 0) {
-		process.stdout.write("  ok    wire: no score leaves the API\n");
+		process.stdout.write("  ok    wire: no historical score leaves the API\n");
 		return;
 	}
 	failed += 1;

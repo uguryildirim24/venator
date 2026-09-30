@@ -142,6 +142,54 @@ def test_structured_sites_and_unconfigured_profile() -> None:
     assert location_scope({"location": "MA-Boston"}) == "ma"
 
 
+@pytest.mark.parametrize(("name", "country"), [
+    ("Berlin", "DE"), ("Marcy-l'Etoile", "FR"), ("Marburg - Office", "DE"),
+    ("Milton Park", "GB"), ("2 Locations", "DE"), ("4 Locations", "DE"),
+    ("Remote", "GB"), ("Berlin; Grenzach", "DE"),
+])
+def test_explicit_foreign_country_cannot_be_vouched_for(name: str, country: str) -> None:
+    posting = {"location": name, "locations": [{"name": name, "country": country}],
+               "title": "Technician (Boston, MA)"}
+    assert location_scope(posting, employer_has_local=True) == "outside"
+    assert location_scope(posting, physical_only=True) == "outside"
+    assert location_scope({"location": name, "country": country}, employer_has_local=True) == "outside"
+
+
+@pytest.mark.parametrize("facts", [
+    {"jobPostingInfo": {"jobRequisitionLocation": {"country": {"alpha2Code": "DE"}}}},
+    {"jobPostingInfo": {"country": {"descriptor": "France"}}},
+    {"address": {"postalAddress": {"addressCountry": "United Kingdom"}}},
+])
+def test_stored_source_country_overrides_empty_normalized_country(facts: dict) -> None:
+    posting = {"location": "Berlin", "locations": [{"name": "Berlin", "country": ""}],
+               "source_facts": facts, "title": "Technician (Boston, MA)"}
+    assert location_scope(posting, employer_has_local=True) == "outside"
+    assert location_scope(posting, physical_only=True) == "outside"
+
+
+def test_foreign_primary_country_preserves_explicit_us_secondary_sites() -> None:
+    facts = {"jobPostingInfo": {
+        "jobRequisitionLocation": {"country": {"alpha2Code": "DE"}},
+        "locationsText": "2 Locations",
+        "additionalLocations": [{"name": "Boston", "region": "MA", "country": "US"}],
+    }}
+    for locations in ([], [
+        {"name": "Berlin", "country": "DE"},
+        {"name": "Boston", "region": "MA", "country": "US"},
+    ]):
+        posting = {"location": "2 Locations", "locations": locations, "source_facts": facts}
+        assert location_scope(posting, employer_has_local=False) == "ma"
+        assert location_scope(posting, physical_only=True) == "ma"
+
+
+def test_recovered_source_sites_retain_their_countries() -> None:
+    posting = {"location": "2 Locations", "source_facts": {"jobPostingInfo": {
+        "additionalLocations": [{"name": "Berlin", "country": "DE"}],
+    }}}
+    assert location_scope(posting, employer_has_local=True) == "outside"
+    assert location_scope(posting, physical_only=True) == "outside"
+
+
 def test_title_disambiguates_only_unknown_or_shared_sites() -> None:
     assert location_scope({"location": "Madison", "title": "Research Technician / Madison, WI (On-Site)"}) == "outside"
     assert location_scope({"location": "Unknown Campus", "title": "Technician - Marlborough, MA"}) == "ma"

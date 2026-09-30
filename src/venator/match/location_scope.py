@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from typing import Literal
 
 from venator.countries import country_code
-from venator.discover.common import STATE_CODES, normalize_locations
+from venator.discover.common import STATE_CODES, normalize_locations, source_country
 from venator.place_lookup import readings
 
 Scope = Literal["ma", "new_england", "remote", "unreadable", "outside"]
@@ -61,6 +61,8 @@ _LOCAL_FACILITIES = {name.casefold(): scope for name, scope in _FACILITIES.items
 
 def _site(name: str, *, region: str = "", country: str = "") -> Scope:
     name = name.strip()
+    if (code := country_code(country)) and code != "US":
+        return "outside"
     if _COUNT.fullmatch(name) or not (name or region or country):
         return "unreadable"
     # A structured country is authoritative; a trailing or leading written
@@ -162,13 +164,30 @@ def location_scope(
     physical_only: bool = False,
 ) -> Scope:
     """Keep any New England site; only physical sites can vouch for an employer."""
-    sites: list[Scope] = []
+    # Source countries survive in source_facts even when an older observation
+    # left locations.country empty. Bind unspecified sites to that country;
+    # an explicitly US secondary site still keeps a multi-site Posting local.
+    facts = posting.get("source_facts")
+    fields = [posting]
+    if isinstance(facts, Mapping):
+        fields.append(facts)
+        detail = facts.get("jobPostingInfo")
+        if isinstance(detail, Mapping):
+            fields.append(detail)
+    foreign_country = next(
+        (code for value in fields if (code := source_country(value)) and code != "US"),
+        "",
+    )
+    sites: list[Scope] = ["outside"] if foreign_country else []
     ambiguous = False
     known_local = False
 
     def add(name: str, *, region: str = "", country: str = "") -> None:
         nonlocal ambiguous, known_local
-        if physical_only and re.search(r"\bremote\b", name, re.I):
+        country = country or foreign_country
+        if physical_only and re.search(r"\bremote\b", name, re.I) and not (
+            (code := country_code(country)) and code != "US"
+        ):
             return
         scope = _site(name, region=region, country=country)
         sites.append(scope)
@@ -184,6 +203,8 @@ def location_scope(
             if isinstance(entry, Mapping):
                 name = str(entry.get("name") or "")
                 if _COUNT.fullmatch(name.strip()):
+                    if (code := country_code(entry.get("country"))) and code != "US":
+                        sites.append("outside")
                     continue
                 structured_sites = True
                 for part in re.split(r"\s*[;|]\s*", name):
@@ -211,9 +232,18 @@ def location_scope(
                     if isinstance(name, str) and not _COUNT.fullmatch(name.strip()):
                         structured_sites = True
                         for part in re.split(r"\s*[;|]\s*", name):
-                            add(part)
+                            add(part, region=entry["region"], country=entry["country"])
     if isinstance(display, str) and not (structured_sites and display_is_count):
         for part in re.split(r"\s*[;|]\s*", display):
+            # The display repeats structured sites without their country. Do
+            # not read that duplicate as a second, potentially local US site.
+            if isinstance(raw, list) and any(
+                isinstance(entry, Mapping)
+                and (code := country_code(entry.get("country"))) and code != "US"
+                and part.strip() in re.split(r"\s*[;|]\s*", str(entry.get("name") or "").strip())
+                for entry in raw
+            ):
+                continue
             add(part)
     # A title can clarify an ambiguous site, but cannot erase a separate,
     # explicitly local (or US-remote) site on a multi-site Posting.

@@ -89,7 +89,7 @@ def append_decisions(decisions_dir: Path, decisions: Iterable[dict], *, day: dat
 # 23 adds employer exclusion. 24 reads excluded functions in title context;
 # 30 reads New England sites and named US territories. Every Profile replays
 # when filter code changes.
-FILTERS_REVISION = b"38-scope-state-remote-with-physical-employer-sites"
+FILTERS_REVISION = b"40-scope-country-bound-sites"
 
 #: Blocks that live in a hashed Profile file but reach no decision, keyed by
 #: **which positional argument** of ``filters_version`` the file is — not by its

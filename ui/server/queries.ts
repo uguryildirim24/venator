@@ -30,6 +30,7 @@ import {
 	integerColumn,
 	memberColumn,
 	optionalIntegerColumn,
+	optionalNumberColumn,
 	optionalTextColumn,
 	textColumn,
 	type SqlRow,
@@ -223,6 +224,7 @@ function decodeEntry(row: SqlRow): PostingEntry {
 		posting: decodePosting(row),
 		status: memberColumn(row, "status", POSTING_STATUSES),
 		hardFilter: decodeEntryDecision(row, "hf", "hard_filter"),
+		keepProbability: optionalNumberColumn(row, "keep_probability"),
 		application: decodeApplication(row),
 		assessment: decodeAssessment(row),
 		isNew: booleanColumn(row, "is_new"),
@@ -379,6 +381,7 @@ export function readPostingDetail(database: DatabaseSync, key: string): PostingD
 	const detail: PostingDetail = {
 		posting: decodePosting(entryRow),
 		status: memberColumn(entryRow, "status", POSTING_STATUSES),
+		keepProbability: optionalNumberColumn(entryRow, "keep_probability"),
 		descriptionHtml: html,
 		page: readerBlocks(html),
 		decisions,

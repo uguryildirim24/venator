@@ -101,6 +101,20 @@ def country_iso2(value: object) -> str:
     return country_code(value) or ""
 
 
+def source_country(value: Mapping[str, Any]) -> str:
+    """Read explicit source country fields, never a city or address label."""
+    requisition = value.get("jobRequisitionLocation")
+    if isinstance(requisition, Mapping):
+        if code := country_iso2(requisition.get("country")):
+            return code
+    address = value.get("address")
+    postal = address.get("postalAddress") if isinstance(address, Mapping) else None
+    if isinstance(postal, Mapping):
+        if code := country_iso2(postal.get("addressCountry")):
+            return code
+    return country_iso2(value.get("country") or value.get("countryCode") or value.get("country_code"))
+
+
 def _location_name(value: Mapping[str, Any]) -> str:
     return first_text(
         value,
