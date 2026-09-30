@@ -157,7 +157,7 @@ The dashboard works out one status per Posting (`STATUS_SQL` in
 2. A Hard Filter kill: `hard-killed`.
 3. A closed listing: `closed`, even if it has a score.
 4. A Hard Filter pass with a current keep score: at least 0.5 is `queued`,
-   below 0.014 is `hard-killed`, and between them is `needs-review`.
+   below 0.1 is `hard-killed`, and between them is `needs-review`.
 5. Any other pass: `unscored`. This is Awaiting Score.
 6. No Hard Filter pass at all: `not-filtered`.
 

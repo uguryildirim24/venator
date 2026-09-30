@@ -134,11 +134,11 @@ only ever written to `<data directory>/profiles`.
 | Route | Screen |
 |---|---|
 | `#/queue` | **For you**: keep probability at least 0.5 |
-| `#/queue?list=needs-review` | **Explore**: keep probability from 0.014 to below 0.5 |
+| `#/queue?list=needs-review` | **Explore**: keep probability from 0.1 to below 0.5 |
 | `#/queue?list=unscored` | **Awaiting Score**: Hard Filter passes without a current keep score |
 | `#/queue?list=applied` | **Applications**: prepared, handed off, applied, and what came back |
 | `#/queue?list=saved`, `?list=dismissed` | **Saved** and **Dismissed** |
-| `#/queue?list=filtered` | **Excluded**: Hard Filter kills and keep probabilities below 0.014 |
+| `#/queue?list=filtered` | **Excluded**: Hard Filter kills and keep probabilities below 0.1 |
 | `#/postings/<url-encoded key>?from=` | the same window with one Posting open |
 | `#/inspector` | filter inspector: every Posting and its Filter Decision, as a table |
 | `#/inspector?status=hard-killed&rule=education_fit` | everything one rule excluded |

@@ -174,7 +174,7 @@ pnpm --dir ui desktop   # the same app in a Tauri window
 ```
 
 The API listens only on `127.0.0.1`. **For you** holds keep probabilities at
-least 0.5; **Explore** holds 0.014 to below 0.5. Both show highest keep
+least 0.5; **Explore** holds 0.1 to below 0.5. Both show highest keep
 probability first. **Excluded** holds Hard Filter kills and lower probabilities. Passes without a current score sit in **Awaiting
 Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. Employer HTML
 is shown in a sandboxed iframe.

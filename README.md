@@ -124,8 +124,8 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
 - Postings for the same requisition at several sites fold into one row. Open it to
   see its sites; each site's Posting is still kept in history.
 - **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
-  from 0.014 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
-  below 0.014. **Applications**, **Saved** and **Dismissed** hold what you've acted on.
+  from 0.1 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
+  below 0.1. **Applications**, **Saved** and **Dismissed** hold what you've acted on.
 - Switching Postings fades and raises the new page. The description opens with
   eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
 - A Posting's margin is one ledger. It starts with **Meets N of M** and a tally
