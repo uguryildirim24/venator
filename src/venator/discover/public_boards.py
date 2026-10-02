@@ -291,15 +291,23 @@ def fetch_workable(board: str) -> PostingBatch:
                      "workable", board, params={"details": "true"}, headers=UA, timeout=TIMEOUT)
     if not isinstance(data, Mapping) or not isinstance(data.get("jobs"), list):
         raise BoardResponseError(f"workable:{board} missing jobs list")
-    postings = []
+    postings: dict[str, dict] = {}
     for job in data["jobs"]:
         if not isinstance(job, Mapping) or not text(job.get("shortcode")) or not text(job.get("title")) or not text(job.get("description")):
             raise BoardResponseError(f"workable:{board} malformed or incomplete job")
         external_id = text(job["shortcode"])
         locations = normalize_locations(job.get("locations") or ", ".join(filter(None, (text(job.get("city")), text(job.get("state"))))))
+        if external_id in postings:
+            # Workable repeats a multi-location Posting once per location.
+            posting = postings[external_id]
+            posting["locations"] = normalize_locations([*posting["locations"], *locations])
+            posting["location"] = location_text(posting["locations"], "")
+            facts = posting["source_facts"]
+            facts.setdefault("listing_rows", [dict(facts)]).append(dict(job))
+            continue
         description = text(job["description"])
         url = f"https://apply.workable.com/j/{external_id}"
-        postings.append(_posting(
+        postings[external_id] = _posting(
             "workable", board, external_id, title=text(job["title"]),
             location=location_text(locations, ""), locations=locations,
             url=url, apply_url=url + "/apply", posted_at=text(job.get("published_on")),
@@ -307,7 +315,7 @@ def fetch_workable(board: str) -> PostingBatch:
             description_html=description, description_kind=description_kind(description),
             opportunity_type=canonical_opportunity_type(job.get("employment_type"), title=job.get("title"), description=description),
             listing_status="open", source_facts=dict(job),
-        ))
-    if len({p["key"] for p in postings}) != len(postings) or _response_indicates_partial(data):
-        raise BoardResponseError(f"workable:{board} incomplete or duplicate listing")
-    return PostingBatch(postings)
+        )
+    if _response_indicates_partial(data):
+        raise BoardResponseError(f"workable:{board} incomplete listing")
+    return PostingBatch(list(postings.values()))

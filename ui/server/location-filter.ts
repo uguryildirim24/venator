@@ -55,7 +55,12 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 		const location = value.trim().replaceAll(/\s+/gu, " ");
 		const hasRemote = /(?:^|[^\p{L}])remote(?:\b|_)/iu.test(location);
 		if (hasRemote) add({ key: "remote", label: "Remote" });
-		if (remoteOnly(location)) continue;
+		if (remoteOnly(location)) {
+			const scoped = /^remote\s*(?:[-–,]\s*)?(.+?)(?:,\s*(?:US|USA|United States))?$/iu.exec(location);
+			const state = scoped ? STATE_CODE.get(scoped[1]!.toLowerCase()) : undefined;
+			if (state) add({ key: `state:${state}`, label: STATE_NAMES.get(state)! });
+			continue;
+		}
 		let local = location.replace(/\s*\(remote\)/giu, "").replace(/\s+or\s+remote(?:\s+U\.?S\.?)?$/iu, "")
 			.replace(/^remote\s+location\s*[-–]\s*/iu, "").replace(/^remote\s*[-–,/(]?\s*(?:US|USA|United States)?\)?$/iu, "")
 			.replace(/\s*[-–,/]\s*remote(?:\s*[-–,(]?\s*(?:US|USA|United States)\)?)?$/iu, "")
@@ -83,7 +88,7 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 		let state = STATE_CODE.get((parts[1] ?? "").toLowerCase()) ?? STATE_CODE.get(local.toLowerCase());
 		if (!state && countyReadings) state = countyReadings.includes("MA") ? "MA" :
 			countyReadings.find((code) => ["RI", "NH", "CT", "VT", "ME"].includes(code)) ??
-			(countyReadings.length === 1 ? countyReadings[0] : undefined);
+			(countyReadings.includes("CA") ? "CA" : countyReadings.length === 1 ? countyReadings[0] : undefined);
 		if (!state && parts.length === 1) {
 			const suffix = /^(.+?)\s+([A-Z]{2})$/iu.exec(local);
 			if (suffix && STATE_NAMES.has(suffix[2]!.toUpperCase())) { state = suffix[2]!.toUpperCase(); parts.splice(0, 1, cityName(suffix[1]!)); }
@@ -92,6 +97,7 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 			const known = cityReadings.get(parts[0]!.toLocaleLowerCase("en-US"));
 			if (known?.includes("MA")) state = "MA";
 			else if (known?.some((code) => ["RI", "NH", "CT", "VT", "ME"].includes(code))) state = known.find((code) => ["RI", "NH", "CT", "VT", "ME"].includes(code));
+			else if (known?.includes("CA")) state = "CA";
 			else if (known?.length === 1 && STATE_NAMES.has(known[0]!)) state = known[0];
 		}
 		if (state) {
@@ -108,7 +114,7 @@ export function locationChoices(raw: string | null, sourcePlaces: readonly strin
 		const trailing = country(parts.at(-1) ?? "");
 		const readings = parts.length === 1 ? cityReadings.get(parts[0]!.toLocaleLowerCase("en-US")) : undefined;
 		const nation = leading ?? trailing ?? (parts.length === 1 ? country(local) : undefined) ??
-			(readings?.length === 1 && !STATE_NAMES.has(readings[0]!) ? regionNames.of(readings[0]!) : undefined);
+			(readings?.length === 1 && !STATE_NAMES.has(readings[0]!) ? regionNames.of(readings[0]!.replace(/^country:/u, "")) : undefined);
 		if (nation) {
 			const parent = `country:${nation.toLowerCase()}`;
 			add({ key: parent, label: nation });

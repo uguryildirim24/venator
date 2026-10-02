@@ -67,7 +67,7 @@ class ModalRuntime:
             receipt = self.prepare_function.remote(rows, self.model.inference_metadata(), directory, self.volume)
             return {**receipt, 'prepare_app_id': self.app.app_id}
 
-    def infer(self, directory: str, items_sha256: str):
+    def infer(self, directory: str, items_sha256: str, max_postings: int | None = None):
         with self.app.run():
             yield {'app_id': self.app.app_id}
-            yield from self.infer_function.remote_gen(self.model.inference_metadata(), directory, items_sha256)
+            yield from self.infer_function.remote_gen(self.model.inference_metadata(), directory, items_sha256, max_postings)

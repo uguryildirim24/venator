@@ -30,6 +30,8 @@ EVENT_ACTORS = {
     "restore": "owner",
     "outcome": "owner",
     "withdraw": "owner",
+    "outreach": "owner",
+    "outreach_undo": "owner",
 }
 EVENT_STATES = {
     "approve": "approved",
@@ -59,7 +61,7 @@ def track_progress_keys(track_dir: Path, profile_id: str) -> set[str]:
 
 
 OUTCOMES = frozenset({"interview", "offer", "rejected", "no_response"})
-DETAIL_EVENTS = frozenset({"fill", "submit", "outcome", "prepare"})
+DETAIL_EVENTS = frozenset({"fill", "submit", "outcome", "prepare", "outreach", "outreach_undo"})
 STATE_ORDER = (
     "queued",
     "approved",
@@ -322,6 +324,8 @@ def fold_states(
 
     for index, event in enumerate(events):
         validate_event(event, label=f"TrackEvent[{index}]")
+        if event["event"] in {"outreach", "outreach_undo"}:
+            continue
         posting_key = event["posting_key"]
         states[posting_key] = {
             "posting_key": posting_key,

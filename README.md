@@ -20,16 +20,18 @@ yourself. Venator never presses submit for you.
   education, role level, eligibility, and location when enabled). Every Posting
   gets a recorded decision, so nothing disappears without a reason.
 - **Score** sorts Hard Filter passes using your keep model, configured in your
-  Install. It runs only when you press **Score**.
+  Install. It runs when you press **Score** or in the daily run.
 - **The dashboard** shows the lists, each Posting as a page with notes beside it,
-  and buttons to save, dismiss, Apply and Fill. Its
+  and buttons to save, dismiss and Apply. Its
   résumé assessment treats confirmed post-secondary education, including current
   enrolment, as meeting a high school requirement. This covers ordinary wording
   such as “(Required)” and high school as one option, but not separate required
   qualifications. Preferred extras stay separate.
-- **Apply** checks the live Posting and drafts a résumé and letter PDF from confirmed
-  facts. You can edit the drafts; each edit makes a new reviewed version.
-- **Fill** opens the employer's form in a visible browser. On Greenhouse and
+- **Apply** checks the live Posting, drafts a résumé and letter PDF from confirmed
+  facts, and opens the filled form with one press. It reuses a current prepared
+  bundle when one is ready. You can still edit the documents; each edit makes a
+  new reviewed version.
+- **The visible form** opens in a browser. On Greenhouse and
   Ashby it fills confirmed answers and uploads only reviewed, hash-checked PDFs
   when the form belongs to the Posting. On Workday, you sign in and pick
   **Autofill with Resume**; Venator uploads the tailored résumé, fills gaps and
@@ -126,7 +128,8 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   including checks run from the command line. It says **Not checked yet** until
   a board check has been recorded.
 - Postings for the same requisition at several sites fold into one row. Open it to
-  see its sites; each site's Posting is still kept in history.
+  see its sites; each site's Posting is still kept in history. Workable rows with
+  the same shortcode merge their locations into one Posting during Discover.
 - **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
   from 0.1 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
   below 0.1. A passing Posting below 0.1 reads **Hidden: low keep score**, with
@@ -135,22 +138,37 @@ fetching boards or scoring. If you skipped the employers, the empty list offers 
   **Dismissed**. Hard Filter kills offer neither action, and hidden Postings do
   not offer Apply. **Applications**, **Saved** and **Dismissed** hold what you've
   acted on.
+- At a month change, the latest score from the same model stays in the lists,
+  marked **Last month's score**, until the current score arrives. A model change
+  does not carry the previous model's scores. The daily run scores newest Postings
+  first in bounded batches, taking only what fits the daily and monthly limits.
 - Switching Postings fades and raises the new page. The description opens with
   eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
 - A Posting's margin is one ledger. It starts with **Meets N of M** and a tally
   of the requirements Venator can check against your résumé. Press a requirement
   line to open the description at that line. **Open Listing** goes to the
   employer's page when Venator can't prepare an application. **Save** and **Dismiss** record your
-  choice, and **Restore** undoes it. **Apply** drafts a résumé and letter PDF.
-  Review or edit the drafts, then **Fill** opens the form. **I Applied** records
-  an Application if you submitted it and confirmation was not detected.
+  choice, and **Restore** undoes it. **Apply** drafts the documents and opens the
+  filled form. You check it and submit yourself. **I Applied** records an
+  Application if you submitted it and confirmation was not detected.
+- Imported contacts appear in the Posting margin with their title, conversation
+  angle and contact link. **Reached out** records a date; press it again to undo.
+  Outreach never moves a Posting between lists or changes keep/skip labels. The
+  contacts stay in your Install; see [the import command](docs/RUNNING.md#contacts).
 - **Profile** has an answer library for employer questions. Save answers for one
   employer or all employers, and add your own statements for essay questions.
-  Reserved questions remain for you to answer on the form; Venator never guesses.
+  Answers you type in a trusted Greenhouse, Ashby or Workday form are kept
+  automatically for that employer. You can undo a newly kept answer or edit it in
+  Profile. Authorization, sponsorship, EEO, consent, verification codes, signatures,
+  passwords and file fields are not auto-kept. Reserved questions remain for you
+  to answer on the form; Venator never guesses.
 
 The installed Mac app can run Discover, Hard Filters, a capped batch of Score,
-rechecks, View and a notification once a day. It uses a cross-process lock and daily
-and monthly Score limits. See [ops/README.md](ops/README.md).
+rechecks, View, pre-drafting and a notification once a day. Pre-drafting prepares
+up to ten newest eligible **For you** Postings by default without opening a browser
+or recording an Application. You can change the limit or turn it off in Profile.
+Apply reuses a draft only while its Posting and Profile inputs are still current.
+The daily run uses a cross-process lock and daily and monthly Score limits. See [ops/README.md](ops/README.md).
 
 ## Try it with the example Profile
 
@@ -183,24 +201,27 @@ stage with `--profile <name>`. The name is a name, never a path.
 Each board needs its token under `sources.boards` and the employer's name under
 `sources.names`. To stop fetching an employer and exclude its stored Postings, add
 its display name (or board token) to `filters.employer.exclude` in `targeting.yaml`.
-To keep only New England sites, add `location` to `filters.enabled` in
+To keep sites in selected US states, add `location` to `filters.enabled` in
 `targeting.yaml` and set:
 
 ```yaml
 filters:
   location:
-    regions: [MA, RI, NH, CT, VT, ME]
+    regions: [CA]
 ```
 
-Use all six codes, once each. A Posting with a New England site passes. A remote
+Choose any non-empty list of distinct two-letter US state codes, or `DC`.
+`[MA, RI, NH, CT, VT, ME]` selects New England; `[CA]` selects California.
+A Posting with a selected-state site or US-wide remote site passes. A remote
 site tied to a state counts only in that state, not everywhere. Only a physical
 local site can vouch for an unreadable site from the same employer. An explicit
 non-US source country, including Workday's requisition country or Ashby's postal
 country, puts that site outside even if the employer has local sites. A foreign
-primary site doesn't erase an explicitly US New England secondary site: that
-Posting still passes. A Posting is excluded when its sites clearly fall outside
-New England. This is a Hard Filter
-on Postings, separate from the location choice above a dashboard list.
+primary site doesn't erase an explicitly US secondary site in a selected state:
+that Posting still passes. A Posting is excluded when its sites clearly fall
+outside the selected states. Country codes in the place lookup no longer collide
+with state codes: Canada is not California. This Hard Filter is separate from the
+location choice above a dashboard list.
 
 `education_fit` treats “<2 years experience” as a ceiling, not a two-year
 minimum. Required advanced degrees count only when the wording clearly asks for

@@ -13,6 +13,7 @@ import { dayKey, formatDay, formatDayHeader, formatMoment, formatTime } from "..
 import { useKeyBindings, type KeyBinding } from "../keys.ts";
 import {
 	applicationStateLabel,
+	CARRIED_KEEP_LABEL,
 	homeListLabel,
 	hiddenKeepLabel,
 	originLabel,
@@ -66,7 +67,7 @@ function sourceHash(source: Source, page = source.page): string {
 function entryCell(entry: PostingEntry, list: HomeList | null): Cell {
 	const { posting } = entry;
 	const verified = entry.assessment?.lastVerifiedAt ?? null;
-	const meta = [originLabel(posting), posting.location].filter((part) => part !== null && part !== "").join(" · ");
+	const meta = [originLabel(posting), posting.location, entry.keepScoreCarried ? CARRIED_KEEP_LABEL : null].filter((part) => part !== null && part !== "").join(" · ");
 	const state = entry.application?.state ?? null;
 	let status: Cell["status"] = null;
 	if (entry.status === "hard-killed") {

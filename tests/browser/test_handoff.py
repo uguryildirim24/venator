@@ -538,7 +538,10 @@ def test_capture_only_blank_non_reserved_fields_without_submit(tmp_path: Path) -
         context.route("**/*", lambda route: route.fulfill(body="<form>" + "".join(fields) + "</form>", content_type="text/html"))
         page = context.new_page()
         page.goto(url)
-        _install_confirmation_watch(context, {"posting": {"key": "greenhouse:fixture:123", "source": "greenhouse"}}, state_path, state)
+        _install_confirmation_watch(context, {
+            "posting": {"key": "greenhouse:fixture:123", "source": "greenhouse", "board": "fixture"},
+            "form_memory": str(tmp_path / "answers" / "forms"), "profile_id": "fixture",
+        }, state_path, state)
         for name in ("notes", "sponsor", "gender", "code"):
             page.locator(f"#{name}").fill("fixture value")
         page.locator("#consent").check()
@@ -546,6 +549,18 @@ def test_capture_only_blank_non_reserved_fields_without_submit(tmp_path: Path) -
         page.wait_for_timeout(300)
         candidates = json.loads(state_path.read_text()).get("candidates", [])
         assert [row["name"] for row in candidates] == ["notes"]
+        from venator.answers.store import latest
+        kept = list(latest(tmp_path / "answers", "fixture").values())
+        assert len(kept) == 1
+        assert kept[0]["scope"] == "fixture"
+        assert kept[0]["answer"] == "fixture value"
+        assert json.loads(state_path.read_text())["savedAnswers"][0]["id"] == kept[0]["id"]
+        page.locator("#notes").fill("updated fixture value")
+        page.locator("#sponsor").focus()
+        page.wait_for_timeout(300)
+        kept = list(latest(tmp_path / "answers", "fixture").values())
+        assert kept[0]["answer"] == "updated fixture value"
+        assert len(json.loads(state_path.read_text())["savedAnswers"]) == 1
         assert json.loads(state_path.read_text())["state"] == "ready"
         context.close()
         browser.close()

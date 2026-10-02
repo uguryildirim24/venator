@@ -97,7 +97,8 @@ CREATE TABLE application_states (posting_key TEXT PRIMARY KEY, state TEXT, detai
 CREATE TABLE runs (id INTEGER PRIMARY KEY, at TEXT, status TEXT, stage TEXT, pause_reason TEXT, waiting INTEGER);
 CREATE TABLE keep_scores (
   posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
-  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
+  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT,
+  carried INTEGER NOT NULL DEFAULT 0 CHECK (carried IN (0, 1))
 );
 CREATE TABLE assessments (posting_key TEXT PRIMARY KEY, status TEXT, summary TEXT,
   evidence TEXT, conflicts TEXT, unknowns TEXT, listing_status TEXT, last_verified_at TEXT,

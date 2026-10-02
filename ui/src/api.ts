@@ -46,7 +46,7 @@ export type ApplicationManifest = {
 	readonly handoff?: "ready" | "closed" | "applied" | null;
 	readonly applied?: boolean;
 	readonly formQuestions?: readonly { readonly name: string; readonly label: string; readonly kind: string; readonly bucket: string; readonly category?: string | null; readonly answer: string | null; readonly source?: string | null }[];
-	readonly candidates?: readonly { readonly name: string; readonly label: string; readonly value: string | boolean }[];
+	readonly savedAnswers?: readonly { readonly id: string }[];
 	readonly version?: string | null;
 	readonly provider?: string | null;
 	readonly resumeText?: string | null;
@@ -59,7 +59,13 @@ export type ApplicationManifest = {
 	readonly warnings?: readonly string[];
 };
 
-export type ApplicationAction = "apply" | "edit" | "save" | "dismiss" | "restore" | "applied" | "fill" | "answer" | "retract" | "replace" | "promote" | "authorization";
+export type ApplicationAction = "apply" | "edit" | "save" | "dismiss" | "restore" | "applied" | "fill" | "answer" | "retract" | "replace" | "promote" | "authorization" | "outreach" | "outreach_undo";
+export type Contact = { readonly id: string; readonly person: string; readonly title: string; readonly conversationAngle: string; readonly contactRoute: string; readonly href: string | null; readonly reachedOutAt: string | null };
+
+export function useContacts(key: string, reloadToken: number): RequestState<{ readonly contacts: readonly Contact[] }> {
+	return useApi<{ readonly contacts: readonly Contact[] }>(`/applications/${encodeURIComponent(key)}/contacts`, reloadToken);
+}
+
 export type AnswerRow = { readonly id: string; readonly question: string; readonly text: string; readonly kind: string; readonly scope: string; readonly answer: string | boolean | null };
 export type AnswerInput = { readonly text: string; readonly kind: string; readonly answer: string | boolean; readonly universal: boolean; readonly eeo?: boolean };
 export type ApplicationEdit = { readonly draft_id: string; readonly text: string };
@@ -157,9 +163,10 @@ export function applicationFileUrl(
 export async function applicationAction(
 	key: string,
 	action: ApplicationAction,
-	options: { readonly version?: string; readonly edits?: readonly ApplicationEdit[] } = {},
+	options: { readonly version?: string; readonly edits?: readonly ApplicationEdit[]; readonly id?: string } = {},
 ): Promise<ApplicationActionResult> {
 	const body: ApplicationActionBody = { action, key };
+	if (options.id !== undefined) body.id = options.id;
 	if (options.version !== undefined) body.version = options.version;
 	if (options.edits !== undefined) body.edits = options.edits;
 	const response = await fetch(`${API_BASE_URL}/applications`, {

@@ -128,6 +128,8 @@ export function statusLabel(status: PostingStatus): string {
 	return "Awaiting Score";
 }
 
+export const CARRIED_KEEP_LABEL = "Last month’s score";
+
 export function hiddenKeepLabel(probability: number): string {
 	return `Hidden: low keep score · ${(probability * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
 }
@@ -424,7 +426,14 @@ const TRACK_EVENTS = new Map<string, string>([
 	["submit", "You marked it applied"],
 	["outcome", "Employer response recorded"],
 	["withdraw", "Withdrawn"],
+	["outreach", "Reached out"],
+	["outreach_undo", "Outreach undone"],
 ]);
+
+export function contactRouteLabel(href: string, route: string): string {
+	if (/^https?:\/\/(?:[a-z0-9-]+\.)*linkedin\.com(?:[/:]|$)/iu.test(href)) return "LinkedIn";
+	return route.trim().replace(/^mailto:/u, "");
+}
 
 export function trackEventLabel(event: string): string {
 	return TRACK_EVENTS.get(event) ?? sentenceCase(event);

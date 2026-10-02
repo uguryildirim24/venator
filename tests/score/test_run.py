@@ -25,7 +25,8 @@ class Runtime:
     def prepare(self, rows, directory):
         assert all(set(row) == {'id', 'state'} for row in rows)
         assert all(row['id'].startswith('r') for row in rows)
-        return {'padded_tokens': 1000, 'items_sha256': 'b' * 64, 'postings': len(rows)}
+        return {'padded_tokens': 1000 * len(rows), 'row_padded_tokens': [1000] * len(rows),
+                'items_sha256': 'b' * 64, 'postings': len(rows)}
 
     def infer(self, directory, items_sha256):
         yield {'scores': [{'id': 'r000000', 'probability': 0.8}]}
@@ -101,6 +102,58 @@ def test_batched_budget_ledger_resumes_next_day_without_repreparing(monkeypatch,
     assert (third['scored'], third['waiting'], third['paused']) == (1, 0, None)
 
 
+def test_loop_rollover_scores_largest_newest_prefix_over_days(tmp_path: Path, capsys) -> None:
+    from venator.schedule.loop import append_heartbeat, run_loop
+    from venator.score.modal_runtime import RESERVED_USD, projected_usd
+    from venator.score.run import spent
+
+    prepared = {}
+    inferred = []
+
+    class Rollover(Runtime):
+        def prepare(self, rows, directory):
+            prepared[directory] = rows
+            return {'padded_tokens': 100_000 * len(rows), 'row_padded_tokens': [100_000] * len(rows),
+                    'items_sha256': 'b' * 64, 'postings': len(rows)}
+
+        def infer(self, directory, items_sha256, max_postings=None):
+            rows = prepared[directory][:max_postings]
+            inferred.extend(row['state']['title'] for row in rows)
+            yield {'scores': [{'id': row['id'], 'probability': 0.8} for row in rows]}
+
+    rows = [Input(f'post-{i:03d}', f'{i:064x}', {'title': str(i)}, None,
+                  f'2026-09-{i // 24 + 1:02d}T{i % 24:02d}:00:00+00:00') for i in range(200)]
+    heartbeat = tmp_path / 'data/runs.jsonl'
+    append_heartbeat(heartbeat, 'score', 'ok', {'usd': 10}, at='2026-09-30T00:00:00+00:00')
+    reports = []
+    for day in range(1, 4):
+        at = f'2026-10-{day:02d}T00:00:00+00:00'
+        earlier_spend = 0.05 if day == 1 else 0.0
+        if earlier_spend:
+            append_heartbeat(heartbeat, 'score', 'ok', {'usd': earlier_spend}, at=at)
+        saved = read_scores(tmp_path / 'data/keep-scores')
+        inputs = [replace(row, score=saved.get((row.posting_key, row.input_hash, MODEL.model_id))) for row in rows]
+
+        def score_action():
+            report = run_score(MODEL, inputs, tmp_path, execute=True, scored_at=at, runtime_factory=Rollover)
+            reports.append(report)
+            return report
+
+        assert run_loop(only=['score', 'view'], repository=tmp_path, heartbeat_path=heartbeat,
+                        stage_callables={'score': score_action, 'view': lambda: {}}) == 0
+        daily, monthly = spent(heartbeat, at)
+        assert daily <= 1.0 and monthly <= 10.0
+        if reports[-1]['waiting']:
+            count = reports[-1]['scored']
+            assert earlier_spend + RESERVED_USD + projected_usd(count * 100_000) <= 1.0
+            assert (earlier_spend + RESERVED_USD + projected_usd((count + 1) * 100_000) > 1.0
+                    or projected_usd((count + 1) * 100_000) > 0.5)
+    assert reports[0]['scored'] > 0 and reports[0]['paused'] == 'budget-reached'
+    assert reports[-1]['waiting'] == 0 and reports[-1]['paused'] is None
+    assert inferred == [str(i) for i in reversed(range(200))]
+    assert 'newest' in capsys.readouterr().out
+
+
 def test_monthly_ceiling_stops_while_daily_ceiling_has_room(tmp_path: Path) -> None:
     rows = [Input('posting', 'a' * 64, {}, None)]
     result = run_score(MODEL, rows, tmp_path, execute=True,
@@ -124,7 +177,7 @@ def test_modal_generator_registers_without_unsupported_retry_configuration(monke
 def test_estimate_over_cap_never_starts_inference(tmp_path: Path) -> None:
     class OverCap(Runtime):
         def prepare(self, rows, directory):
-            return {'padded_tokens': 100_000_000, 'items_sha256': 'b' * 64}
+            return {'padded_tokens': 100_000_000, 'row_padded_tokens': [100_000_000], 'items_sha256': 'b' * 64}
 
         def infer(self, directory, items_sha256):
             raise AssertionError('inference must not start')

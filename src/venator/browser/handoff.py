@@ -742,6 +742,7 @@ def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_
                 return
             _write_json(state_path, {"state": "applied", "pid": state["pid"], "marker": marker,
                                      "candidates": state.get("candidates", []),
+                                     "savedAnswers": state.get("savedAnswers", []),
                                      "warnings": state.get("warnings", [])})
             return
         if source != "greenhouse":
@@ -763,7 +764,8 @@ def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_
                   "host": host, "at": time.time()}
         # No URL or employer text is persisted in the receipt state.
         _write_json(state_path, {"state": "applied", "pid": state["pid"], "marker": marker,
-                                 "candidates": state.get("candidates", [])})
+                                 "candidates": state.get("candidates", []),
+                                 "savedAnswers": state.get("savedAnswers", [])})
 
     def on_event(source: dict, payload: dict) -> None:
         nonlocal acted
@@ -785,13 +787,33 @@ def _install_confirmation_watch(context: Any, request: Mapping[str, Any], state_
         if not isinstance(value, (str, bool)) or isinstance(value, str) and len(value) > 1800:
             return
         candidates = state.setdefault("candidates", [])
-        if not name or not label or any(item["name"] == name for item in candidates):
+        if not name or not label or len(candidates) >= 50 and not any(item["name"] == name for item in candidates):
             return
-        candidates.append({"name": name, "label": label, "value": value})
-        if len(candidates) <= 50:
-            current = _read_json(state_path) or {}
-            if current.get("state") == "ready":
-                _write_json(state_path, {**current, "candidates": candidates})
+        candidate = {"name": name, "label": label, "value": value}
+        candidates[:] = [item for item in candidates if item["name"] != name]
+        candidates.append(candidate)
+        current = _read_json(state_path) or {}
+        if current.get("state") not in {"ready", "applied"}:
+            return
+        if request.get("form_memory") and request.get("profile_id"):
+            from venator.answers.store import keep_captured
+
+            try:
+                row = keep_captured(Path(str(request["form_memory"])).parent,
+                                    str(request["profile_id"]), name=name, text=label, kind=kind,
+                                    answer=value, board=str(posting.get("board") or ""),
+                                    company=str(posting.get("company") or ""))
+                if row is not None:
+                    saved = state.setdefault("savedAnswers", [])
+                    saved[:] = [item for item in saved if item["question"] != row["question"]]
+                    saved.append(row)
+            except (ValueError, OSError):
+                warnings = current.setdefault("warnings", [])
+                message = "An answer could not be saved."
+                if message not in warnings:
+                    warnings.append(message)
+        _write_json(state_path, {**current, "candidates": candidates,
+                                 "savedAnswers": state.get("savedAnswers", [])})
 
     context.expose_binding("venatorHandoffEvent", on_event)
     context.add_init_script(_WATCH_SCRIPT)

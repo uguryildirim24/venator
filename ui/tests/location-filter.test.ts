@@ -72,12 +72,25 @@ test("joined places split and New England readings of ambiguous cities remain", 
 });
 
 test("standalone Remote variants have no bogus children, including sourced lists", () => {
-	for (const label of ["Remote, North Carolina, USA", "United States - Remote", "USA-NC-Remote", "Remote Position (USA)", "Remote-Friendly (Travel Required)", "US: USA Remote", "Remote_United States", "(Remote US)", "Option to work remote in Canada"]) {
+	for (const label of ["United States - Remote", "USA-NC-Remote", "Remote Position (USA)", "Remote-Friendly (Travel Required)", "US: USA Remote", "Remote_United States", "(Remote US)", "Option to work remote in Canada"]) {
 		assert.deepEqual(locationChoices(label), [{ key: "remote", label: "Remote" }], label);
 	}
 	assert.deepEqual(locationChoices("2 Locations", ["Remote, USA", "Boston, MA"]).map(({ key }) => key), ["remote", "state:MA", "city:boston,MA"]);
 	assert.deepEqual(locationChoices("Boston, MA or Remote").map(({ key }) => key), ["remote", "state:MA", "city:boston,MA"]);
 	assert.deepEqual(locationChoices("Spain - Remote Location-Madrid"), [{ key: "remote", label: "Remote" }]);
+});
+
+test("California cities and state-scoped remote choices share a California parent", () => {
+	for (const city of ["South San Francisco", "Emeryville", "Menlo Park", "San Mateo", "Redwood City"]) {
+		assert.deepEqual(locationChoices(city), [
+			{ key: "state:CA", label: "California" },
+			{ key: `city:${city.toLowerCase()},CA`, label: `${city}, CA`, parent: "state:CA" },
+		]);
+	}
+	for (const label of ["Remote, California", "Remote - CA", "Remote, California, USA"]) {
+		assert.deepEqual(locationChoices(label), [{ key: "remote", label: "Remote" }, { key: "state:CA", label: "California" }]);
+	}
+	assert.deepEqual(locationChoices("Remote, North Carolina, USA"), [{ key: "remote", label: "Remote" }, { key: "state:NC", label: "North Carolina" }]);
 });
 
 test("a cross-origin simple POST cannot change the Install's location choice", async () => {

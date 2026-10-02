@@ -30,7 +30,7 @@ from html.parser import HTMLParser
 from types import MappingProxyType
 from typing import Literal, NamedTuple, TypeAlias
 
-from venator.match.location_scope import location_scope
+from venator.match.location_scope import NEW_ENGLAND, STATE_LABELS, location_scope
 from venator.match.timing import eligibility_finding, eligibility_relevant
 from venator.profile.schema import (
     DEGREE_LEVELS,
@@ -1576,9 +1576,14 @@ def location_reading(posting: dict, policy: FilterPolicy = EMPTY_POLICY) -> Read
     """Keep unreadable and remote Postings; reject only known outside sites."""
     if not policy.location_regions:
         return Reading("pass", "location", "no location scope configured", "unconfigured")
-    scope = location_scope(posting, employer_has_local=posting.get("_employer_has_local"))
+    regions = frozenset(policy.location_regions)
+    scope = location_scope(posting, employer_has_local=posting.get("_employer_has_local"), regions=regions)
     if scope == "outside":
-        return Reading("kill", "location", f"outside New England: {posting.get('location') or 'structured location'}")
+        grouped = NEW_ENGLAND.issubset(regions)
+        labels = ["New England"] if grouped else []
+        labels.extend(STATE_LABELS[code] for code in policy.location_regions if not grouped or code not in NEW_ENGLAND)
+        label = " or ".join(labels)
+        return Reading("kill", "location", f"outside {label}: {posting.get('location') or 'structured location'}")
     return Reading("pass", "location", f"location scope: {scope}", scope)
 
 

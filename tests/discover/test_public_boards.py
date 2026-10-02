@@ -82,6 +82,25 @@ def test_workable_full_feed_and_malformed_row(monkeypatch):
         feeds.fetch_workable("editas")
 
 
+def test_workable_multi_location_rows_are_one_posting(monkeypatch):
+    # A synthetic employer publishes one Posting in two cities with the same
+    # Workable shortcode.
+    original = {"shortcode": "EXAMPLE01", "title": "Fixture Technician",
+                "description": "<p>Measure synthetic samples.</p>", "published_on": "2026-10-01"}
+    rows = [
+        {**original, "city": city, "state": region,
+         "locations": [{"city": city, "region": region, "countryCode": "US"}]}
+        for city, region in (("Boston", "Massachusetts"), ("San Francisco", "California"))
+    ]
+    monkeypatch.setattr(feeds, "_get_json", lambda *a, **k: {"jobs": rows})
+    batch = feeds.fetch_workable("example-lab")
+    assert batch.complete and len(batch) == 1
+    assert [location["city"] for location in batch[0]["locations"]] == ["Boston", "San Francisco"]
+    assert batch[0]["external_id"] == original["shortcode"]
+    assert batch[0]["description_html"] == original["description"]
+    assert batch[0]["source_facts"]["listing_rows"] == rows
+
+
 def test_avature_search_and_detail(monkeypatch):
     fixture = FIXTURE["avature"]
     url = fixture["url"]

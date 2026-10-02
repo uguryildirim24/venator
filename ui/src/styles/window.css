@@ -1444,40 +1444,6 @@
 	gap: var(--space-3);
 }
 
-.resume {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--space-3);
-}
-
-.resume-thumb {
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-1);
-	flex-shrink: 0;
-	width: var(--thumb-width);
-	height: var(--thumb-height);
-	padding: var(--space-1-5) var(--space-1-5);
-	border: var(--hairline-width) solid var(--page-thumb-edge);
-	background: var(--page-thumb);
-	box-shadow: var(--page-thumb-shadow);
-}
-
-.resume-thumb > span {
-	display: block;
-	height: var(--hairline-width);
-	background: var(--page-thumb-line);
-}
-
-.resume-thumb > span:first-child {
-	width: 55%;
-	height: var(--thumb-line);
-}
-
-.resume-thumb > span:nth-child(3n) {
-	width: 70%;
-}
-
 .resume-text {
 	display: flex;
 	flex-direction: column;

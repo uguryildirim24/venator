@@ -40,6 +40,8 @@ def track_labels(events: list[dict]) -> list[Label]:
     applied: set[str] = set()
     for row in events:
         key, event = row['posting_key'], row['event']
+        if event in {'outreach', 'outreach_undo'}:
+            continue
         if event == 'submit':
             applied.add(key)
             standing[key] = Label(key, 1, row['at'])

@@ -14,7 +14,7 @@ const detail: PostingDetail = {
 		key: "quest:office", source: "greenhouse", board: "quest", company: "Quest Diagnostics",
 		title: "Technician", location: null, url: "https://example.com/job", postedAt: null, discoveredAt: "2026-09-26",
 	},
-	status: "hard-killed", keepProbability: null,
+	status: "hard-killed", keepProbability: null, keepScoreCarried: false,
 	descriptionHtml: `<li>${sentence}</li>`,
 	page: [{ kind: "item", text: sentence }],
 	decisions: [], trackEvents: [], application: null,

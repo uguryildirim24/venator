@@ -81,6 +81,93 @@ def application_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return run
 
 
+def test_posting_contacts_outreach_undo_and_profile_ownership(application_run):
+    from venator.contacts.store import append_contacts, rows
+    from venator.profile import profile_from_arguments
+    from venator.track.store import load_events
+    from venator.view.build import build_database
+
+    run = application_run
+    directory = run.install / "data/contacts"
+    append_contacts(directory, "candidate-test", [{"company": "Fixture Laboratory", "person": "Alex Example",
+                     "title": "Research lead", "conversation_angle": "Ask about assay development",
+                     "contact_route": "alex@example.test"}])
+    build_database(profile=profile_from_arguments(run.args("contacts")))
+    contact = applications.perform(run.args("contacts"))["contacts"][0]
+    assert contact["href"] == "mailto:alex@example.test"
+    assert contact["reachedOutAt"] is None
+    args = run.args("outreach")
+    args.contact = contact["id"]
+    recorded = applications.perform(args)["contacts"][0]
+    events = load_events(run.install / "data/track")
+    assert recorded["reachedOutAt"] == events[-1]["at"]
+    assert events[-1]["event"] == "outreach"
+    assert json.loads(events[-1]["detail"]) == {"contact_id": contact["id"], "person": "Alex Example"}
+    args.action = "outreach_undo"
+    assert applications.perform(args)["contacts"][0]["reachedOutAt"] is None
+    assert [row["event"] for row in load_events(run.install / "data/track")] == ["outreach", "outreach_undo"]
+    args.contact = "not-a-matched-contact"
+    with pytest.raises(ValueError, match="contact for this Posting"):
+        applications.perform(args)
+    assert len(load_events(run.install / "data/track")) == 2
+    assert len(rows(directory, "candidate-test")) == 1
+    (directory / ".profile").write_text("another-profile")
+    with pytest.raises(ValueError, match="another Profile"):
+        applications.perform(run.args("contacts"))
+    assert run.model_calls == run.browser_calls == run.refresh_calls == []
+
+
+@pytest.mark.parametrize("source,url", [
+    ("greenhouse", "https://boards.greenhouse.io/fixture/jobs/1"),
+    ("ashby", "https://jobs.ashbyhq.com/fixture/1/application"),
+    ("workday", "https://fixture.wd1.myworkdayjobs.com/en-US/Careers/job/Lab/Fixture_R1"),
+    ("lever", "https://jobs.lever.co/fixture/1"),
+])
+def test_predraft_reuses_apply_bundle_without_opening_browser(application_run, monkeypatch, source, url):
+    run = application_run
+    run.refreshed.update(source=source, key=f"{source}:fixture:1", url=url)
+    append_observations(run.install / "data" / "postings", [run.refreshed])
+    args = run.args("predraft")
+    args.key = run.refreshed["key"]
+    draft = applications.perform(args)
+    assert draft["prepared"] is True
+    assert run.browser_calls == []
+    from venator.track.store import load_events
+    assert load_events(run.install / "data" / "track") == []
+    calls = len(run.model_calls)
+    args.action = "apply"
+    reused = applications.perform(args)
+    assert reused["version"] == draft["version"]
+    assert len(run.model_calls) == calls
+    assert run.browser_calls == []
+    opened = []
+    def browser(posting, profile, resume_file, directory, **kwargs):
+        opened.append(posting["source"])
+        assert resume_file.parent.name == draft["version"]
+        assert resume_file.read_bytes().startswith(b"%PDF")
+        return {"filled": 2 if source != "lever" else 0, "warnings": []}
+    monkeypatch.setattr("venator.browser.handoff.start_handoff", browser)
+    args.action = "fill"
+    applications.perform(args)
+    assert opened == [source]
+
+
+@pytest.mark.parametrize("change", ["posting", "profile"])
+def test_predraft_invalidates_when_posting_text_or_profile_facts_change(application_run, change):
+    run = application_run
+    draft = run.perform("predraft")
+    if change == "posting":
+        run.refreshed["description_html"] = "Measure synthetic samples and record results."
+    else:
+        resume = yaml.safe_load((run.profile_dir / "resume.yaml").read_text())
+        resume["experience"][0]["bullets"][0]["text"] = "Measured changed synthetic samples."
+        (run.profile_dir / "resume.yaml").write_text(yaml.safe_dump(resume))
+    record = run.perform("apply")
+    assert record["version"] != draft["version"]
+    assert len(run.model_calls) == 4
+    assert run.browser_calls == []
+
+
 def test_apply_returns_hashed_resume_and_letter_and_fill_uses_current_version(application_run):
     run = application_run
     record = run.perform("apply")
@@ -201,6 +288,33 @@ def test_retracting_a_reviewed_answer_or_statement_refuses_fill(application_run,
     refreshed = run.perform("apply")
     assert refreshed["statementPins"] == []
     assert run.perform("fill")["filled"] == 2
+
+
+@pytest.mark.parametrize("question", [
+    "Visa sponsorship", "Are you authorized to work?", "Gender", "Race", "Veteran status",
+    "Disability", "Privacy consent", "Verification code", "Signature",
+])
+def test_auto_kept_answers_exclude_reserved_questions(application_run, question):
+    from venator.answers.store import keep_captured, latest
+    directory = application_run.install / "data" / "answers"
+    assert keep_captured(directory, "candidate-test", name="question", text=question,
+                         kind="text", answer="fixture", board="fixture") is None
+    assert latest(directory, "candidate-test") == {}
+
+
+def test_auto_kept_answer_count_and_append_only_undo(application_run):
+    from venator.answers.store import keep_captured, retract, rows
+    run = application_run
+    directory = run.install / "data" / "answers"
+    row = keep_captured(directory, "candidate-test", name="preference", text="Laboratory preference?",
+                        kind="text", answer="Bench work", board="fixture")
+    run.directory.mkdir(parents=True)
+    (run.directory / ".handoff-session.json").write_text(json.dumps({"state": "ready", "savedAnswers": [row]}))
+    assert run.perform("status")["savedAnswers"] == [{"id": row["id"]}]
+    retract(directory, "candidate-test", row)
+    assert run.perform("status")["savedAnswers"] == []
+    assert len(rows(directory, "candidate-test")) == 2
+    assert rows(directory, "candidate-test")[0] == row
 
 
 def test_confirmation_status_dedupes_after_later_events(application_run):

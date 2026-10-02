@@ -35,7 +35,8 @@ Hard Filter pass rows may carry `facts` as extra evidence. None of them change
 `filters_version`.
 
 Track events are `approve`, `reject`, `prepare`, `fill`, `submit`, `restore`,
-`outcome` and `withdraw`. They fold into the states `approved`, `rejected`,
+`outcome`, `withdraw`, `outreach` and `outreach_undo`. Outreach events do not fold
+into Application state and never supply keep/skip labels. The other events fold into the states `approved`, `rejected`,
 `prepared`, `filled`, `submitted`, `queued`, `concluded` and `withdrawn`. `prepare`
 and `fill` are written by the pipeline. `submit` is the Owner's own report that they
 applied. Older `submit` rows written by the pipeline still load. Any valid event may
@@ -133,7 +134,8 @@ CREATE TABLE assessments (
 );
 CREATE TABLE keep_scores (
   posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
-  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
+  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT,
+  carried INTEGER NOT NULL DEFAULT 0
 );
 ```
 
@@ -156,17 +158,22 @@ The dashboard works out one status per Posting (`STATUS_SQL` in
 1. Application progress: `applied`.
 2. A Hard Filter kill: `hard-killed`.
 3. A closed listing: `closed`, even if it has a score.
-4. A Hard Filter pass with a current keep score: at least 0.5 is `queued`,
+4. A Hard Filter pass with a current or carried same-model keep score: at least 0.5 is `queued`,
    below 0.1 is `hard-killed`, and between them is `needs-review`.
 5. Any other pass: `unscored`. This is Awaiting Score.
 6. No Hard Filter pass at all: `not-filtered`.
 
-Scores bind to a Posting, its compact input hash and model identity. Closed
+Scores bind to a Posting, its compact input hash and model identity. View carries
+the latest same-model score when the current input has none, marking `carried=1`.
+A current score replaces it; changing the model prevents carry. Score selection
+still requires the current input hash, so carry never suppresses rollover work.
+Closed
 Postings stay searchable in the filter inspector and on the Employers page.
 The résumé assessment is a margin note. For you and Explore sort by keep
 probability, highest first, then verification recency.
 
-Entry and detail responses carry nullable `keepProbability`. A `hard-killed`
+Entry and detail responses carry nullable `keepProbability` and boolean
+`keepScoreCarried`. A `hard-killed`
 Posting with a latest Hard Filter pass and a probability below 0.1 is score-hidden,
 not killed by a rule. It shows **Hidden: low keep score** and its percentage.
 Save and Dismiss remain available, including **s** and **x**, but Apply does not.
@@ -184,7 +191,7 @@ so if `/api` came first it would answer every write path's preflight with
 | Surface | Methods | What it does |
 |---|---|---|
 | `/api/runs` | `POST`, plus `GET` for this process's own run state | starts `fetch-and-filter` (`discover,filters,view`) or `score` (keep inference, then View) from a single-use plan token |
-| `/api/applications` | `POST`, plus `GET` for status and prepared files | status, file, apply, edit, fill, answers, save, dismiss, restore and applied through `venator.applications` |
+| `/api/applications` | `POST`, plus `GET` for status and prepared files | status, file, apply, edit, fill, answers, contacts, outreach, outreach_undo, save, dismiss, restore and applied through `venator.applications` |
 | `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | creates or edits Profile files under the Install's application data directory, saves the assistant choice; its read and probe routes write nothing |
 | `/api/locations` | `GET`, `POST` | reads available locations and saves the list choice in this Install; does not change Filter Decisions |
 | `/api` | `GET` | reads `build/venator.db`; starts nothing and writes nothing |
@@ -197,8 +204,10 @@ lookup ([attribution](../docs/geonames-attribution.md)). It covers US-prefixed
 cities, counties, foreign remote sites and campus labels. An explicit non-US
 source country binds sites without their own country to that foreign country,
 including Workday requisition countries and Ashby postal countries. An employer's
-local sites cannot make those sites local. Explicitly US New England secondary
-sites still keep a foreign-primary Posting local. Ashby normalization retains the
+local sites cannot make those sites local. Explicitly US secondary sites in a
+selected state still keep a foreign-primary Posting local. Profile regions accept
+any non-empty, distinct list of US state codes or DC. Foreign lookup readings that
+collide with states outside the established New England readings use `country:`. Ashby normalization retains the
 postal country in `locations` and the address in `source_facts`.
 
 Onboarding writes one Profile at a time inside a server process. It refuses lone
@@ -217,6 +226,19 @@ reads Greenhouse questions and writes a versioned résumé and, when requested, 
 Owner edits make new versions. Every opened or downloaded file is checked against its
 hash and the Posting and Profile inputs. Answers and statements pinned to a bundle
 must still be current before Fill. The library lives under `data/answers/`.
+The dashboard sequences Apply then Fill from one press. `predraft` prepares the
+same reusable bundle without opening a browser or writing Track events; the daily
+loop runs it after View, bounded by the Profile's daily attempt limit.
+
+Answers typed in trusted Greenhouse, Ashby and Workday forms are kept automatically
+with employer scope. Reserved questions (authorization, sponsorship, EEO, consent,
+verification and signatures), password and file fields are excluded. Undo appends a
+retraction; it never rewrites answer history.
+
+Contacts append under `data/contacts/` with a Profile stamp. They match the Posting
+by exact board when supplied, otherwise by normalized employer. `outreach` and
+`outreach_undo` carry JSON details with `contact_id` and `person`, but neither changes
+lists, Application state or training labels.
 
 `venator.browser.fill` is a Dry Run:
 

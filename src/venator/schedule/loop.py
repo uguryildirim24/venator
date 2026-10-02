@@ -48,13 +48,14 @@ from venator.secrets import scrub, scrub_record
 
 
 COMMIT_MESSAGE = "chore(data): record scheduled pipeline run"
-STAGE_ORDER = ("discover", "filters", "score", "recheck", "view", "notify", "commit")
+STAGE_ORDER = ("discover", "filters", "score", "recheck", "view", "predraft", "notify", "commit")
 STAGE_DESCRIPTIONS = {
     "discover": "python -m venator.discover.run",
     "filters": "python -m venator.match.run",
     "score": "python -m venator.score.run --execute",
     "recheck": "refresh new picks and saved Postings",
     "view": "python -m venator.view.build",
+    "predraft": "pre-draft newest For you picks without opening a browser",
     "notify": "notify about new picks from the rebuilt View",
     "commit": (
         f"git add data/ && git commit -m {COMMIT_MESSAGE!r} "
@@ -370,6 +371,8 @@ def default_stage_callables(
     *,
     interactive_discover: bool = False,
 ) -> dict[str, StageCallable]:
+    from venator.schedule.predraft import run as predraft
+
     return {
         "discover": lambda: run_module(
             "venator.discover.run",
@@ -381,6 +384,7 @@ def default_stage_callables(
         "score": lambda: run_module("venator.score.run", repository, profile, as_of, ("--execute",)),
         "recheck": lambda: recheck(repository, profile),
         "view": lambda: run_module("venator.view.build", repository, profile, as_of),
+        "predraft": lambda: predraft(profile, as_of),
         "notify": lambda: notify(repository),
         "commit": lambda: commit_data(repository),
     }
@@ -426,7 +430,7 @@ def planned_stages(*, only: Sequence[str] | None = None) -> list[str]:
         return [stage for stage in STAGE_ORDER if stage in chosen]
     # Discovery and eligibility produce an evidence-based view without
     # committing personal runtime data to Git.
-    return ["discover", "filters", "score", "recheck", "view", "notify"]
+    return ["discover", "filters", "score", "recheck", "view", "predraft", "notify"]
 
 
 def run_loop(
@@ -503,6 +507,10 @@ def run_loop(
         except Exception as error:
             print(f"{stage}: ERROR writing heartbeat — {error}", file=sys.stderr, flush=True)
             return 1
+        if stage == 'score':
+            for batch in metrics.get('limited_batches', []):
+                print(f"score: newest {batch['selected']} of {batch['available']} Postings fit the ceilings", flush=True)
+            print(f"score: {metrics.get('scored', 0)} scored; {metrics.get('waiting', 0)} awaiting Score", flush=True)
         print(f"{stage}: {'paused' if paused else 'ok'}", flush=True)
     return 0
 

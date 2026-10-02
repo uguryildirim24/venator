@@ -65,7 +65,7 @@ def test_stage_order_and_heartbeat_shape(tmp_path: Path) -> None:
     }
 
     assert run_loop(stage_callables=actions, heartbeat_path=heartbeat) == 0
-    assert calls == ["discover", "filters", "score", "recheck", "view", "notify"]
+    assert calls == ["discover", "filters", "score", "recheck", "view", "predraft", "notify"]
     rows = read_heartbeats(heartbeat)
     assert [row["stage"] for row in rows] == [stage for stage in calls if stage != "score"]
     assert all(
@@ -152,7 +152,7 @@ def test_default_run_omits_commit(tmp_path: Path) -> None:
         heartbeat_path=heartbeat,
     ) == 0
 
-    assert calls == ["discover", "filters", "score", "recheck", "view", "notify"]
+    assert calls == ["discover", "filters", "score", "recheck", "view", "predraft", "notify"]
     assert [row["stage"] for row in read_heartbeats(heartbeat)] == [stage for stage in calls if stage != "score"]
 
 
@@ -544,7 +544,7 @@ def test_only_still_reaches_commit_from_the_command_line() -> None:
 
 
 def test_default_refresh_never_commits_personal_data() -> None:
-    assert planned_stages() == ["discover", "filters", "score", "recheck", "view", "notify"]
+    assert planned_stages() == ["discover", "filters", "score", "recheck", "view", "predraft", "notify"]
 
 
 def test_a_name_that_is_not_a_stage_is_a_usage_error_naming_the_valid_set() -> None:
@@ -578,7 +578,7 @@ def test_dry_run_names_the_subset_and_says_nothing_about_stages_nobody_asked_for
     assert "1. discover:" in printed
     assert "2. filters:" in printed
     assert "3. view:" in printed
-    assert "not selected by --only: score, recheck, notify, commit" in printed
+    assert "not selected by --only: score, recheck, predraft, notify, commit" in printed
     # The commit stage was not asked for, so its work-tree note is noise here.
     assert "commit: would be skipped" not in printed
     assert not heartbeat.exists()
@@ -598,7 +598,7 @@ def test_the_only_flag_reaches_run_loop_from_the_command_line(tmp_path: Path) ->
     assert "1. discover:" in finished.stdout
     assert "2. view:" in finished.stdout
     assert "2. filters:" not in finished.stdout
-    assert "not selected by --only: filters, score, recheck, notify, commit" in finished.stdout
+    assert "not selected by --only: filters, score, recheck, predraft, notify, commit" in finished.stdout
 
 
 def test_an_unknown_stage_on_the_command_line_exits_with_a_usage_error(tmp_path: Path) -> None:

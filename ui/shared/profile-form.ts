@@ -97,6 +97,7 @@ export type EmployerForm = {
 
 export type TargetingForm = {
 	readonly profileName: string;
+	readonly predraft: { readonly enabled: boolean; readonly limit: number };
 	readonly search: {
 		readonly queries: readonly string[];
 		readonly locations: readonly string[];
@@ -192,6 +193,9 @@ export function validateProfileForm(form: ProfileForm): readonly FormIssue[] {
 				issues.push({ field: `resume.contact.${field}`, message: "Every contact line is printed on the résumé, so it can’t be blank." });
 			}
 		}
+	}
+	if (!Number.isInteger(targeting.predraft.limit) || targeting.predraft.limit < 0) {
+		issues.push({ field: "targeting.predraft.limit", message: "Choose a whole number of drafts." });
 	}
 	const { filters, employers } = targeting;
 	for (const rule of filters.enabled) {

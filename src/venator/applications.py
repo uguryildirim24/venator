@@ -18,7 +18,7 @@ from venator.profile.claim import store_owner
 from venator.secrets import scrub
 
 FILES = frozenset({"resume.pdf", "resume.txt", "letter.txt", "letter.pdf"})
-ACTIONS = ("status", "file", "apply", "edit", "save", "dismiss", "restore", "applied", "fill", "answers", "answer", "retract", "replace", "promote")
+ACTIONS = ("status", "file", "apply", "predraft", "edit", "save", "dismiss", "restore", "applied", "fill", "answers", "answer", "retract", "replace", "promote", "contacts", "outreach", "outreach_undo")
 
 
 def application_directory(stores: dict, profile_id: str, key: str) -> Path:
@@ -105,6 +105,19 @@ def _verify_freshness(record: dict, posting: dict | str, profile) -> None:
         raise ValueError("The job or your profile changed. Apply again before using this application.")
 
 
+def ready_application(stores: dict, profile, posting: dict) -> dict | None:
+    """Reuse only a complete bundle bound to this Posting and Profile facts."""
+    directory = application_directory(stores, profile.identifier, posting["key"])
+    try:
+        record = manifest(directory)
+        _verify_freshness(record, posting, profile)
+        _verify_answer_pins(record, stores, profile.identifier)
+        _verify_bundle(directory, record)
+    except ValueError:
+        return None
+    return record
+
+
 def _status_revision(stores: dict, key: str) -> str:
     """Read the indexed, materialized revision; never replay the Posting store."""
     database_path = stores["database_path"]
@@ -162,6 +175,33 @@ def perform(args: argparse.Namespace) -> dict:
                       answer=payload["answer"], board=str(posting.get("board") or "") if posting else "any",
                       company=str(posting.get("company") or "") if posting else "",
                       universal=payload["universal"], eeo=payload["eeo"])
+    if args.action in {"contacts", "outreach", "outreach_undo"}:
+        from venator.contacts.matching import contact_link, matches, outreach_detail, reached_out
+        from venator.contacts.store import rows
+        from venator.track.store import load_events, verify_track_dir
+
+        contacts = rows(stores["data_dir"] / "contacts", profile.identifier)
+        verify_track_dir(stores["track_dir"], profile.identifier)
+        with closing(sqlite3.connect(f"file:{stores['database_path']}?mode=ro", uri=True)) as database:
+            database.row_factory = sqlite3.Row
+            posting = database.execute("SELECT key, board, company FROM postings WHERE key = ?", (args.key,)).fetchone()
+        if posting is None:
+            raise ValueError("This Posting is no longer in the local board.")
+        matched = matches(dict(posting), contacts, profile.sources.names)
+        if args.action != "contacts":
+            contact = next((row for row in matched if row["id"] == args.contact), None)
+            if contact is None:
+                raise ValueError("Choose a contact for this Posting.")
+            from venator.track.record import record_event
+            from venator.view.build import build_database
+            record_event(args.action, args.key, outreach_detail(contact), identifier=profile.identifier,
+                         postings_dir=stores["postings_dir"], decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
+            build_database(profile=profile)
+        dates = reached_out(load_events(stores["track_dir"]), args.key)
+        return {"contacts": [{"id": row["id"], "person": row["person"], "title": row["title"],
+                              "conversationAngle": row["conversation_angle"], "contactRoute": row["contact_route"],
+                              "href": contact_link(row["contact_route"]), "reachedOutAt": dates.get(row["id"])}
+                             for row in matched]}
     if args.action == "status":
         # The stamps are the ownership lock. Routine reads must not replay all
         # foreign rows in the Filter Decision store just to check a manifest.
@@ -194,8 +234,14 @@ def perform(args: argparse.Namespace) -> dict:
                              identifier=profile.identifier, postings_dir=stores["postings_dir"],
                              decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
                 build_database(profile=profile)
-        session = {"handoff": handoff.get("state") if handoff.get("state") in {"ready", "closed", "applied"} else None,
-                   "applied": confirmed, "candidates": handoff.get("candidates", []) if handoff.get("state") in {"ready", "closed", "applied"} else [],
+        from venator.answers.store import latest
+        current_answers = {row["id"]: row for row in latest(stores["data_dir"] / "answers", profile.identifier).values()
+                           if row.get("answer") is not None}
+        saved_answers = [{"id": row["id"]} for row in handoff.get("savedAnswers", [])
+                         if isinstance(row, dict) and row.get("id") in current_answers]
+        session = {"savedAnswers": saved_answers,
+                   "handoff": handoff.get("state") if handoff.get("state") in {"ready", "closed", "applied"} else None,
+                   "applied": confirmed,
                    "warnings": [str(item) for item in handoff.get("warnings", []) if item][:50] if handoff.get("state") in {"ready", "closed", "applied"} else []}
         try:
             record = manifest(directory)
@@ -296,7 +342,7 @@ def perform(args: argparse.Namespace) -> dict:
     if decision.get("verdict") == "kill":
         raise ValueError(f"The refreshed job conflicts with your profile: {decision.get('reason', 'eligibility conflict')}")
 
-    if args.action == "apply":
+    if args.action in {"apply", "predraft"}:
         from venator.answers.store import latest
         from venator.apply.form import ashby_questions, greenhouse_questions, review_questions, workday_questions
         from venator.tailor.prepare import prepare_application
@@ -329,9 +375,10 @@ def perform(args: argparse.Namespace) -> dict:
                                      form_questions=question_rows, answer_pins=pins, statements=statements)
         _verify_freshness(result, refreshed, profile)
         _verify_bundle(directory, result)
-        record_event("prepare", args.key, "Prepared application documents.", identifier=profile.identifier,
-                     postings_dir=stores["postings_dir"], decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
-        build_database(profile=profile)
+        if args.action == "apply":
+            record_event("prepare", args.key, "Prepared application documents.", identifier=profile.identifier,
+                         postings_dir=stores["postings_dir"], decisions_dir=stores["decisions_dir"], track_dir=stores["track_dir"])
+            build_database(profile=profile)
         return result
     raise ValueError("Choose an application action.")
 
@@ -343,6 +390,7 @@ def main() -> int:
     parser.add_argument("--edits", default="[]")
     parser.add_argument("--answer", default="{}")
     parser.add_argument("--version")
+    parser.add_argument("--contact")
     parser.add_argument("--file", choices=sorted(FILES))
     add_profile_argument(parser)
     args = parser.parse_args()

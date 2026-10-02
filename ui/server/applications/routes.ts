@@ -14,7 +14,7 @@ import { applicationIsActive, setApplicationActive } from "./activity.ts";
 import { takePipelineLock } from "../pipeline-lock.ts";
 
 const HEADER = "X-Venator-Application";
-const ACTIONS = ["apply", "edit", "save", "dismiss", "restore", "applied", "fill", "answer", "retract", "replace", "promote", "authorization"];
+const ACTIONS = ["apply", "edit", "save", "dismiss", "restore", "applied", "fill", "answer", "retract", "replace", "promote", "authorization", "outreach", "outreach_undo"];
 const children = new Set<ChildProcess>();
 
 export function shutdownApplications(): void {
@@ -183,6 +183,11 @@ export function createApplicationRoutes(command: ApplicationCommand = applicatio
 			} finally { setApplicationActive(false); }
 		}
 		const args = [action, key, ...selectedProfile()];
+		if (action === "outreach" || action === "outreach_undo") {
+			const id = asText(body?.id);
+			if (id === null || !/^[a-f0-9]{32}$/u.test(id)) return context.json({ error: "Choose a contact for this Posting." }, 400);
+			args.push("--contact", id);
+		}
 		if (action === "answer") {
 			const text = asText(body?.text);
 			const kind = asText(body?.kind);
@@ -215,6 +220,7 @@ export function createApplicationRoutes(command: ApplicationCommand = applicatio
 		finally { setApplicationActive(false); releaseLock(); }
 	});
 	routes.get("/answers", async (context) => jsonResponse(await status(["answers", "_", ...selectedProfile()], context.req.raw.signal)));
+	routes.get("/:key/contacts", async (context) => jsonResponse(await status(["contacts", context.req.param("key"), ...selectedProfile()], context.req.raw.signal)));
 	routes.get("/:key", async (context) => jsonResponse(await status(["status", context.req.param("key"), ...selectedProfile()], context.req.raw.signal)));
 	routes.get("/:key/files/:name", async (context) => {
 		const name = context.req.param("name");
