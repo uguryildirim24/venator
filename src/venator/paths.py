@@ -146,6 +146,7 @@ BUILD_SUBDIR = "build"
 POSTINGS_SUBDIR = "postings"
 DECISIONS_SUBDIR = "decisions"
 TRACK_SUBDIR = "track"
+CONTACTS_SUBDIR = "contacts"
 QUALIFICATIONS_SUBDIR = "qualifications"
 HEARTBEAT_FILE = "runs.jsonl"
 DATABASE_FILE = "venator.db"
@@ -201,6 +202,10 @@ class InstallStores:
     @property
     def track_dir(self) -> Path:
         return self.data_dir / TRACK_SUBDIR
+
+    @property
+    def contacts_dir(self) -> Path:
+        return self.data_dir / CONTACTS_SUBDIR
 
     @property
     def qualifications_dir(self) -> Path:

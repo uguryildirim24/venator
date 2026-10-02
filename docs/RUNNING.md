@@ -45,7 +45,7 @@ uv run python -m venator.schedule.loop \
 ```
 
 Score is a separate press (see step 3). The daily run includes Score, rechecks
-new picks and saved Postings, rebuilds View and notifies you. Neither run submits
+new picks and saved Postings, rebuilds View, pre-drafts documents and notifies you. Neither run submits
 anything.
 
 ### 1. Discover
@@ -58,6 +58,9 @@ A terminal or scheduled run walks each Workday board to the total it reports, th
 fetches full descriptions for the Postings that pass the Hard Filters. It keeps one
 paced session per Workday tenant and works on a few tenants at a time. The dashboard
 uses shorter windows so Refresh comes back quickly.
+
+Workable rows with the same shortcode merge into one Posting with every location
+retained. Different shortcodes remain separate.
 
 New observations go into `data/postings/<date>.jsonl`. When a source fails, the
 failure is recorded and shown. An old Posting is not marked closed just because its
@@ -96,17 +99,18 @@ run. Each stored Posting still gets a Filter Decision.
 appends one Filter Decision per Posting it sees. A filter with no wording kills
 nothing. Every Posting gets a decision, including the ones that pass.
 
-To enable the New England location Hard Filter in `targeting.yaml`, add `location`
-to `filters.enabled` and set `filters.location.regions` to
-`[MA, RI, NH, CT, VT, ME]`. All six codes are required. A Posting passes if any
-site is in New England or is US-wide remote. A remote site tied to a state
+To enable the location Hard Filter in `targeting.yaml`, add `location`
+to `filters.enabled` and set `filters.location.regions` to any non-empty list of
+distinct US state codes or `DC`. For example, `[CA]` selects California and
+`[MA, RI, NH, CT, VT, ME]` selects New England. A Posting passes if any
+site is in a selected state or is US-wide remote. A remote site tied to a state
 counts only in that state. Only physical local sites vouch for an unreadable
-site from the same employer. Postings clearly outside New England are killed,
+site from the same employer. Postings clearly outside the selected states are killed,
 including sites in named US territories. Workday's “2 Locations” label does not hide its other sites: the
 filter also reads sites in `source_facts`, including on older Postings. An explicit
 non-US source country, such as Workday's requisition country or Ashby's postal
 country, makes that site outside; the employer's local sites cannot vouch for it.
-An explicitly US New England secondary site still keeps a foreign-primary
+An explicitly US secondary site in a selected state still keeps a foreign-primary
 Posting local. The location choice on the dashboard only narrows what's displayed.
 
 `education_fit` reads “<2 years experience” as an upper bound, not a minimum.
@@ -120,7 +124,9 @@ is the latest row per `(posting_key, stage)`.
 
 The Hard Filter and dashboard location picker share the offline GeoNames place lookup
 ([attribution](geonames-attribution.md)). It reads US-prefixed cities, counties,
-foreign remote sites and campus labels without a network request.
+foreign remote sites and campus labels without a network request. Country readings
+that collide with state codes are prefixed `country:`, so Canada does not count as
+California.
 
 ### 3. Score
 
@@ -137,6 +143,11 @@ uv run python -m venator.score.run --profile NAME --execute
 The estimate is a bounded CPU preflight. Execute uses that receipt, checks the $0.50
 cap, then appends scores under `data/keep-scores`. A partial run resumes without
 rescoring current inputs. The daily run also has daily and monthly spend limits.
+At month rollover, the latest same-model score remains in View, marked **Last
+month's score**, until a score for the current inputs lands. Carried scores do not
+count as current for Score selection, and a model change carries nothing from the
+old model. Score partitions newest-first selections into batches of up to 500;
+if a batch exceeds a ceiling it scores the largest newest-first prefix that fits.
 Refresh does not run inference.
 
 Retraining uses your own labels, not bundled data. Provide a private CSV with
@@ -178,8 +189,8 @@ pnpm --dir ui desktop   # the same app in a Tauri window
 
 The API listens only on `127.0.0.1`. **For you** holds keep probabilities at
 least 0.5; **Explore** holds 0.1 to below 0.5. Both show highest keep
-probability first. **Excluded** holds Hard Filter kills and lower probabilities. Passes without a current score sit in **Awaiting
-Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. A passing
+probability first. **Excluded** holds Hard Filter kills and lower probabilities.
+Passes without a current or carried same-model score sit in **Awaiting Score**. Stale Hard Filter passes show as **Awaiting Hard Filters**. A passing
 Posting below 0.1 is labelled **Hidden: low keep score**, with its percentage.
 You can **Save** it with **s** or **Dismiss** it with **x**, moving it to **Saved**
 or **Dismissed**. Hard Filter kills stay closed to those actions. Hidden Postings
@@ -200,6 +211,9 @@ uv run python -m venator.applications applied POSTING_KEY --profile NAME
 
 `applied` records that you applied. It sends nothing to the employer.
 
+One dashboard **Apply** press checks the live Posting, prepares the documents and
+opens the filled form. The terminal keeps preparation and visible Fill separate.
+
 Apply checks the live Posting and reruns Hard Filters. It reads Greenhouse form
 questions when available, remembers Ashby and Workday questions per employer for
 the next Apply, and drafts a résumé and a letter if the form asks for one,
@@ -215,7 +229,11 @@ or for all employers. Profile `screening:` is no longer used. Greenhouse questio
 about authorization, sponsorship, consent and other reserved subjects stay for you
 to answer. Essays cite statements you wrote in the library; Venator does not make
 up your reasons. Changing an answer or statement used by an Application requires a
-new Apply before Fill.
+new Apply before Fill. Answers you type in trusted Greenhouse, Ashby and Workday
+forms are kept automatically for that employer. Undo retracts a newly kept answer
+without rewriting history; Profile lets you edit or remove it later. Authorization,
+sponsorship, EEO, consent, verification codes, signatures, passwords and file fields
+are never auto-kept.
 
 To get a prepared file back (`resume.pdf`, `resume.txt` or `letter.pdf`):
 
@@ -254,6 +272,28 @@ your Submit and a Candidate Home row matching the Posting's title and requisitio
 a URL or completion modal alone is not enough. Use `applied` after Ashby or if you
 submitted without detection.
 
+## Contacts
+
+Import your private contacts CSV into the Install:
+
+```bash
+uv run python -m venator.contacts.import_csv --profile NAME --csv /path/to/contacts.csv
+uv run python -m venator.contacts.import_csv --profile NAME --csv /path/to/contacts.csv \
+  --triage /path/to/triage.csv
+```
+
+The CSV columns are `company`, `person`, `title`, `conversation_angle`,
+`contact_route` and `sources`, with optional `board`. An optional triage CSV joins
+by company and reads `board_url_to_register`; an explicit contact board wins.
+Exact duplicates are skipped. Records append under `data/contacts/`, stamped for
+one Profile. The source CSV is never changed.
+
+Contacts match by board when one is supplied, otherwise by normalized employer
+name. The Posting margin shows matching people, titles, conversation angles and
+safe email or web links. **Reached out** appends `outreach`; pressing the dated
+button undoes it with `outreach_undo`. Both are separate from Application standing:
+they never change lists or keep/skip labels.
+
 ## Dry Run browser tools
 
 The Dry Run tools are still useful for looking at a form:
@@ -283,7 +323,8 @@ uv run python -m venator.track.record outcome POSTING_KEY \
 ```
 
 The events are `approve`, `reject`, `prepare`, `fill`, `submit`, `restore`,
-`outcome` and `withdraw`. `submit` is your own report that you applied. It is not a
+`outcome`, `withdraw`, `outreach` and `outreach_undo`. The last two record contact
+outreach without changing Application state. `submit` is your own report that you applied. It is not a
 request to the employer. Older `submit` rows written by the pipeline still load.
 
 ## Completion runtimes
@@ -311,7 +352,9 @@ environment, and provider text is never copied into the stores.
 | `data/track/<date>.jsonl` | Track | append-only |
 | `data/runs.jsonl` | the loop | append-only |
 | `data/applications/` | Apply and edits | versioned bundles |
-| `data/answers/` | answer library | append-only |
+| `data/answers/` | answer library and auto-kept form answers | append-only |
+| `data/contacts/<date>.jsonl` | contacts import | append-only |
+| `data/predrafts/<date>.jsonl` | daily pre-draft attempts | append-only |
 | `build/venator.db` | view build | disposable |
 | `build/fill/` | Dry Run tools | disposable |
 
@@ -332,7 +375,14 @@ directory. It only appends what is missing.
 uv run python -m venator.schedule.loop --dry-run --profile NAME
 ```
 
-The loop's daily stages are `discover, filters, score, recheck, view, notify`.
+The loop's daily stages are `discover, filters, score, recheck, view, predraft, notify`.
+Pre-drafting uses current-score **For you** Postings, newest first, that are open
+and untouched, on Greenhouse, Ashby, Workday or Lever. It prepares documents without
+opening a browser or recording Track events. A current bundle is reused by Apply;
+changed Posting text or Profile facts require a new draft. The default daily limit
+is ten attempts, including failed attempts; a drafting failure pauses the stage.
+Set `predraft.enabled: false` or change `predraft.limit` in `targeting.yaml`, or use
+the Profile form. Drafting uses your chosen assistant and its plan.
 `--only` picks a subset in that order; Refresh runs only Discover, Hard Filters and
 View. `commit` runs only when named and `data/` is inside a Git work tree. The loop
 never pushes. A cross-process lock keeps two runs from writing together. On a Mac,

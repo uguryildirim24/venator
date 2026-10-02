@@ -37,6 +37,7 @@ import {
 } from "./rows.ts";
 import { decodeAssessment } from "./assessment.ts";
 import { readerBlocks } from "./reader.ts";
+import { asMapping, asText, parseJson } from "./onboarding/json.ts";
 
 const STAGES: readonly DecisionStage[] = ["hard_filter", "llm_score"];
 const VERDICTS: readonly DecisionVerdict[] = ["pass", "kill", "queue"];
@@ -106,7 +107,7 @@ entries AS (
     hf.id AS hf_id, hf.verdict AS hf_verdict, hf.rule AS hf_rule,
     hf.reason AS hf_reason, hf.filters_version AS hf_filters_version,
     hf.decided_at AS hf_decided_at,
-    k.probability AS keep_probability,
+    k.probability AS keep_probability, k.carried AS keep_score_carried,
     aps.state AS app_state, aps.detail AS app_detail, aps.since AS app_since,
     coalesce(a.status, 'unassessed') AS assessment_status,
     coalesce(a.summary, 'Refresh jobs and check eligibility to assess this listing.') AS assessment_summary,
@@ -225,6 +226,7 @@ function decodeEntry(row: SqlRow): PostingEntry {
 		status: memberColumn(row, "status", POSTING_STATUSES),
 		hardFilter: decodeEntryDecision(row, "hf", "hard_filter"),
 		keepProbability: optionalNumberColumn(row, "keep_probability"),
+		keepScoreCarried: optionalIntegerColumn(row, "keep_score_carried") === 1,
 		application: decodeApplication(row),
 		assessment: decodeAssessment(row),
 		isNew: booleanColumn(row, "is_new"),
@@ -334,6 +336,13 @@ export function normalizeDescription(raw: string | null): string {
 	return html;
 }
 
+function trackDetail(row: SqlRow): string | null {
+	const detail = optionalTextColumn(row, "detail");
+	if (detail === null || !["outreach", "outreach_undo"].includes(textColumn(row, "event"))) return detail;
+	try { return asText(asMapping(parseJson(detail))?.person); }
+	catch { return detail; }
+}
+
 function readTrackEvents(database: DatabaseSync, key: string): readonly TrackEvent[] {
 	return database
 		.prepare("SELECT id, event, actor, detail, at FROM track_events WHERE posting_key = $key ORDER BY at ASC, id ASC")
@@ -342,7 +351,7 @@ function readTrackEvents(database: DatabaseSync, key: string): readonly TrackEve
 			id: integerColumn(row, "id"),
 			event: textColumn(row, "event"),
 			actor: optionalTextColumn(row, "actor"),
-			detail: optionalTextColumn(row, "detail"),
+			detail: trackDetail(row),
 			at: optionalTextColumn(row, "at"),
 		}));
 }
@@ -382,6 +391,7 @@ export function readPostingDetail(database: DatabaseSync, key: string): PostingD
 		posting: decodePosting(entryRow),
 		status: memberColumn(entryRow, "status", POSTING_STATUSES),
 		keepProbability: optionalNumberColumn(entryRow, "keep_probability"),
+		keepScoreCarried: optionalIntegerColumn(entryRow, "keep_score_carried") === 1,
 		descriptionHtml: html,
 		page: readerBlocks(html),
 		decisions,

@@ -48,7 +48,7 @@ import {
 import { systemContext, type LocationContext } from "../locations.ts";
 import { BOARD_TOKEN, MAXIMUM_NAME_LENGTH, MAXIMUM_TOKEN_LENGTH, SOURCE_NAME } from "./employers.ts";
 import { OnboardingError } from "./errors.ts";
-import { asList, asMapping, asNumber, asText, at, type JsonMapping, type JsonValue } from "./json.ts";
+import { asBoolean, asList, asMapping, asNumber, asText, at, type JsonMapping, type JsonValue } from "./json.ts";
 import { editProfileDocuments } from "./profile-edit.ts";
 import { LONE_SURROGATE } from "./yaml.ts";
 
@@ -224,10 +224,15 @@ function targetingFormOf(document: ParsedDocument): TargetingForm {
 	const roleTarget = mapAt(filters, "role_target");
 	const educationFit = mapAt(filters, "education_fit");
 	const remote = textAt(search, "remote");
+	const predraftLimit = scalarAt(mapAt(root, "predraft"), "limit");
 	const kill = scalarAt(educationFit, "experience_years_kill");
 	const implausible = scalarAt(educationFit, "experience_years_implausible");
 	return {
 		profileName: textAt(mapAt(root, "profile"), "name"),
+		predraft: {
+			enabled: scalarAt(mapAt(root, "predraft"), "enabled")?.value !== false,
+			limit: (predraftLimit === undefined ? null : scalarNumber(predraftLimit)) ?? 10,
+		},
 		search: { queries: stringsAt(search, "queries"), locations: stringsAt(search, "locations"), remote: isRemotePreference(remote) ? remote : null },
 		employers: employersOf(mapAt(root, "sources")),
 		filters: {
@@ -563,6 +568,11 @@ function patchTargeting(document: ParsedDocument, baseline: TargetingForm, form:
 		if (form.search.remote === null) clearScalar(document, ["search", "remote"]);
 		else setScalar(document, ["search", "remote"], form.search.remote);
 	}
+	for (const field of ["enabled", "limit"] as const) {
+		if (baseline.predraft[field] === form.predraft[field]) continue;
+		changed = true;
+		setScalar(document, ["predraft", field], form.predraft[field]);
+	}
 	if (patchEmployers(document, baseline.employers, form.employers)) changed = true;
 	const filters = baseline.filters;
 	strings(["filters", "enabled"], filters.enabled, form.filters.enabled);
@@ -746,6 +756,11 @@ function employerFromBody(entry: JsonMapping, field: string): EmployerForm {
 
 function targetingFromBody(body: JsonMapping): TargetingForm {
 	const targeting = mappingField(body, "targeting", "targeting");
+	const predraft = mappingField(targeting, "predraft", "targeting.predraft");
+	const enabled = asBoolean(at(predraft, "enabled"));
+	if (enabled === null) throw refuse("targeting.predraft.enabled");
+	const limit = wholeNumberField(predraft, "limit", "targeting.predraft.limit");
+	if (limit === null) throw refuse("targeting.predraft.limit");
 	const search = mappingField(targeting, "search", "targeting.search");
 	const filters = mappingField(targeting, "filters", "targeting.filters");
 	const roleTarget = mappingField(filters, "role_target", "targeting.filters.role_target");
@@ -758,6 +773,7 @@ function targetingFromBody(body: JsonMapping): TargetingForm {
 	if (keys.size !== employers.length) throw refuse("targeting.employers", "That board is listed twice.");
 	return {
 		profileName: textField(targeting, "profileName", "targeting.profileName"),
+		predraft: { enabled, limit },
 		search: { queries: stringsField(search, "queries", "targeting.search.queries"), locations: stringsField(search, "locations", "targeting.search.locations"), remote: remote !== null && isRemotePreference(remote) ? remote : null },
 		employers,
 		filters: {

@@ -643,6 +643,8 @@ class Profile:
     sources: BoardRegistry = field(default_factory=BoardRegistry)
     filters: FilterPolicy = field(default_factory=FilterPolicy)
     contact: ContactFacts = field(default_factory=ContactFacts)
+    predraft_enabled: bool = True
+    predraft_limit: int = 10
 
     @property
     def identifier(self) -> str:

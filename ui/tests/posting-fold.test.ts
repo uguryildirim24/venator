@@ -11,7 +11,7 @@ import { installDom } from "../tools/dom-harness.ts";
 
 const detail: PostingDetail = {
 	posting: { key: "quest:lab", source: "other", board: "quest", company: "Quest", title: "Lab", location: "Boston", url: "https://example.org/jobs", postedAt: null, discoveredAt: "2026-09-26" },
-	status: "unscored", keepProbability: null, descriptionHtml: "<p>Original</p>",
+	status: "unscored", keepProbability: null, keepScoreCarried: false, descriptionHtml: "<p>Original</p>",
 	page: [
 		{ kind: "heading", text: "Overview" },
 		{ kind: "paragraph", text: "Work in the lab." },
@@ -32,7 +32,7 @@ const detail: PostingDetail = {
 };
 
 const control: ApplicationControl = {
-	manifest: { status: "loading" }, prepared: false, busy: null, error: null, failedAction: null, reviewVersion: null, notice: null, warnings: [], run: () => {},
+	manifest: { status: "loading" }, prepared: false, busy: null, error: null, failedAction: null, notice: null, warnings: [], run: () => {},
 };
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 

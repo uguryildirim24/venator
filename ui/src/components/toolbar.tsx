@@ -76,7 +76,7 @@ type PostingActionsProps = {
 };
 
 /**
- * Save, dismiss, and Apply. Fill is available after review in the Posting margin.
+ * Save, dismiss, and Apply. Apply drafts and opens the employer's form.
  */
 export function PostingActions({ detail, control }: PostingActionsProps) {
 	const state = detail.application?.state ?? null;
@@ -116,7 +116,7 @@ export function PostingActions({ detail, control }: PostingActionsProps) {
 				</button>
 			) : (
 				<button type="button" className="capsule" disabled={busy || !canApply} onClick={() => control.run("apply")}>
-					{control.busy === "apply" ? "Applying…" : "Apply"}
+					{control.busy === "apply" ? "Drafting…" : control.busy === "fill" ? "Opening…" : "Apply"}
 				</button>
 			)}
 		</>

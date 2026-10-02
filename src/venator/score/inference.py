@@ -44,6 +44,7 @@ def prepare(rows: list[dict], metadata: dict, directory: str, volume) -> dict:
     target = Path(directory)
     target.mkdir(parents=True, exist_ok=True)
     native = padded = longest = context_max = 0
+    row_padded_tokens = []
     with (target / 'items.jsonl').open('w', encoding='utf-8', newline='\n') as output:
         for row in rows:
             state = native_state(row['state'])
@@ -58,18 +59,21 @@ def prepare(rows: list[dict], metadata: dict, directory: str, volume) -> dict:
             if context >= 32768 or length >= 32768:
                 raise ValueError('Keep input exceeds the untruncated context')
             native += length
-            padded += ((length + 63) // 64) * 64
+            row_padded = ((length + 63) // 64) * 64
+            padded += row_padded
+            row_padded_tokens.append(row_padded)
             longest = max(longest, length)
             context_max = max(context_max, context)
             output.write(json.dumps({'id': row['id'], 'item': items[0]}, separators=(',', ':')) + '\n')
     digest = hashlib.sha256((target / 'items.jsonl').read_bytes()).hexdigest()
     volume.commit()
     return {'postings': len(rows), 'native_tokens': native, 'padded_tokens': padded,
+            'row_padded_tokens': row_padded_tokens,
             'max_row_tokens': longest, 'max_context_tokens': context_max,
             'items_sha256': digest, 'prepare_seconds': time.perf_counter() - started}
 
 
-def score(metadata: dict, directory: str, items_sha256: str):
+def score(metadata: dict, directory: str, items_sha256: str, max_postings: int | None = None):
     import torch
     from decider.infer import Decider
     from decider import temperature as temperature
@@ -93,7 +97,8 @@ def score(metadata: dict, directory: str, items_sha256: str):
     decider.m.eval()
     pending = []
     with torch.no_grad(), path.open(encoding='utf-8') as source:
-        for line in source:
+        from itertools import islice
+        for line in islice(source, max_postings):
             row = json.loads(line)
             one = [row['item']]
             probability = decider._system_one_probs(

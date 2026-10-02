@@ -25,6 +25,22 @@ test("the real frontend Apply request reaches the mounted application route", as
 	assert.deepEqual(observed, ["apply", "greenhouse:acme:1", "--profile", "candidate"]);
 });
 
+test("Posting contacts and outreach use the selected Profile and a matched contact id", async (context) => {
+	const calls: string[][] = [];
+	const server = new Hono();
+	server.route("/api/applications", createApplicationRoutes(async (argv) => { calls.push([...argv]); return { contacts: [] }; }, profile));
+	context.mock.method(globalThis, "fetch", (input: string, init: RequestInit) => server.request(input, init));
+	const id = "a".repeat(32);
+	assert.equal((await server.request("/api/applications/greenhouse%3Aexample%3A1/contacts")).status, 200);
+	await applicationAction("greenhouse:example:1", "outreach", { id });
+	await applicationAction("greenhouse:example:1", "outreach_undo", { id });
+	assert.deepEqual(calls, [
+		["contacts", "greenhouse:example:1", "--profile", "candidate"],
+		["outreach", "greenhouse:example:1", "--profile", "candidate", "--contact", id],
+		["outreach_undo", "greenhouse:example:1", "--profile", "candidate", "--contact", id],
+	]);
+});
+
 test("application actions require the local action header and known action", async () => {
 	const calls: readonly string[][] = [];
 	const app = createApplicationRoutes(async () => { assert.fail("must not invoke a model"); }, profile);

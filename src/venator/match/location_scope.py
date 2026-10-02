@@ -1,6 +1,6 @@
-"""Conservative New England location reading for a Profile's Hard Filter.
+"""Conservative location reading for a Profile's configured US states.
 
-A city with several readings keeps its New England reading. Unreadable sites
+A city with several readings keeps an in-region reading. Unreadable sites
 are outside only when the employer's current Postings have no readable local site.
 """
 
@@ -14,13 +14,14 @@ from venator.countries import country_code
 from venator.discover.common import STATE_CODES, normalize_locations, source_country
 from venator.place_lookup import readings
 
-Scope = Literal["ma", "new_england", "remote", "unreadable", "outside"]
+Scope = Literal["ma", "new_england", "in_region", "remote", "unreadable", "outside"]
 NEW_ENGLAND = frozenset({"MA", "RI", "NH", "CT", "VT", "ME"})
 # Full state names are read only as entire words; abbreviations are read only
 # after a city, delimiter, or at the end, never out of "Cambridge MA"'s city.
 _STATE_NAMES = """Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|District of Columbia""".split("|")
 _CODES = "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split()
-STATE_NAMES = {name.casefold(): code for name, code in zip(_STATE_NAMES, _CODES, strict=True)}
+STATE_LABELS = dict(zip(_CODES, _STATE_NAMES, strict=True))
+STATE_NAMES = {name.casefold(): code for code, name in STATE_LABELS.items()}
 _REGION = re.compile(r"(?:^|[,;|\-/]\s*|\s+)(" + "|".join(re.escape(n) for n in sorted(STATE_NAMES, key=len, reverse=True)) + r")(?=\s*(?:[,;|\-/]|$|\bUSA\b|\bUnited States\b))", re.I)
 _ABBREVIATION = re.compile(r"(?:^|[\s,;|\-/])([A-Z]{2})(?=$|[\s,;|\-/])")
 _REMOTE = re.compile(r"\bremote\b|\b(?:US|USA|United States)(?:[ -]?wide| nationwide)?\b", re.I)
@@ -31,35 +32,47 @@ _US = {"us", "usa", "united states", "united states of america"}
 # Other explicit site labels can name a facility rather than a city
 # (Maddock Alumni Center is at Brown in Providence).
 _FACILITIES = {
-    "Beth Israel Deaconess Medical Center": "ma",
-    "Tufts Medical Center": "ma",
-    "New England Baptist Hospital": "ma",
-    "Lemuel Shattuck Hospital": "ma",
-    "Mount Auburn Hospital": "ma",
-    "Lahey Clinic": "ma",
-    "Winchester Hospital": "ma",
-    "Beth Israel Deaconess Hospital Needham": "ma",
-    "Beth Israel Deaconess Hospital Milton": "ma",
-    "MelroseWakefield Hospital": "ma",
-    "Lawrence Memorial Hospital": "ma",
-    "Beth Israel Deaconess Hospital Plymouth": "ma",
-    "Anna Jaques Hospital": "ma",
-    "Beverly Hospital": "ma",
-    "Lowell General Hospital": "ma",
-    "Addison Gilbert Hospital": "ma",
-    "Exeter Hospital": "new_england",
-    "Maddock Alumni Center": "new_england",
-    "Newport Hospital": "new_england",
-    "Rhode Island Hospital": "new_england",
-    "The Miriam Hospital": "new_england",
-    "Bradley Hospital": "new_england",
-    "Hasbro Children's Hospital": "new_england",
-    "Emma Pendleton Bradley Hospital": "new_england",
+    "Beth Israel Deaconess Medical Center": "MA",
+    "Tufts Medical Center": "MA",
+    "New England Baptist Hospital": "MA",
+    "Lemuel Shattuck Hospital": "MA",
+    "Mount Auburn Hospital": "MA",
+    "Lahey Clinic": "MA",
+    "Winchester Hospital": "MA",
+    "Beth Israel Deaconess Hospital Needham": "MA",
+    "Beth Israel Deaconess Hospital Milton": "MA",
+    "MelroseWakefield Hospital": "MA",
+    "Lawrence Memorial Hospital": "MA",
+    "Beth Israel Deaconess Hospital Plymouth": "MA",
+    "Anna Jaques Hospital": "MA",
+    "Beverly Hospital": "MA",
+    "Lowell General Hospital": "MA",
+    "Addison Gilbert Hospital": "MA",
+    "Exeter Hospital": "NH",
+    "Maddock Alumni Center": "RI",
+    "Newport Hospital": "RI",
+    "Rhode Island Hospital": "RI",
+    "The Miriam Hospital": "RI",
+    "Bradley Hospital": "RI",
+    "Hasbro Children's Hospital": "RI",
+    "Emma Pendleton Bradley Hospital": "RI",
 }
-_LOCAL_FACILITIES = {name.casefold(): scope for name, scope in _FACILITIES.items()}
+_LOCAL_FACILITIES = {name.casefold(): state for name, state in _FACILITIES.items()}
 
 
-def _site(name: str, *, region: str = "", country: str = "") -> Scope:
+def _place_scope(places: tuple[str, ...], regions: frozenset[str]) -> Scope:
+    local = regions.intersection(places)
+    if "MA" in local:
+        return "ma"
+    if NEW_ENGLAND.intersection(local):
+        return "new_england"
+    return "in_region" if local else "outside"
+
+
+def _site(
+    name: str, *, region: str = "", country: str = "",
+    regions: frozenset[str] = NEW_ENGLAND,
+) -> Scope:
     name = name.strip()
     if (code := country_code(country)) and code != "US":
         return "outside"
@@ -107,24 +120,20 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
                 state = match[1]
                 break
     if state:
-        return "ma" if state == "MA" else "new_england" if state in NEW_ENGLAND else "outside"
+        return _place_scope((state,), regions)
     if re.search(r"\bremote\b", name, re.I):
         return "remote"
     if re.search(r"\b(?:Puerto Rico|Guam|American Samoa|Northern Mariana Islands|US Virgin Islands)\b", name, re.I):
         return "outside"
-    if local := _LOCAL_FACILITIES.get(name.casefold()):
-        return local
+    if state := _LOCAL_FACILITIES.get(name.casefold()):
+        return _place_scope((state,), regions)
     if _REMOTE.fullmatch(name):
         return "remote"
     # County readings outrank an unknown neighborhood or employer site label.
     for county in re.findall(r"\b[\w ]+?\s+County\b", name, flags=re.I):
         places = readings("county:" + county.strip())
         if places:
-            if "MA" in places:
-                return "ma"
-            if NEW_ENGLAND.intersection(places):
-                return "new_england"
-            return "outside"
+            return _place_scope(places, regions)
     # US is a prefix, not a city: "US, Lenexa KCIB (PRA)" reads Lenexa.
     city = re.sub(r"^(?:US|USA|United States)\s*[,\-]\s*", "", name, flags=re.I)
     city = re.sub(r"^City of ", "", city, flags=re.I)
@@ -133,11 +142,7 @@ def _site(name: str, *, region: str = "", country: str = "") -> Scope:
     for candidate in (city, city.split(",")[0].strip()):
         places = readings(candidate)
         if places:
-            if "MA" in places:
-                return "ma"
-            if NEW_ENGLAND.intersection(places):
-                return "new_england"
-            return "outside"
+            return _place_scope(places, regions)
     if code == "US":
         return "remote" if not city else "unreadable"
     return "unreadable"
@@ -161,9 +166,9 @@ def _ambiguous_site(name: str) -> bool:
 
 def location_scope(
     posting: Mapping[str, object], *, employer_has_local: bool | None = None,
-    physical_only: bool = False,
+    physical_only: bool = False, regions: frozenset[str] = NEW_ENGLAND,
 ) -> Scope:
-    """Keep any New England site; only physical sites can vouch for an employer."""
+    """Keep any configured state; only physical sites can vouch for an employer."""
     # Source countries survive in source_facts even when an older observation
     # left locations.country empty. Bind unspecified sites to that country;
     # an explicitly US secondary site still keeps a multi-site Posting local.
@@ -189,12 +194,12 @@ def location_scope(
             (code := country_code(country)) and code != "US"
         ):
             return
-        scope = _site(name, region=region, country=country)
+        scope = _site(name, region=region, country=country, regions=regions)
         sites.append(scope)
         shared_city = not region and (not country or country_code(country) == "US") and _ambiguous_site(name)
         if shared_city:
             ambiguous = True
-        elif scope in {"ma", "new_england", "remote"}:
+        elif scope in {"ma", "new_england", "in_region", "remote"}:
             known_local = True
     raw = posting.get("locations")
     structured_sites = False
@@ -219,7 +224,7 @@ def location_scope(
         # Workday's top-level site is often only "2 Locations". Historical
         # Postings can also lack a structured site list despite carrying
         # additional sites in source_facts. Read the same explicit fields View
-        # recovers before deciding whether every site is outside New England.
+        # recovers before deciding whether every site is outside the configured states.
         facts = posting.get("source_facts")
         if isinstance(facts, Mapping):
             for fields in (facts, *(value for value in facts.values() if isinstance(value, Mapping))):
@@ -255,14 +260,14 @@ def location_scope(
                 region = hint.rsplit(",", 1)[-1].strip()
                 if region.upper() not in STATE_CODES.values() and region.casefold() not in STATE_NAMES and not country_code(region):
                     continue
-                scope = _site(hint)
+                scope = _site(hint, regions=regions)
                 if scope == "outside":
                     return "outside"
                 # A local title does not rescue a known outside site or an
                 # unreadable employer that revision 35 already excluded.
-                if scope in {"ma", "new_england"} and "outside" not in sites and employer_has_local is not False:
+                if scope in {"ma", "new_england", "in_region"} and "outside" not in sites and employer_has_local is not False:
                     return scope
-    for value in ("ma", "new_england", "remote", "unreadable", "outside"):
+    for value in ("ma", "new_england", "in_region", "remote", "unreadable", "outside"):
         if value in sites:
             if value == "unreadable" and employer_has_local is False and not (display_is_count and not structured_sites):
                 return "outside"

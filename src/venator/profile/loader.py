@@ -16,6 +16,8 @@ from typing import Mapping, Sequence, overload
 
 import yaml
 
+from venator.discover.common import STATE_CODES
+
 from venator.profile.schema import (
     DEGREE_LEVELS,
     COMPACT_DOMAIN_TOKENS,
@@ -506,9 +508,9 @@ def _filter_policy(value: object, at: _Field, *, search: SearchTargeting | None 
             )
     location = _mapping(config.get("location"), at.child("location"))
     regions = _strings(location.get("regions"), at.child("location").child("regions"))
-    if regions and (len(regions) != 6 or set(regions) != {"MA", "RI", "NH", "CT", "VT", "ME"}):
+    if len(regions) != len(set(regions)) or not set(regions).issubset(STATE_CODES.values()):
         raise at.child("location").child("regions").reject(
-            "must name MA, RI, NH, CT, VT, ME exactly once", regions
+            "must name US state codes without duplicates", regions
         )
     if regions and "location" not in enabled:
         raise at.child("enabled").reject("must include location when filters.location.regions is set")
@@ -799,6 +801,9 @@ def load_profile(directory: Path) -> Profile:
     at = _Field(targeting_path)
     _refuse_retired_judge_keys(targeting, at)
 
+    predraft = _mapping(targeting.get("predraft"), at.child("predraft"))
+    predraft_enabled = _flag(predraft.get("enabled"), at.child("predraft").child("enabled"), True)
+    predraft_limit = _whole_number(predraft.get("limit"), at.child("predraft").child("limit"), 10)
     identity = _mapping(targeting.get("profile"), at.child("profile"))
     search = _search_targeting(targeting.get("search"), at.child("search"))
     filters = _filter_policy(targeting.get("filters"), at.child("filters"), search=search)
@@ -841,4 +846,6 @@ def load_profile(directory: Path) -> Profile:
         sources=sources,
         filters=filters,
         contact=contact,
+        predraft_enabled=predraft_enabled,
+        predraft_limit=predraft_limit,
     )

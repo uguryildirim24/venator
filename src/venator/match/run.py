@@ -16,7 +16,7 @@ from typing import Iterator, Sequence, TypeAlias
 from venator.match.budget import hard_filter_budget
 from venator.discover.store import posting_revision
 from venator.match.dedup import DUPLICATE_RULE, duplicate_decisions
-from venator.match.location_scope import location_scope
+from venator.match.location_scope import NEW_ENGLAND, location_scope
 from venator.match.store import (
     append_decisions,
     claim_decisions_dir,
@@ -203,11 +203,13 @@ def run(
         and latest.get((key, "hard_filter"), {}).get("filters_version") == version
     }
     settled = settled_decisions(latest, already_decided)
-    # Only a physical New England site can vouch for this employer's unreadable
+    # Only a physical in-region site can vouch for this employer's unreadable
     # sites. A state-specific remote Posting stays in, but vouches for nobody.
+    regions = frozenset(filter_policy.location_regions) if filter_policy.location_regions else NEW_ENGLAND
     local_employers = {
         str(posting.get("company") or posting.get("board") or "").casefold()
-        for posting in postings if location_scope(posting, physical_only=True) in {"ma", "new_england"}
+        for posting in postings
+        if location_scope(posting, physical_only=True, regions=regions) in {"ma", "new_england", "in_region"}
     }
     scoped_postings = [
         {**posting, "_employer_has_local":

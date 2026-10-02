@@ -25,11 +25,9 @@ export type ApplicationControl = {
 	readonly busy: ApplicationAction | null;
 	readonly error: string | null;
 	readonly failedAction: ApplicationAction | null;
-	/** Successful document version to open after the refreshed manifest arrives. */
-	readonly reviewVersion: string | null;
 	readonly notice: string | null;
 	readonly warnings: readonly string[];
-	readonly run: (action: ApplicationAction, options?: { readonly version?: string; readonly edits?: readonly { readonly draft_id: string; readonly text: string }[] }) => void;
+	readonly run: (action: ApplicationAction, options?: { readonly version?: string; readonly edits?: readonly { readonly draft_id: string; readonly text: string }[]; readonly id?: string }) => void;
 };
 
 // Whether this Posting can be rechecked by Apply.
@@ -64,32 +62,36 @@ export function useApplicationControl(key: string | null, reloadToken: number, o
 		}
 	}, [key, manifest, onReload]);
 	const [busy, setBusy] = useState<ApplicationAction | null>(null);
+	const inFlight = useRef(false);
 	const [answer, setAnswer] = useState<{
 		readonly key: string;
 		readonly error: string | null;
 		readonly failedAction: ApplicationAction | null;
-		readonly reviewVersion: string | null;
 		readonly notice: string | null;
 		readonly warnings: readonly string[];
 	} | null>(null);
 
 	const run = useCallback<ApplicationControl["run"]>(
 		(action, options = {}) => {
-			if (busy !== null || key === null) return;
-			setBusy(action);
+			if (inFlight.current || key === null) return;
+			inFlight.current = true;
+			setBusy(action === "apply" && manifest.status === "ready" && manifest.value.prepared ? "fill" : action);
 			setAnswer(null);
 			applicationAction(key, action, options)
-				.then((result) => {
-					const message = action === "apply" || action === "edit" ? "" : result.message?.trim() ?? "";
+				.then(async (result) => {
+					if (action === "apply") {
+						setBusy("fill");
+						const opened = await applicationAction(key, "fill");
+						result = { ...result, ...opened };
+					}
+					const message = action === "edit" || action === "apply" || action === "fill" ? "" : result.message?.trim() ?? "";
 					setAnswer({ key, error: null, failedAction: null,
-						reviewVersion: action === "apply" || action === "edit" ? result.version ?? null : null,
 						notice: message === "" ? null : message, warnings: result.warnings ?? [] });
-					onReload();
 				})
-				.catch((reason: Error) => setAnswer({ key, error: reason.message, failedAction: action, reviewVersion: null, notice: null, warnings: [] }))
-				.finally(() => setBusy(null));
+				.catch((reason: Error) => setAnswer({ key, error: reason.message, failedAction: action, notice: null, warnings: [] }))
+				.finally(() => { inFlight.current = false; setBusy(null); onReload(); });
 		},
-		[busy, key, onReload],
+		[key, manifest, onReload],
 	);
 
 	// An answer belongs to the Posting it was about; moving to the next one clears it.
@@ -100,7 +102,6 @@ export function useApplicationControl(key: string | null, reloadToken: number, o
 		busy,
 		error: current?.error ?? null,
 		failedAction: current?.failedAction ?? null,
-		reviewVersion: current?.reviewVersion ?? null,
 		notice: current?.notice ?? null,
 		warnings: current?.warnings ?? [],
 		run,

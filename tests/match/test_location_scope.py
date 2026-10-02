@@ -201,3 +201,44 @@ def test_title_disambiguates_only_unknown_or_shared_sites() -> None:
     assert location_scope({"locations": [{"name": "Madison", "country": "US"}], "title": "Technician / Madison, WI"}) == "outside"
     for hospital in ("Newport Hospital", "Rhode Island Hospital", "The Miriam Hospital", "Bradley Hospital"):
         assert location_scope({"location": hospital}) == "new_england"
+
+
+@pytest.mark.parametrize("place", [
+    "South San Francisco", "Emeryville", "Menlo Park", "San Mateo", "Redwood City",
+    "San Francisco, CA", "Remote, California", "Remote - CA", "Remote, California, USA",
+])
+def test_california_uses_configured_regions_and_shared_places(place: str) -> None:
+    regions = frozenset({"MA", "RI", "NH", "CT", "VT", "ME", "CA"})
+    assert location_scope({"location": place}) == "outside"
+    assert location_scope({"location": place}, regions=regions) == "in_region"
+    policy = FilterPolicy(enabled=("location",), location_regions=tuple(sorted(regions)))
+    assert location_reading({"location": place}, policy).fact == "in_region"
+    assert location_reading({"location": "Reno, NV"}, policy).reason == "outside New England or California: Reno, NV"
+
+
+@pytest.mark.parametrize("place, expected", [
+    ("Boston, MA", "outside"), ("Exeter Hospital", "outside"),
+    ("Maddock Alumni Center", "outside"), ("Remote Colorado", "outside"),
+    ("Remote, Canada", "outside"), ("Remote, Germany", "outside"),
+    ("Toronto", "outside"), ("Vancouver", "outside"), ("University", "outside"),
+    ("Cambridge, Canada", "outside"),
+    ("Remote, USA", "remote"), ("Unknown Campus", "unreadable"),
+    ("2 Locations", "unreadable"),
+])
+def test_california_only_preserves_foreign_and_remote_rules(place: str, expected: str) -> None:
+    assert location_scope({"location": place}, regions=frozenset({"CA"})) == expected
+
+
+def test_configured_state_scopes_include_arbitrary_states_and_foreign_binding() -> None:
+    regions = frozenset({"NY", "TX"})
+    assert location_scope({"location": "New York, NY"}, regions=regions) == "in_region"
+    assert location_scope({"location": "Remote Texas"}, regions=regions) == "in_region"
+    assert location_scope({"location": "San Francisco, CA"}, regions=regions) == "outside"
+    assert location_scope({"locations": [{"name": "San Mateo", "country": "CA"}]},
+                          regions=frozenset({"CA"}), employer_has_local=True) == "outside"
+    assert location_scope({"location": "2 Locations", "locations": [
+        {"name": "Berlin", "country": "DE"},
+        {"name": "San Mateo", "region": "CA", "country": "US"},
+    ]}, regions=frozenset({"CA"}), physical_only=True) == "in_region"
+    assert location_scope({"location": "Remote - CA"}, regions=frozenset({"CA"}),
+                          physical_only=True, employer_has_local=False) == "outside"

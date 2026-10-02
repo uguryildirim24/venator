@@ -458,6 +458,19 @@ export function ProfileView({ name, chooser, onSaved, sidebarHidden, onShowSideb
 						</div>
 					</section>
 
+					<section className="setup-section" aria-label="Application drafts">
+						<h2 className="group-header">Application drafts</h2>
+						<div className="setup-group">
+							<label className="setup-row">
+								<span className="setup-row-label">Draft top picks overnight</span>
+								<input type="checkbox" checked={targeting.predraft.enabled} onChange={(event) => edit(withTargeting(form, { predraft: { ...targeting.predraft, enabled: event.target.checked } }))} />
+							</label>
+							<FieldRow label="Drafts per night" issue={issue("targeting.predraft.limit")}>
+								<input aria-label="Drafts per night" type="number" min="0" step="1" value={targeting.predraft.limit} onChange={(event) => edit(withTargeting(form, { predraft: { ...targeting.predraft, limit: Number(event.target.value) } }))} />
+							</FieldRow>
+						</div>
+					</section>
+
 					<EmployerPicker boards={boards} onChange={setBoards} />
 					<section className="setup-section" aria-label={PROFILE.excludedEmployers}>
 						<h2 className="group-header">{PROFILE.excludedEmployers}</h2>

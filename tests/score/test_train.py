@@ -38,6 +38,16 @@ def test_chronological_track_labels_not_folded_application_states(names: list[st
                                [event(name, index=i + 1) for i, name in enumerate(names)]) == []
 
 
+@pytest.mark.parametrize('names', [[], ['approve'], ['reject'], ['submit'], ['reject', 'restore']])
+def test_outreach_is_not_a_training_label_or_a_change_to_one(names: list[str]) -> None:
+    events = [event(name, index=i + 1) for i, name in enumerate(names)]
+    outreach = {**event('outreach', index=10), 'detail': 'Alex Example'}
+    assert track_labels([outreach]) == []
+    assert track_labels([outreach, *events, outreach]) == track_labels(events)
+    base = [Label('private-key', 0, '0000-00000000')]
+    assert training_labels(base, [outreach, *events, outreach]) == training_labels(base, events)
+
+
 def rows():
     return [(Label(f'private-key-{i}', i % 2, f'2026-09-{i + 1:02d}T00:00:00+00:00'),
              {'title': f'Role {i}', 'employer': 'Example Lab', 'requirements_and_qualifications': 'lab work',

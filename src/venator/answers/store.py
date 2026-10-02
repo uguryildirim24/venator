@@ -88,6 +88,20 @@ def append(directory: Path, profile_id: str, *, text: str, kind: str, answer: st
     return row
 
 
+def keep_captured(directory: Path, profile_id: str, *, name: str, text: str, kind: str,
+                  answer: str | bool, board: str, company: str = "") -> dict | None:
+    """Keep a hand-typed answer with its employer, never a reserved question."""
+    if (reserved(text, kind=kind) is not None or reserved(name, kind=kind) is not None
+            or kind in {"file", "password", "checkbox"}
+            or isinstance(answer, str) and not answer.strip()):
+        return None
+    old = latest(directory, profile_id).get((question_key(text, company), board))
+    if old is not None and old.get("answer") == answer:
+        return None
+    return append(directory, profile_id, text=text, kind=kind if kind in KINDS else "text",
+                  answer=answer, board=board, company=company)
+
+
 def replace(directory: Path, profile_id: str, old: dict, answer: str | bool | None) -> dict:
     if latest(directory, profile_id).get((old["question"], old["scope"])) != old:
         raise ValueError("This answer changed. Reload the Answers view.")

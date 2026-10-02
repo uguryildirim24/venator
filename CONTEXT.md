@@ -43,7 +43,7 @@ _Avoid_: job, listing, opportunity
 A fixed rule that kills a Posting outright. The rules are `work_authorization`,
 `education_fit`, `role_target`, `eligibility` and `location`, with wording from
 the Profile. Location kills only when all readable sites are outside the
-Profile's New England regions. A remote site tied to a state counts only in
+Profile's selected US states (including DC). A remote site tied to a state counts only in
 that state. Only physical local sites vouch for unreadable sites from their
 employer. When the wording is unclear, the Posting passes. Killing a good Posting by mistake
 is the failure to avoid.
@@ -66,13 +66,15 @@ Owner never applies twice.
 A keep probability from a person's own model configured in their Install. A score
 binds to the compact Posting input and model identity. No model ships with Venator.
 For you starts at 0.5; below 0.1 is Excluded; Explore is between those cuts.
-For you and Explore show the highest keep probability first.
+For you and Explore show the highest keep probability first. View may carry the
+latest same-model score while current inputs wait for scoring, marked Last month's
+score. Carry does not make an input current for Score selection.
 
 **Refresh and Score**
 Refresh fetches Postings, records Filter Decisions and rebuilds View without
-inference. Hard Filter passes without a current score wait in Awaiting Score.
-Stale passes wait in Awaiting Hard Filters instead. Only pressing Score runs the
-configured model; a pause keeps earlier scores for the next press.
+inference. Hard Filter passes without a current or carried same-model score wait
+in Awaiting Score. Stale passes wait in Awaiting Hard Filters instead. Score runs
+on a press or in the daily loop; a pause keeps earlier scores for the next run.
 The sidebar's location choice narrows what is displayed; unlike the Profile's
 location Hard Filter, it never changes a Filter Decision. Both use the same
 offline GeoNames place lookup ([attribution](docs/geonames-attribution.md)).
@@ -98,6 +100,15 @@ _Avoid_: inbox, pending list
 The Owner sending an Application through the employer's own form. Venator records it
 only when the Owner reports it.
 _Avoid_: application (that's the bundle), send
+
+**Apply**
+One press checks the Posting, prepares or reuses current documents and opens the
+visible filled form. The Owner still submits. Daily pre-drafting prepares documents
+without opening a browser or recording an Application.
+
+**Contact**
+A privately imported person linked to an employer or board, shown in the Posting
+margin. Reached out records outreach separately from Application state and labels.
 
 ## Filling forms
 
@@ -127,11 +138,12 @@ _Avoid_: test run, simulation, preview
 
 **TrackEvent**
 One recorded fact about an Application: `approve`, `reject`, `prepare`, `fill`,
-`submit`, `restore`, `outcome` or `withdraw`. Events are appended, never edited, and
+`submit`, `restore`, `outcome`, `withdraw`, `outreach` or `outreach_undo`. Events are appended, never edited, and
 each has a checked actor, details, a time and the Profile it belongs to. The Owner
 can act on a Posting before it has a score. `submit` records the
 Owner's own report that they applied; it sends nothing to an employer. In the app,
-`approve` is Save and `reject` is Dismiss.
+`approve` is Save and `reject` is Dismiss. Outreach and its undo never change
+Application state or keep/skip labels.
 _Avoid_: status update, log entry
 
 **Application State**

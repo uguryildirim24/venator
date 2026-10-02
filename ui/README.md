@@ -46,7 +46,7 @@ The server mounts five routers, in this order (`server/app.ts`):
 | Mount | Methods | What it does | Contract |
 |---|---|---|---|
 | `/api/runs` | `POST`, plus `GET` for run state | starts Refresh or Score | [RUN-API.md](RUN-API.md) |
-| `/api/applications` | `POST`, plus `GET` for status and files | save, dismiss, restore, apply, edit, fill, applied and answers | below |
+| `/api/applications` | `POST`, plus `GET` for status and files | save, dismiss, restore, apply, edit, fill, applied, answers and contact outreach | below |
 | `/api/onboarding` | `POST`, plus `GET /settings` and `GET /existing-profile` | setup and editing a saved Profile | [ONBOARDING-API.md](ONBOARDING-API.md) |
 | `/api/locations` | `GET`, `POST` | read and save this Install's list location choice | below |
 | `/api` | `GET` only | reads the view database | below |
@@ -87,9 +87,13 @@ the choice in the Install; it doesn't change a Profile or the view.
 `POST /api/applications` takes `{ "action", "key" }` with any fields needed by
 that action. `apply` drafts a reviewed version; `edit` writes a new version.
 `fill` opens the employer's form and uploads only the hash-checked reviewed PDFs.
+One dashboard **Apply** press sequences `apply` then `fill`, reusing current prepared
+documents when available. The daily loop can pre-draft without opening a browser.
 `answer`, `replace`, `retract` and `promote` manage the per-employer answer library.
 Greenhouse questions are read before Apply; reserved questions stay for the person
-to answer, and essays use their saved statements. A Greenhouse confirmation records
+to answer, and essays use their saved statements. Answers typed on trusted
+Greenhouse, Ashby and Workday forms are kept automatically for that employer,
+except reserved questions, passwords and files. A newly kept answer can be undone. A Greenhouse confirmation records
 an applied Application after the person presses Submit. The server runs
 `python -m venator.applications <action> <key> --profile <name>` and returns its JSON.
 While another application action or a run is going, it answers `409`.
@@ -100,6 +104,11 @@ Concurrent checks for the same Posting share one child; status children have a s
 time limit and a bounded queue. Abandoned checks cancel their child.
 `GET /api/applications/:key/files/<name>` returns a prepared `resume.pdf`,
 `resume.txt` or `letter.pdf`.
+
+`GET /api/applications/:key/contacts` returns matching private contacts from the
+Install. `outreach` and `outreach_undo` take a contact `id` and record **Reached out**
+or its undo. The margin shows the person, title, conversation angle, link and date.
+Neither action changes Application state, lists or keep/skip labels.
 
 ## Where the data comes from
 
@@ -135,7 +144,7 @@ only ever written to `<data directory>/profiles`.
 |---|---|
 | `#/queue` | **For you**: keep probability at least 0.5 |
 | `#/queue?list=needs-review` | **Explore**: keep probability from 0.1 to below 0.5 |
-| `#/queue?list=unscored` | **Awaiting Score**: Hard Filter passes without a current keep score |
+| `#/queue?list=unscored` | **Awaiting Score**: Hard Filter passes without a current or carried same-model keep score |
 | `#/queue?list=applied` | **Applications**: prepared, handed off, applied, and what came back |
 | `#/queue?list=saved`, `?list=dismissed` | **Saved** and **Dismissed** |
 | `#/queue?list=filtered` | **Excluded**: Hard Filter kills and keep probabilities below 0.1 |
@@ -164,14 +173,18 @@ probability, highest first, then verification recency. The Posting page's margin
 with **Meets N of M** and a requirements tally, then shows one-line facts from
 the résumé assessment and Hard Filters. Press a requirement line to open the
 description at that line. **Open Listing** appears there when Venator can't
-prepare an application. It has no explainer lines.
+prepare an application. It has no explainer lines. Carried scores are marked
+**Last month’s score** until current scores arrive; a model change does not carry
+the old model's scores.
 
 Setup takes over the whole window, with no sidebar. Each step has **Skip for Now**,
 and the step lives in the URL so Back works. When the app opens with no route and no
 real Profile, it goes to setup once. **Profile** in the sidebar opens the saved
 Profile's form instead. Changes are checked before Save; fields the form doesn't
 show remain in the Profile. Save replays Hard Filters on stored Postings and rebuilds
-the view, without fetching or scoring. The location choice above the lists filters visible
+the view, without fetching or scoring. Location regions accept any non-empty list
+of distinct US state codes or DC; country readings in the offline lookup no longer
+mistake Canada for California. The location choice above the lists filters visible
 Postings, page counts and pagination without changing the view database.
 
 Score is a separate press above the Profile account row. It uses the person's own

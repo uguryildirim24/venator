@@ -54,7 +54,8 @@ def test_a_profile_directory_that_does_not_exist_says_what_was_expected(tmp_path
         ("search:\n  queries: biotech\n", "targeting.yaml: search.queries must be a list of strings (got 'biotech')"),
         ("search:\n  queries: ['', ok]\n", "targeting.yaml: search.queries.0 must be a non-empty string (got '')"),
         ("filters:\n  enabled: [salary]\n", "targeting.yaml: filters.enabled.0 must name a Hard Filter"),
-        ("filters:\n  enabled: [location]\n  location:\n    regions: [MA, RI, NH, CT, VT, NY]\n", "targeting.yaml: filters.location.regions must name MA, RI, NH, CT, VT, ME exactly once"),
+        ("filters:\n  enabled: [location]\n  location:\n    regions: [MA, CA, ZZ]\n", "targeting.yaml: filters.location.regions must name US state codes without duplicates"),
+        ("filters:\n  enabled: [location]\n  location:\n    regions: [CA, CA]\n", "targeting.yaml: filters.location.regions must name US state codes without duplicates"),
         ("filters:\n  enabled: [eligibility]\n  location:\n    regions: [MA, RI, NH, CT, VT, ME]\n", "targeting.yaml: filters.enabled must include location"),
         ("filters:\n  education_fit:\n    kill_completed_degree: maybe\n", "targeting.yaml: filters.education_fit.kill_completed_degree must be true or false (got 'maybe')"),
         ("filters:\n  work_authorization:\n    restriction_patterns: ['(unclosed']\n", "restriction_patterns.0 is not a valid regular expression"),
@@ -80,10 +81,15 @@ def test_a_malformed_profile_is_rejected_by_file_and_field(
     assert str(directory / "targeting.yaml") in message
 
 
-def test_new_england_location_scope_loads(tmp_path: Path) -> None:
-    targeting = "filters:\n  enabled: [location]\n  location:\n    regions: [MA, RI, NH, CT, VT, ME]\n"
+@pytest.mark.parametrize("regions", [
+    ("MA", "RI", "NH", "CT", "VT", "ME"),
+    ("MA", "RI", "NH", "CT", "VT", "ME", "CA"),
+    ("CA",), ("NY", "TX", "WA"),
+])
+def test_us_state_location_scope_loads(tmp_path: Path, regions: tuple[str, ...]) -> None:
+    targeting = f"filters:\n  enabled: [location]\n  location:\n    regions: [{', '.join(regions)}]\n"
     policy = load_profile(write_profile(tmp_path / "scoped", targeting=targeting)).filters
-    assert policy.location_regions == ("MA", "RI", "NH", "CT", "VT", "ME")
+    assert policy.location_regions == regions
 
 
 def test_unparseable_yaml_names_the_file(tmp_path: Path) -> None:

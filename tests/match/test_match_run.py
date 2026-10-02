@@ -128,6 +128,26 @@ def test_remote_ma_keeps_its_posting_but_not_employers_empty_sites(tmp_path: Pat
     }
 
 
+def test_california_physical_sites_vouch_but_remote_sites_do_not(tmp_path: Path) -> None:
+    postings = tmp_path / "postings"
+    decisions = tmp_path / "decisions"
+    write_jsonl(postings / "2026-08-18.jsonl", [
+        {"key": "lab:site", "company": "Lab", "title": "Technician", "location": "South San Francisco"},
+        {"key": "lab:empty", "company": "Lab", "title": "Technician II", "location": "Unknown Campus"},
+        {"key": "lab:foreign", "company": "Lab", "title": "Technician III", "location": "Berlin", "country": "DE"},
+        {"key": "remote:site", "company": "Remote Lab", "title": "Scientist", "location": "Remote - CA"},
+        {"key": "remote:empty", "company": "Remote Lab", "title": "Scientist II", "location": ""},
+        {"key": "lab:other", "company": "Lab", "title": "Scientist III", "location": "Reno, NV"},
+    ])
+    profile = profile_at(tmp_path / "profiles" / "local", "filters:\n  enabled: [location]\n  location:\n    regions: [MA, RI, NH, CT, VT, ME, CA]\n")
+    run(postings, decisions, profile=profile)
+    rows = [json.loads(line) for path in decisions.glob("*.jsonl") for line in path.read_text().splitlines()]
+    assert {row["posting_key"]: row["verdict"] for row in rows} == {
+        "lab:site": "pass", "lab:empty": "pass", "lab:foreign": "kill",
+        "remote:site": "pass", "remote:empty": "kill", "lab:other": "kill",
+    }
+
+
 def profile_at(directory: Path, targeting: str = "") -> Profile:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "targeting.yaml").write_text(targeting, encoding="utf-8")

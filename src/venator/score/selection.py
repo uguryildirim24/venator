@@ -23,6 +23,7 @@ class Input:
     input_hash: str
     state: dict[str, str]
     score: Score | None
+    discovered_at: str = ''
 
 
 def filter_version(profile: Profile) -> str:
@@ -53,7 +54,7 @@ def inputs_for_passes(
         digest = input_hash(state)
         key = str(posting['key'])
         score = scores.get((key, digest, model.model_id)) if model else None
-        result.append(Input(key, digest, state, score))
+        result.append(Input(key, digest, state, score, str(posting.get('discovered_at') or '')))
     return result
 
 

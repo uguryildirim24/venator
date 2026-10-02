@@ -41,7 +41,7 @@ def pause_reason(error: Exception) -> str:
 
 
 def receipt_key(model: KeepModel, inputs: list[Input]) -> str:
-    value = [model.model_id, [(row.posting_key, row.input_hash) for row in inputs]]
+    value = ['prefix-v1', model.model_id, [(row.posting_key, row.input_hash) for row in inputs]]
     return hashlib.sha256(json.dumps(value, separators=(',', ':')).encode()).hexdigest()
 
 
@@ -91,64 +91,74 @@ def run_score(model: KeepModel | None, inputs: list[Input], install: Path, *,
         runtime = runtime_factory(model)
         # Bound the first preparation as well as inference. The partition uses the
         # complete selection so scores written on day 1 cannot renumber day 2.
-        for start in range(0, len(inputs), BATCH_SIZE):
-            group = [row for row in inputs[start:start + BATCH_SIZE] if row.score is None]
-            if not group:
+        newest = sorted(sorted(inputs, key=lambda row: row.posting_key),
+                        key=lambda row: row.discovered_at, reverse=True)
+        for start in range(0, len(newest), BATCH_SIZE):
+            batch = [row for row in newest[start:start + BATCH_SIZE] if row.score is None]
+            if not batch:
                 continue
-            # A too-large receipt is split without preparing the successful half again.
-            pending = [group]
-            while pending:
-                batch = pending.pop(0)
-                key = receipt_key(model, batch)
-                receipt_path = install / 'build/keep-estimates' / f'{key}.json'
-                if receipt_path.is_file():
-                    receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-                else:
-                    if not afford(RESERVED_USD):
-                        report['paused'] = 'budget-reached'
-                        return report
-                    directory = f'/vol/{model.volume}/score/{uuid4().hex}'
-                    anonymous = [{'id': f'r{i:06d}', 'state': row.state} for i, row in enumerate(batch)]
-                    # Reserve before the paid call; a killed child cannot erase spend.
-                    charge(RESERVED_USD, 'estimate')
-                    receipt = runtime.prepare(anonymous, directory)
-                    receipt.update(directory=directory, model_id=model.model_id,
-                                   estimated_usd=projected_usd(receipt['padded_tokens']),
-                                   reserved_usd=RESERVED_USD)
-                    receipt_path.parent.mkdir(parents=True, exist_ok=True)
-                    receipt_path.write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8', newline='\n')
-                report['estimate'] = receipt
-                if receipt['estimated_usd'] > MAXIMUM_USD:
-                    if len(batch) == 1:
-                        report['paused'] = 'cap-reached'
-                        return report
-                    middle = len(batch) // 2
-                    pending[:0] = [batch[:middle], batch[middle:]]
-                    continue
-                if not execute:
-                    continue
-                cost = receipt['estimated_usd']
-                if not afford(cost):
+            key = receipt_key(model, batch)
+            receipt_path = install / 'build/keep-estimates' / f'{key}.json'
+            if receipt_path.is_file():
+                receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+            else:
+                if not afford(RESERVED_USD):
                     report['paused'] = 'budget-reached'
                     return report
-                charge(cost, 'batch')
-                by_id = {f'r{i:06d}': row for i, row in enumerate(batch)}
-                received: set[str] = set()
-                for chunk in runtime.infer(receipt['directory'], receipt['items_sha256']):
-                    for result in chunk.get('scores', []):
-                        ident = result['id']
-                        if ident not in by_id or ident in received:
-                            raise ValueError('Unexpected score id')
-                        row = by_id[ident]
-                        score = Score(row.posting_key, row.input_hash, model.model_id,
-                                      result['probability'], scored_at)
-                        append_score(install / 'data/keep-scores', score)
-                        received.add(ident)
-                        report['scored'] += 1
-                        report['waiting'] -= 1
-                if len(received) != len(batch):
-                    report['paused'] = 'connection-unavailable'
+                directory = f'/vol/{model.volume}/score/{uuid4().hex}'
+                anonymous = [{'id': f'r{i:06d}', 'state': row.state} for i, row in enumerate(batch)]
+                # Reserve before the paid call; a killed child cannot erase spend.
+                charge(RESERVED_USD, 'estimate')
+                receipt = runtime.prepare(anonymous, directory)
+                receipt.update(directory=directory, model_id=model.model_id,
+                               estimated_usd=projected_usd(receipt['padded_tokens']),
+                               reserved_usd=RESERVED_USD)
+                receipt_path.parent.mkdir(parents=True, exist_ok=True)
+                receipt_path.write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8', newline='\n')
+            report['estimate'] = receipt
+            cost = receipt['estimated_usd']
+            count = len(batch)
+            if cost > MAXIMUM_USD or (execute and not afford(cost)):
+                # Exact per-row padding lets inference use the largest newest-first
+                # prefix that fits, without paying another preparation reservation.
+                tokens = count = 0
+                ceiling = min(MAXIMUM_USD, daily_usd - day, monthly_usd - month) if execute else MAXIMUM_USD
+                for padded in receipt['row_padded_tokens']:
+                    candidate = projected_usd(tokens + padded)
+                    if candidate > ceiling + 1e-9:
+                        break
+                    tokens += padded
+                    count += 1
+                if not count:
+                    report['paused'] = 'cap-reached' if cost > MAXIMUM_USD and len(batch) == 1 else 'budget-reached'
                     return report
+                cost = projected_usd(tokens)
+                report.setdefault('limited_batches', []).append({'selected': count, 'available': len(batch), 'usd': cost})
+            if not execute:
+                continue
+            charge(cost, 'batch')
+            by_id = {f'r{i:06d}': row for i, row in enumerate(batch[:count])}
+            received: set[str] = set()
+            chunks = (runtime.infer(receipt['directory'], receipt['items_sha256'], count)
+                      if count < len(batch) else runtime.infer(receipt['directory'], receipt['items_sha256']))
+            for chunk in chunks:
+                for result in chunk.get('scores', []):
+                    ident = result['id']
+                    if ident not in by_id or ident in received:
+                        raise ValueError('Unexpected score id')
+                    row = by_id[ident]
+                    score = Score(row.posting_key, row.input_hash, model.model_id,
+                                  result['probability'], scored_at)
+                    append_score(install / 'data/keep-scores', score)
+                    received.add(ident)
+                    report['scored'] += 1
+                    report['waiting'] -= 1
+            if len(received) != count:
+                report['paused'] = 'connection-unavailable'
+                return report
+            if count < len(batch):
+                report['paused'] = 'budget-reached' if not afford(projected_usd(0)) else 'cap-reached'
+                return report
     except Exception as error:
         report['paused'] = pause_reason(error)
     return report

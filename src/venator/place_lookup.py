@@ -2,7 +2,8 @@
 
 place_names.json derives from GeoNames cities500 and admin2Codes
 (see docs/geonames-attribution.md).
-A name may have several readings; never pick an outside reading over a New England one.
+A name may have several readings; the location scope prefers configured US states.
+Foreign codes colliding with states outside New England carry a country: prefix.
 """
 from __future__ import annotations
 

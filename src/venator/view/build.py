@@ -24,6 +24,7 @@ from venator.discover.store import posting_revision
 from venator.match.assessment import assess_posting
 from venator.score.model import load_model
 from venator.score.selection import inputs_for_passes
+from venator.score.store import read_scores
 from venator.view.verify import verify_dashboard
 
 from venator.match.store import (
@@ -145,7 +146,8 @@ CREATE TABLE runs (
 """ + ASSESSMENTS_DDL + """
 CREATE TABLE keep_scores (
   posting_key TEXT PRIMARY KEY, input_hash TEXT NOT NULL, model_id TEXT,
-  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT
+  probability REAL CHECK (probability >= 0 AND probability <= 1), scored_at TEXT,
+  carried INTEGER NOT NULL DEFAULT 0 CHECK (carried IN (0, 1))
 );
 CREATE TABLE source_health (
   source_key TEXT PRIMARY KEY, status TEXT, last_attempt_at TEXT,
@@ -403,6 +405,24 @@ def build_database(
             postings, latest_hard, profile, as_of_month or '', current_filters_version,
             model, postings_dir.parent / 'keep-scores',
         )
+    # Carry only for presentation. Exact bindings still drive Score selection and training.
+    latest_scores = {}
+    if model is not None:
+        for score in read_scores(postings_dir.parent / 'keep-scores').values():
+            if score.model_id != model.model_id:
+                continue
+            previous = latest_scores.get(score.posting_key)
+            if previous is None or score.scored_at >= previous.scored_at:
+                latest_scores[score.posting_key] = score
+    score_rows = []
+    for row in score_inputs:
+        score = row.score or latest_scores.get(row.posting_key)
+        score_rows.append((
+            row.posting_key, score.input_hash if score else row.input_hash,
+            model.model_id if model else None,
+            score.probability if score else None, score.scored_at if score else None,
+            int(row.score is None and score is not None),
+        ))
     cached_assessments = {}
     resume_version = hashlib.sha256(json.dumps(
         dict(profile.resume) if profile is not None else None,
@@ -498,11 +518,7 @@ def build_database(
         # from the handler and demoting the original to __context__.
         with closing(sqlite3.connect(temporary_path)) as database, database:
             database.executescript(SCHEMA)
-            database.executemany("INSERT INTO keep_scores VALUES (?, ?, ?, ?, ?)", (
-                (row.posting_key, row.input_hash, model.model_id if model else None,
-                 row.score.probability if row.score else None, row.score.scored_at if row.score else None)
-                for row in score_inputs
-            ))
+            database.executemany("INSERT INTO keep_scores VALUES (?, ?, ?, ?, ?, ?)", score_rows)
             database.executemany("INSERT INTO assessments VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", assessment_rows)
             health_path = postings_dir / "source-health.json"
             health = {}

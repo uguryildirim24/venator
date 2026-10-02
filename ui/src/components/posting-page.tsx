@@ -2,15 +2,16 @@ import { Check, ChevronRight, Loader, Lock } from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { FilterDecision, PostingDetail, TrackEvent } from "../../shared/contracts.ts";
-import { applicationFileUrl, saveAnswer, saveAuthorization, type ApplicationEdit, type ApplicationManifest } from "../api.ts";
+import { applicationFileUrl, retractAnswer, saveAnswer, saveAuthorization, type ApplicationEdit, type ApplicationManifest } from "../api.ts";
 import { preparation, type ApplicationControl } from "../application.ts";
 import { formatDay, formatMoment, hostOf } from "../format.ts";
-import { assessmentNoteLabel, decisionTitle, employerLabel, ruleLabel, sourceLabel, statusLabel, trackEventLabel } from "../labels.ts";
+import { assessmentNoteLabel, CARRIED_KEEP_LABEL, decisionTitle, employerLabel, ruleLabel, sourceLabel, statusLabel, trackEventLabel } from "../labels.ts";
 import { buildMargin, type Margin, type MarginNote, type MarkedBlock } from "../margin.ts";
 import { latestHardFilter, triageAllowed } from "../triage.ts";
 import { ExternalLink } from "./external-link.tsx";
 import { PageBlockText } from "./page-block-text.ts";
 import { Sheet } from "./sheet.tsx";
+import { ContactMargin } from "./contact-margin.tsx";
 
 /* ----------------------------------------------------------------- notes */
 
@@ -145,20 +146,6 @@ function FootLink({ label, count, noun, onPress }: { readonly label: string; rea
 
 /* ----------------------------------------------------------------- the application */
 
-function ResumeThumb() {
-	return (
-		<span className="resume-thumb" aria-hidden="true">
-			<span />
-			<span />
-			<span />
-			<span />
-			<span />
-			<span />
-			<span />
-		</span>
-	);
-}
-
 function QuickLook({ postingKey, manifest, open, busy, error, onOpenChange, onEdit }: { readonly postingKey: string; readonly manifest: ApplicationManifest; readonly open: boolean; readonly busy: boolean; readonly error: string | null; readonly onOpenChange: (open: boolean) => void; readonly onEdit: (edits: readonly ApplicationEdit[]) => void }) {
 	const [view, setView] = useState<"pdf" | "text" | "letter">("pdf");
 	const [edits, setEdits] = useState<Record<string, string>>({});
@@ -218,32 +205,23 @@ function QuickLook({ postingKey, manifest, open, busy, error, onOpenChange, onEd
 
 function ApplicationMargin({ detail, control, onHistory }: { readonly detail: PostingDetail; readonly control: ApplicationControl; readonly onHistory: () => void }) {
 	const [quickLook, setQuickLook] = useState(false);
-	const [kept, setKept] = useState<ReadonlySet<string>>(new Set());
+	const [undone, setUndone] = useState<ReadonlySet<string>>(new Set());
 	const [captureError, setCaptureError] = useState<string | null>(null);
-	const [awaitingReview, setAwaitingReview] = useState(false);
-	useLayoutEffect(() => {
-		if (control.busy === "apply") setAwaitingReview(true);
-		if (!awaitingReview || control.busy !== null) return;
-		if (control.error !== null) { setAwaitingReview(false); return; }
-		if (control.reviewVersion !== null && control.manifest.status === "ready" &&
-			control.manifest.value.version === control.reviewVersion) {
-			setQuickLook(true);
-			setAwaitingReview(false);
-		}
-	}, [control.busy, control.manifest, control.error, control.reviewVersion, awaitingReview]);
+
 	const state = detail.application?.state ?? null;
 	const since = detail.application?.since ?? null;
 	const allowed = detail.status !== "hard-killed" && preparation(detail).allowed;
 	const manifest = control.manifest.status === "ready" ? control.manifest.value : null;
+	const saved = manifest?.savedAnswers?.filter((row) => !undone.has(row.id)) ?? [];
 
 	let body: ReactNode;
 	if (!allowed && state !== "submitted" && state !== "concluded") {
 		body = null;
-	} else if (control.busy === "apply") {
+	} else if (control.busy === "apply" || control.busy === "fill") {
 		body = (
 			<div className="resume-state">
 				<Loader aria-hidden="true" className="glyph spinner" />
-				<span>Applying…</span>
+				<span>{control.busy === "apply" ? "Drafting…" : "Opening the form…"}</span>
 			</div>
 		);
 	} else if (state === "submitted" || state === "concluded") {
@@ -277,23 +255,16 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 	} else if (control.prepared && manifest !== null) {
 		body = (
 			<>
-				<div className="resume">
-					<ResumeThumb />
-					<div className="resume-text">
-						<strong>Application</strong>
-						<span className="resume-state">
-							<Check aria-hidden="true" className="glyph check" />
-							<span>Ready{since === null ? "" : ` · ${formatDay(since)}`}</span>
-						</span>
-					</div>
-				</div>
+				<p className="resume-state">{manifest.handoff === "ready" || manifest.handoff === "applied"
+					? detail.posting.source === "lever" ? "Listing open. Documents ready." : "Filled. Press Submit on the employer's page."
+					: "Documents ready."}</p>
 				<div className="margin-buttons">
 					<button type="button" className="button" onClick={() => setQuickLook(true)}>
 						Quick Look
 					</button>
 					{control.busy === null ? <button type="button" className="button" onClick={() => control.run("applied")}>I Applied</button> : <span className="resume-state">Saving…</span>}
 				</div>
-				<button type="button" className="button" disabled={control.busy !== null} onClick={() => control.run("fill")}>{control.busy === "fill" ? "Opening…" : "Fill"}</button>
+				<button type="button" className="note-action" disabled={control.busy !== null} onClick={() => control.run("fill")}>Fill again</button>
 				<QuickLook postingKey={detail.posting.key} manifest={manifest} open={quickLook} busy={control.busy !== null} error={control.failedAction === "edit" ? control.error : null} onOpenChange={setQuickLook} onEdit={(edits) => { if (manifest.version) control.run("edit", { version: manifest.version, edits }); }} />
 			</>
 		);
@@ -307,7 +278,7 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 					</div>
 				) : null}
 				<div className="margin-buttons">
-					{control.busy === null && control.failedAction === "apply" ? <button type="button" className="button" onClick={() => { control.run("apply"); setAwaitingReview(true); }}>Retry Apply</button> : null}
+					{control.busy === null && control.failedAction === "apply" ? <button type="button" className="button" onClick={() => control.run("apply")}>Retry Apply</button> : null}
 				</div>
 			</>
 		);
@@ -317,21 +288,24 @@ function ApplicationMargin({ detail, control, onHistory }: { readonly detail: Po
 		<div className="margin-application">
 			<ExternalLink className="button" size="large" href={detail.posting.url} title={detail.posting.url}>Open Listing</ExternalLink>
 			{body}
-			{manifest?.candidates?.some((candidate) => !kept.has(candidate.name)) ? <div className="note"><span className="note-title">Keep these answers?</span>
-				{manifest.candidates.filter((candidate) => !kept.has(candidate.name)).map((candidate) => <button key={candidate.name} type="button" className="note-action" onClick={() => {
-					void saveAnswer(detail.posting.key, { text: candidate.label, kind: "text", answer: candidate.value,
-						universal: false }).then(() => setKept((previous) => new Set([...previous, candidate.name])))
-						.catch((failure: Error) => setCaptureError(failure.message));
-				}}>{candidate.label}: {String(candidate.value)}</button>)}
-				{captureError === null ? null : <span role="alert">{captureError}</span>}
+			{saved.length ? <div className="note"><span className="note-title">Saved {saved.length} answers</span>
+				<button type="button" className="note-action" onClick={() => {
+					void (async () => {
+						for (const row of saved) {
+							await retractAnswer(row.id);
+							setUndone((previous) => new Set([...previous, row.id]));
+						}
+					})().catch((failure: Error) => setCaptureError(failure.message));
+				}}>Undo</button>
 			</div> : null}
+			{captureError === null ? null : <span role="alert">{captureError}</span>}
 			{allowed && control.manifest.status === "error" ? (
 				<div className="note">
 					<span className="note-title">Documents could not be read</span>
 					<span className="note-subtitle">{control.manifest.message}</span>
 				</div>
 			) : null}
-			{allowed && control.busy === null && control.failedAction === "apply" && control.prepared ? <button type="button" className="button" onClick={() => { control.run("apply"); setAwaitingReview(true); }}>Retry Apply</button> : null}
+			{allowed && control.busy === null && control.failedAction === "apply" && control.prepared ? <button type="button" className="button" onClick={() => control.run("apply")}>Retry Apply</button> : null}
 			{control.error === null ? null : (
 				<div className="note" role="alert">
 					<span className="note-title">That did not go through</span>
@@ -446,6 +420,7 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 	const eyebrow = posting.location === null || posting.location === "" ? employer : `${employer} · ${posting.location}`;
 	const host = hostOf(assessment?.applyUrl || posting.url);
 	const meta = [
+		detail.keepScoreCarried ? CARRIED_KEEP_LABEL : null,
 		posting.postedAt === null ? null : `Posted ${formatDay(posting.postedAt)}`,
 		assessment?.listingStatus === "open" && assessment.lastVerifiedAt !== null
 			? `Verified open ${formatDay(assessment.lastVerifiedAt)}`
@@ -486,6 +461,7 @@ export function PostingPage({ detail, control, arriving }: PostingPageProps) {
 				</header>
 				<div className="margin-cell">
 					<div className="margin-stack">
+						<ContactMargin detail={detail} control={control} />
 						<FitLedger fit={margin.fit} fallback={margin.requirementsAt} onJump={openLine} />
 						{excluded ? null : <ApplicationMargin detail={detail} control={control} onHistory={() => setSheet("history")} />}
 						{margin.header.map((note) => (

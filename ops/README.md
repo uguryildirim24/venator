@@ -7,9 +7,18 @@ Disabling it removes the agent. Building and testing Venator do not load it.
 The agent runs the app's bundled Python, not a checkout. It uses the Install's data
 folder, starts at 06:30 by default, and does not run when first loaded. It runs
 Discover, Hard Filters, a capped batch of Score, rechecks new picks and saved
-Postings, rebuilds View and notifies you. If Score pauses, earlier scores stay;
+Postings, rebuilds View, pre-drafts documents and notifies you. Pre-drafting prepares
+up to ten newest eligible For you Postings by default, with no browser opening or
+Application event. Change the limit or turn it off in Profile; it uses your chosen
+assistant. Apply reuses a draft only while its Posting and Profile inputs are current.
+If Score pauses, earlier scores stay;
 the other stages still run. A cross-process lock prevents the daily run and a
 manual run from writing at the same time. No stage submits an Application.
+
+At month rollover, View carries the latest same-model scores while the daily run
+works through current inputs. Score uses newest-first batches of up to 500 and takes
+only the prefix that fits the per-call, daily and monthly ceilings. Completed scores
+stay; the next run resumes missing work. Switching models does not carry old scores.
 
 The app generates the plist at `~/Library/LaunchAgents/dev.venator.loop.plist`.
 You can inspect its contents without installing it:

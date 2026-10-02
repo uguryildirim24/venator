@@ -51,6 +51,18 @@ test("the example Profile reads as fields, with the flags and policy the form do
 	assert.deepEqual(validateProfileForm(form), []);
 });
 
+test("overnight drafting defaults on at ten and its toggle and count round-trip", () => {
+	const original = example();
+	const form = formOf(original);
+	assert.deepEqual(form.targeting.predraft, { enabled: true, limit: 10 });
+	const changed = { ...form, targeting: { ...form.targeting, predraft: { enabled: false, limit: 3 } } };
+	const patched = patchProfileDocuments(original, changed);
+	assert.deepEqual(formOf(patched).targeting.predraft, { enabled: false, limit: 3 });
+	assert.deepEqual(profileFormFromBody(JSON.parse(JSON.stringify(formOf(patched)))).targeting.predraft, { enabled: false, limit: 3 });
+	assert.equal(patched["resume.yaml"], original["resume.yaml"]);
+	assert.equal(patched["constraints.yaml"], original["constraints.yaml"]);
+});
+
 test("excluded employers round-trip without removing registered boards or changing compact policy", () => {
 	const original = example();
 	const form = formOf(original);

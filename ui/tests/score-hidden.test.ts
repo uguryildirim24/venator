@@ -21,7 +21,7 @@ function hiddenView() {
 	const db = emptyViewDatabase();
 	db.prepare("INSERT INTO postings (key, source, board, title, url, discovered_at) VALUES (?, 'greenhouse', 'fixture', 'Lab', 'https://example.test/job', '2026-09-29')").run(key);
 	db.prepare("INSERT INTO decisions (posting_key, stage, verdict, decided_at) VALUES (?, 'hard_filter', 'pass', '2026-09-29')").run(key);
-	db.prepare("INSERT INTO keep_scores VALUES (?, 'input', 'adapter', 0.04, '2026-09-29')").run(key);
+	db.prepare("INSERT INTO keep_scores VALUES (?, 'input', 'adapter', 0.04, '2026-09-29', 0)").run(key);
 	return db;
 }
 
@@ -81,6 +81,7 @@ for (const [action, state, event, list] of [["save", "approved", "approve", "sav
 
 test("score-hidden passes get buttons and s/x; Hard Filter kills get neither and no Apply", async () => {
 	const db = hiddenView();
+	db.exec("UPDATE keep_scores SET carried = 1");
 	const actions: string[] = [];
 	let failAction: string | null = null;
 	const settle = installDom("http://localhost", undefined, (input, init) => {
@@ -92,6 +93,7 @@ test("score-hidden passes get buttons and s/x; Hard Filter kills get neither and
 			if (action === failAction) return Response.json({ error: `Fixture ${action} failed.` }, { status: 409 });
 			return Response.json({});
 		}
+		if (url.pathname.endsWith("/contacts")) return Response.json({ contacts: [] });
 		if (url.pathname.startsWith("/api/applications/")) return Response.json({ prepared: false });
 		if (url.pathname === "/api/postings") return Response.json({ entries: readPostingEntries(db, query), total: 1, newCount: 0 });
 		if (url.pathname.startsWith("/api/postings/")) return Response.json(readPostingDetail(db, key));
@@ -122,6 +124,8 @@ test("score-hidden passes get buttons and s/x; Hard Filter kills get neither and
 		assert.ok(container.querySelector('button[aria-label="Dismiss"]'));
 		assert.ok(container.querySelector(".margin-application"));
 		assert.ok(container.textContent?.includes("Hidden: low keep score · 4%"));
+		assert.ok(container.querySelector(".page-meta")?.textContent?.includes("Last month’s score"));
+		assert.equal(container.textContent?.split("Last month’s score").length, 3); // List row and Posting page.
 		assert.ok(!container.textContent?.includes("Everything this rule excluded"));
 		assert.ok(!container.textContent?.includes("Excluded by a Hard Filter"));
 		assert.equal(container.querySelector(".capsule"), null);
@@ -158,7 +162,7 @@ test("score-hidden passes get buttons and s/x; Hard Filter kills get neither and
 		db.exec("UPDATE postings SET company = 'Fixture', location = 'Boston'");
 		db.prepare("INSERT INTO postings (key, source, board, company, location, title, url, discovered_at) VALUES ('greenhouse:fixture:2', 'greenhouse', 'fixture', 'Fixture', 'Boston', 'Lab', 'https://example.test/job2', '2026-09-29')").run();
 		db.exec("INSERT INTO decisions (posting_key, stage, verdict, decided_at) VALUES ('greenhouse:fixture:2', 'hard_filter', 'pass', '2026-09-29')");
-		db.exec("INSERT INTO keep_scores VALUES ('greenhouse:fixture:2', 'input', 'adapter', 0.06, '2026-09-29')");
+		db.exec("INSERT INTO keep_scores VALUES ('greenhouse:fixture:2', 'input', 'adapter', 0.06, '2026-09-29', 0)");
 		assert.equal(readPostingEntries(db, query)[0]?.hardFilter?.verdict, "pass");
 		await render(2);
 		await press("s");
