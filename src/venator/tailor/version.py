@@ -8,7 +8,7 @@ from collections.abc import Mapping
 
 from venator.profile import Profile
 
-PREPARATION_REVISION = 9
+PREPARATION_REVISION = 10
 
 
 def _plain_copy(value: object) -> object:

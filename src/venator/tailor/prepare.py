@@ -18,7 +18,7 @@ import os
 import shutil
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -135,13 +135,8 @@ def _section_specs(resume: Mapping[str, object]) -> list[dict[str, object]]:
     else:
         specs = [dict(item) for item in DEFAULT_SECTIONS]
 
-    known = {str(spec["key"]) for spec in specs}
-    for key, value in resume.items():
-        if key in known or key in {"sections", "name", "contact"}:
-            continue
-        if isinstance(value, list):
-            specs.append({"key": str(key), "title": str(key).replace("_", " ").upper(), "kind": "entries"})
-            known.add(str(key))
+    # Only declared sections (or the renderer defaults) are printable. Other
+    # top-level lists, such as Workday languages, are Profile facts, not sections.
     return specs
 
 
@@ -251,6 +246,32 @@ def _reference_selection(draft: CheckedDraft, entries: Sequence[_Entry]) -> _Sel
     })
 
 
+def _fit_reference(draft: CheckedDraft, entries: Sequence[_Entry], resume: Mapping[str, object],
+                   specs: Sequence[Mapping[str, object]], reference: Path) -> tuple[CheckedDraft, _Selection]:
+    """Keep source wording when generated bullets cannot fit the reference page."""
+    from venator.resume.reference import ReferenceOverflowError, preflight_reference
+
+    selection = _reference_selection(draft, entries)
+    try:
+        preflight_reference(_structured_resume(resume, specs, selection), reference)
+        return draft, selection
+    except ReferenceOverflowError:
+        originals = {bullet.identifier: bullet.text for entry in entries for bullet in entry.bullets}
+        restored = {row["source_id"] for row in draft.resume_bullets
+                    if row["text"] != originals[row["source_id"]]}
+        bullets = tuple({**row, "text": originals[row["source_id"]]} for row in draft.resume_bullets)
+        provenance = tuple(
+            {**row, "final": originals[row["source_ids"][0]], "recovery": "restored_for_layout"}
+            if row["kind"] == "resume_bullet" and row["source_ids"][0] in restored else dict(row)
+            for row in draft.provenance
+        )
+        draft = replace(draft, resume_bullets=bullets, provenance=provenance)
+        selection = _reference_selection(draft, entries)
+        # Source text still has to fit; do not shrink fonts or omit facts.
+        preflight_reference(_structured_resume(resume, specs, selection), reference)
+        return draft, selection
+
+
 def _structured_resume(resume: Mapping[str, object], specs: Sequence[Mapping[str, object]], selection: _Selection) -> dict:
     value = {"name": _text(resume.get("name")), "contact": _source_without_controls(resume.get("contact")),
              "sections": _plain_copy(specs)}
@@ -320,8 +341,8 @@ def _resume_lines(
     contact = _source_without_controls(resume.get("contact"))
     if isinstance(contact, Mapping):
         values: list[str] = []
-        for value in contact.values():
-            values.extend(_flatten_text(value))
+        for key in ("location", "phone", "email", "linkedin"):
+            values.extend(item for item in _flatten_text(contact.get(key)) if item)
         if values:
             lines.append(_Line(" | ".join(values), "contact"))
 
@@ -710,7 +731,7 @@ def prepare_application(
     facts_version = _input_version(profile, resume, include_layout=False)
     if (use_reference and previous and not form_questions and not answer_pins
             and previous.get("facts_version", previous.get("input_version")) == facts_version
-            and previous.get("preparation_revision") in {4, 5, 6, 7, 8, 9}):
+            and previous.get("preparation_revision") in {4, 5, 6, 7, 8, 9, PREPARATION_REVISION}):
         # Reformat only unchanged, hash-checked documents. The original review
         # remains tied to the same candidate facts and employer description.
         compatible = {**previous, "input_version": input_version, "preparation_revision": PREPARATION_REVISION}
@@ -723,7 +744,10 @@ def prepare_application(
         draft = generate_and_check(_plain_copy(posting), sources, provider=provider,
                                    cover_letter=cover_letter, completion=completion,
                                    questions=essays, statements=statements)
-    selection = _reference_selection(draft, entries) if use_reference else _selection(draft, entries)
+    if use_reference:
+        draft, selection = _fit_reference(draft, entries, resume, specs, reference)
+    else:
+        selection = _selection(draft, entries)
     lines = _resume_lines(resume, specs, selection)
     resume_text = "\n".join(line.text for line in lines) + ("\n" if lines else "")
     letter_text = _cover_letter(name, draft) if cover_letter else None
@@ -731,7 +755,6 @@ def prepare_application(
     if use_reference:
         from venator.resume.reference import render_reference
         structured = _structured_resume(resume, specs, selection)
-        preflight_reference(structured, reference)
         pdf_writer = lambda path: render_reference(structured, path, reference)
 
     version_payload = {
@@ -794,6 +817,9 @@ def prepare_application(
     }
     if use_reference:
         manifest["changes"].insert(0, "preserved the uploaded resume's fonts, layout, section order, and entry structure")
+        restored_for_layout = sum(item["recovery"] == "restored_for_layout" for item in draft.provenance)
+        if restored_for_layout:
+            manifest["changes"].append(f"restored {restored_for_layout} source bullets to fit the uploaded resume's page")
     if reused_writing:
         manifest["changes"].append("reused previously checked writing without another AI request")
     _write_manifest(_manifest_path(directory), manifest)

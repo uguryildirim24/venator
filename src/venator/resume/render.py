@@ -233,7 +233,10 @@ class Renderer:
 
     def sub_line(self, main: str, location: str) -> None:
         self.top += TIGHT_PITCH
-        self.page.draw_runs(LEFT, self.top, runs(f"{main} ", I) + runs(f"- {location}"))
+        line = runs(main, I)
+        if location:
+            line = runs(f"{main} ", I) + runs(f"- {location}")
+        self.page.draw_runs(LEFT, self.top, line)
 
     def bullets(self, items: list[str]) -> None:
         self.top += SUB_TO_BULLETS
