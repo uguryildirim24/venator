@@ -33,7 +33,8 @@ def reuse_checked_draft(record: Mapping, sources: Sequence[dict], *, cover_lette
                 identifier = row["source_ids"][0]
                 if identifier not in bullets or row["original"] != bullets[identifier]:
                     return None
-                final = row["draft"] if supported else row["original"]
+                final = (row["draft"] if supported and row.get("recovery") != "restored_for_layout"
+                         else row["original"])
                 if row.get("final") != final or final not in record.get("resumeText", ""):
                     return None
                 rewritten.append({"source_id": identifier, "text": final})

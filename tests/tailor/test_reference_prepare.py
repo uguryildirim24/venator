@@ -20,7 +20,7 @@ FONT_DIR = _reference_fixtures.FONT_DIR
 resume = _reference_fixtures.resume
 source = _reference_fixtures.source
 from venator.profile import Profile
-from venator.resume.reference import ReferenceLayoutError, ReferenceOverflowError, capture_reference
+from venator.resume.reference import ReferenceLayoutError, ReferenceOverflowError, capture_reference, preflight_reference
 from venator.tailor.prepare import _input_version, edit_application, prepare_application
 
 JOB = {"key": "test:lab:1", "title": "Student Assistant", "company": "Example Laboratory",
@@ -213,6 +213,88 @@ def test_owner_edit_overflow_keeps_previous_reference_version(source, resume, tm
     with pytest.raises(ReferenceOverflowError, match="exceeds the reference layout"):
         edit_application(output, original, [{"draft_id": bullet["draft_id"], "text": "Unbroken" * 200}], JOB, profile)
     assert json.loads((output / "manifest.json").read_text())["version"] == original["version"]
+
+
+@pytest.mark.parametrize("use_reference", [False, True])
+@pytest.mark.parametrize("configured_sections", [False, True])
+def test_only_resume_sections_and_four_contact_fields_are_printed(source, resume, tmp_path,
+                                                                  use_reference, configured_sections):
+    if not configured_sections:
+        resume.pop("sections")
+    resume["languages"] = [{"language": "English", "proficiency": "Native or bi-lingual proficiency"}]
+    resume["form_notes"] = [{"org": "Not a resume section", "bullets": ["Not a printed bullet."]}]
+    # Deliberately not PDF order, with Workday-only structured facts mixed in.
+    resume["contact"] = {"legal_name": {"first": "Legal", "last": "Name"},
+                         "linkedin": "linkedin.example/ari", "address": {"line": "1 Example Street"},
+                         "email": "ari@example.test", "phone_type": "Mobile",
+                         "phone": "555-0100", "location": "Boston"}
+    profile = candidate(tmp_path, resume)
+    if use_reference:
+        install_reference(source, profile)
+    output = tmp_path / "application"
+    manifest = prepare_application(JOB, profile, output, provider="codex", completion=Completion())
+    text = manifest["resumeText"]
+    assert text.splitlines()[1] == "Boston | 555-0100 | ari@example.test | linkedin.example/ari"
+    pdf_text = PdfReader(output / "versions" / manifest["version"] / "resume.pdf").pages[0].extract_text()
+    for excluded in ("LANGUAGES", "FORM NOTES", "Not a resume section", "Native or bi-lingual",
+                     "Legal", "1 Example Street", "Mobile"):
+        assert excluded not in text and excluded not in pdf_text
+    assert "languages" not in manifest["renderedResume"]
+    assert "form_notes" not in manifest["renderedResume"]
+
+
+def test_reference_rewrite_overflow_restores_source_and_reuses_checked_version(source, resume, tmp_path):
+    profile = candidate(tmp_path, resume)
+    reference = install_reference(source, profile)
+    source_bottom = preflight_reference(resume, reference)["bottom"]
+    path = reference / "layout.json"
+    metadata = json.loads(path.read_text())
+    # Put the last source line near the bottom of a synthetic short page.
+    metadata["layout"]["bottom"] = source_bottom + 1
+    metadata["layout"]["height"] = source_bottom + 35
+    path.write_text(json.dumps(metadata))
+    rewrite = "Assisted with 12 samples, " + "assisting with the sample work " * 6 + "."
+    rewritten = copy.deepcopy(resume)
+    rewritten["experience"][0]["bullets"] = [rewrite]
+    with pytest.raises(ReferenceOverflowError):
+        preflight_reference(rewritten, reference)
+
+    class LongerCompletion(Completion):
+        def __call__(self, prompt, **kwargs):
+            answer = super().__call__(prompt, **kwargs)
+            if "GENERATED PASSAGES:" not in prompt:
+                answer["resume_bullets"][0]["text"] = rewrite
+            return answer
+
+    completion = LongerCompletion()
+    output = tmp_path / "application"
+    manifest = prepare_application(JOB, profile, output, provider="codex", completion=completion)
+    assert len(completion.calls) == 2
+    original = resume["experience"][0]["bullets"][0]
+    assert original in manifest["resumeText"] and rewrite not in manifest["resumeText"]
+    assert manifest["renderedResume"]["experience"][0]["bullets"] == [original]
+    assert manifest["draftSelection"]["resume_bullets"][0]["text"] == original
+    row = manifest["draftProvenance"][0]
+    assert row["draft"] == rewrite and row["final"] == original
+    assert row["recovery"] == "restored_for_layout"
+    pdf = PdfReader(output / "versions" / manifest["version"] / "resume.pdf")
+    assert len(pdf.pages) == 1 and original in pdf.pages[0].extract_text()
+    assert any("to fit" in change for change in manifest["changes"])
+    assert prepare_application(JOB, profile, output, provider="codex", completion=fail_completion) == manifest
+    change_layout(reference)
+    reformatted = prepare_application(JOB, profile, output, provider="codex", completion=fail_completion)
+    assert reformatted["resumeText"] == manifest["resumeText"]
+
+
+def test_reference_source_overflow_still_fails_before_provider(source, resume, tmp_path):
+    profile = candidate(tmp_path, resume)
+    reference = install_reference(source, profile)
+    path = reference / "layout.json"
+    metadata = json.loads(path.read_text())
+    metadata["layout"]["bottom"] = preflight_reference(resume, reference)["bottom"] - 1
+    path.write_text(json.dumps(metadata))
+    with pytest.raises(ReferenceOverflowError):
+        prepare_application(JOB, profile, tmp_path / "application", provider="codex", completion=fail_completion)
 
 
 def test_same_layout_cached_manifest_does_not_bypass_provenance_validation(source, resume, tmp_path):

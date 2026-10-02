@@ -185,6 +185,43 @@ def test_confirmed_sections_and_entry_order_are_preserved(source, resume, tmp_pa
     assert text.index("EXPERIENCE") < text.index("EDUCATION") and "Hidden" not in text
 
 
+@pytest.mark.parametrize("renderer", ["basic", "reference"])
+def test_projects_use_named_headings_and_omit_empty_location_separator(source, resume, tmp_path, renderer):
+    from venator.resume.render import render
+    from venator.tailor.prepare import _Selection, _catalogue, _resume_lines, _structured_resume
+
+    resume["contact"].update(phone="555-0100", linkedin="linkedin.example/ari")
+    resume["education"][0]["location"] = "Boston"
+    resume["sections"].append({"key": "projects", "title": "PROJECTS", "kind": "entries",
+                               "heading": "name", "subheading": "stack"})
+    resume["projects"] = [
+        {"name": "Sample Simulation", "stack": "Python", "location": "https://github.com/example/simulation",
+         "dates": "2026", "bullets": ["Validated synthetic simulation results."]},
+        {"name": "Sample Tool", "stack": "Rust", "location": "", "dates": "2025",
+         "bullets": ["Built a reproducible sample tool."]},
+    ]
+    specs, entries, _ = _catalogue(resume)
+    selection = _Selection(entries, {entry.identifier: entry.bullets for entry in entries})
+    structured = _structured_resume(resume, specs, selection)
+    text = "\n".join(line.text for line in _resume_lines(resume, specs, selection))
+    assert "PROJECTS" in text and "https://github.com/example/simulation" in text
+    output = tmp_path / "projects.pdf"
+    if renderer == "reference":
+        directory = tmp_path / "reference"
+        capture_reference(source, directory, font_directory=FONT_DIR)
+        render_reference(structured, output, directory)
+    else:
+        render(structured, output)
+    with pdfplumber.open(output) as document:
+        pdf_text = document.pages[0].extract_text()
+    for expected in ("PROJECTS", "Sample Simulation", "Sample Tool", "Python", "Rust",
+                     "https://github.com/example/simulation", "Validated synthetic simulation results.",
+                     "Built a reproducible sample tool.", "2026", "2025"):
+        assert expected in pdf_text
+    assert "Python - https://github.com/example/simulation" in pdf_text
+    assert "Rust -" not in pdf_text
+
+
 def test_parallel_prose_columns_are_rejected(source, tmp_path):
     from io import BytesIO
     from pypdf import PdfWriter

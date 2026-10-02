@@ -220,6 +220,16 @@ the next Apply, and drafts a résumé and a letter if the form asks for one,
 and checks drafted passages against confirmed Profile facts. You can edit the text;
 each edit makes a new version. Reviewed files are hashed under `data/applications/`.
 
+Prepared résumés print only configured sections, or the default sections when none
+are configured. Other Profile lists, such as Workday `languages`, are not added as
+sections. The `resume.txt` contact line contains only location, phone, email and
+LinkedIn, in that order. Empty locations leave no trailing dash in the PDF.
+
+With a captured reference layout, a generated bullet rewrite that overflows the
+page falls back to the source bullet text. The preparation records that recovery;
+if the source text itself does not fit, preparation still fails rather than
+shrinking fonts or dropping facts.
+
 ```bash
 uv run python -m venator.applications apply POSTING_KEY --profile NAME
 ```
