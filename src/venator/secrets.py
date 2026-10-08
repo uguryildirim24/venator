@@ -1,9 +1,9 @@
 """One choke point that strips key-shaped text out of a record before it is stored.
 
-`data/` is committed and append-only (docs/adr/0001-git-as-transport.md), so a
-credential that lands in a day file is in the history for good. There is no
-fixing that forward, which makes it the one class of bug worth paying for
-twice.
+`data/` is private and append-only (docs/adr/0001-git-as-transport.md), so a
+credential that lands in a day file can persist in local history and backups.
+There is no fixing that forward, which makes it the one class of bug worth
+paying for twice.
 
 It has now been paid for twice. Two separate attempts to keep a key out of the
 store were made at the site that produced the text — first a provider's

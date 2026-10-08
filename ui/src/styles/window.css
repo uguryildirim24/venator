@@ -1,6 +1,6 @@
 /*
  * The window: sidebar, unified toolbar, list, and the Posting page with its margin
- * (ui/DESIGN.md). Every value is a token from tokens.css.
+ * (ui/README.md, "Screens"). Every value is a token from tokens.css.
  */
 
 /* ------------------------------------------------------------------ frame */
@@ -1041,7 +1041,7 @@
 }
 
 /*
- * The first-run states (ui/DESIGN.md, "Setup and first run"): a glyph, a title, one sentence
+ * The first-run states (ui/README.md, "Screens"): a glyph, a title, one sentence
  * and at most two presses, centred in the space the list and the page would take.
  */
 .first-run {

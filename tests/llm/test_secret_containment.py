@@ -1,8 +1,7 @@
 """A secret must never reach `data/`, from any path in the key lane.
 
-`data/` is the transport layer (docs/adr/0001-git-as-transport.md): committed,
-append-only, and never rewritten. A key that lands there is in the history for
-good — it is not a bug anyone can fix forward, only one they can rotate around.
+`data/` is private, append-only history (docs/adr/0001-git-as-transport.md).
+A key written there can persist in local files and backups.
 
 So this file does not test that one particular error body is scrubbed. It plants
 one sentinel key, hands it to a provider that echoes it back through every path

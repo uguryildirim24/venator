@@ -3,7 +3,7 @@
  *
  * Pure: it takes the Posting's detail and returns, for every block of the reader page, the
  * underlines to draw in that block and the notes to anchor to it. This module does not measure
- * layout; the Posting page flows anchored notes past each other (ui/DESIGN.md, "The Posting page and its margin").
+ * layout; the Posting page flows anchored notes past each other (ui/README.md, "Screens").
  *
  * The rules, in the order they are applied:
  *

@@ -54,8 +54,9 @@ Installs. They must never contain a name, an email or anything else personal.
 
 ## Consequences
 
-The loop's `commit` stage doesn't commit personal stores, because the application
-data directory is outside Git. The dashboard listens only on loopback and serves one
+The loop excludes `commit` by default. The normal application data directory is
+outside Git and stays private.
+The dashboard listens only on loopback and serves one
 Install, so it needs no login. Onboarding writes only inside that Install's Profile
 directory.
 

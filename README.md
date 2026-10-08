@@ -5,305 +5,200 @@
   </picture>
 </h1>
 
-Venator is a local, personal job application app. It runs on your own computer and
-works for one person. It pulls job postings from the employer job boards you pick,
-throws out the ones you can't or don't want to apply to, and uses your own keep
-model to sort the rest. You read them on a
-dashboard, prepare a résumé and cover letter for the ones you like, and apply
-yourself. Venator never presses submit for you.
+Venator is a local job-search and application-preparation app with a Python pipeline, React dashboard and Tauri desktop shell.
 
-## What's in it
+## Why it exists
 
-- **Discover** fetches Postings from Greenhouse, Lever, Ashby, SmartRecruiters,
-  Workday and a few other job boards.
-- **Hard Filters** apply fixed rules from your Profile (work authorization,
-  education, role level, eligibility, and location when enabled). Every Posting
-  gets a recorded decision, so nothing disappears without a reason.
-- **Score** sorts Hard Filter passes using your keep model, configured in your
-  Install. It runs when you press **Score** or in the daily run.
-- **The dashboard** shows the lists, each Posting as a page with notes beside it,
-  and buttons to save, dismiss and Apply. Its
-  résumé assessment treats confirmed post-secondary education, including current
-  enrolment, as meeting a high school requirement. This covers ordinary wording
-  such as “(Required)” and high school as one option, but not separate required
-  qualifications. Preferred extras stay separate.
-- **Apply** checks the live Posting, drafts a résumé and letter PDF from confirmed
-  facts, and opens the filled form with one press. It reuses a current prepared
-  bundle when one is ready. You can still edit the documents; each edit makes a
-  new reviewed version.
-- **The visible form** opens in a browser. On Greenhouse and
-  Ashby it fills confirmed answers and uploads only reviewed, hash-checked PDFs
-  when the form belongs to the Posting. On Workday, you sign in and pick
-  **Autofill with Resume**; Venator uploads the tailored résumé, fills gaps and
-  corrects parser values between steps. Drop-downs need an exact option match.
-  You press every **Save and Continue** and **Submit** yourself. Ashby and Workday
-  questions are remembered per employer for the next Apply. Lever stays manual.
-  You check the form before submitting. Greenhouse confirmation can be recorded
-  automatically; Workday also needs your Submit and an exact Candidate Home row.
-  For Ashby, use **I Applied** after submitting.
+Job boards, application documents and follow-up notes are often separate.
+Venator puts them in one local workflow. It fetches selected employer boards,
+records filter decisions, prepares documents from confirmed facts and tracks
+manual applications. It never presses Submit.
 
-Everything personal (your Profile, the Postings, every decision) stays in a folder on
-your computer, outside this repository.
+## What it shows
 
-Without a keep model configured in your Install, passing Postings wait in
-**Awaiting Score**. No model or question comes with the repository.
+- Discovery adapters for public employer boards, including Greenhouse, Lever,
+  Ashby, SmartRecruiters and Workday.
+- Configurable Hard Filters with recorded reasons and replayable history.
+- A SQLite view and dashboard for inspecting postings, saving or dismissing them,
+  reviewing assessments and tracking application actions.
+- Optional document drafting through an assistant and reviewed browser handoff.
+- Optional keep-model inference and approved retraining on Modal. No model,
+  adapter, labels or measured accuracy result is bundled.
 
-## Install
+`profiles/example/` is a fictional backend engineer. The development dashboard
+has a separate fictional fixture for list and assessment states. Its probabilities
+and application actions are invented, not research results or Rolf's job search.
+The fixture uses example.com links, not live application forms.
 
-You need Git, Python 3.13 or newer, [uv](https://docs.astral.sh/uv/), Node.js 24 or
-newer, and pnpm.
+[docs/VALIDATION.md](docs/VALIDATION.md) records the offline preview and existing
+checks. Discovery was skipped during this review. Live board counts do not measure
+matching accuracy, interviews or successful applications.
+
+## Run from a clean clone
+
+Requirements: Python 3.13 or newer, uv, Node.js 24 or newer, and Corepack
+(or pnpm 11.22.0). Run these commands in the cloned repository root.
+Run pnpm inside `ui/` so Corepack reads its `packageManager` pin and selects
+pnpm 11.22.0:
 
 ```bash
-git clone https://github.com/uguryildirim24/venator.git venator
-cd venator
-uv sync
-pnpm --dir ui install --frozen-lockfile
-```
-
-Browser handoff and the Dry Run tools also need Chromium:
-`uv run playwright install chromium`.
-
-To build the Mac app, you also need a Rust toolchain. Then run
-`pnpm --dir ui desktop:build`. The `.app` and `.dmg` land in
-`ui/src-tauri/target/release/bundle/`. On Apple silicon the app carries its own
-Node and Python, so it runs on a Mac with neither installed. It is only ad hoc
-signed, so macOS warns the first time you open it.
-
-## First-time setup
-
-Start the dashboard and open <http://127.0.0.1:5173>:
-
-```bash
-pnpm --dir ui dev
-```
-
-`pnpm dev` is the development server. Until your Install has built its first view, it
-fills the lists with sample data and labels it as such. The Mac app never shows sample
-data.
-
-With no Profile yet, it opens **Set Up Venator**. There are three steps, and each one
-has **Skip for Now**.
-
-1. **Connect an assistant.** Pick **Use Claude** (Claude Code, signed in with your
-   Claude plan) or **Use ChatGPT** (Codex, signed in with your ChatGPT plan). Venator
-   uses it to read your résumé and to draft application documents. Checking the
-   connection uses a few words of your plan.
-2. **Add your résumé.** Drop in a PDF or paste the text. Reading the PDF on your
-   computer is free but only finds your contact details. Reading it with the
-   assistant fills in experience, education and skills, and costs one request on your
-   plan. Either way you check every value, and only what you tick goes into your
-   Profile.
-3. **Choose jobs.** Add job titles, level, places, and whether you want remote jobs.
-   Then add employers: paste an employer's careers page, press **Look Up**, type the
-   employer's name, and add the boards it found. **Find Jobs** saves your Profile and
-   starts the first fetch.
-
-After setup, **Profile** in the sidebar opens a form for editing the Profile you
-already saved: contact and résumé facts, target jobs, filters, employers and settings.
-Save checks your changes before writing and keeps Profile fields the form does not
-show. It then reruns Hard Filters on stored Postings and rebuilds the lists, without
-fetching boards or scoring. If you skipped the employers, the empty list offers **Add Employers…**.
-
-## Everyday use
-
-- **Refresh** fetches your boards again, runs the Hard Filters and rebuilds the
-  lists without inference. Passes without a current score wait in **Awaiting Score**.
-  Postings needing fresh Hard Filters show **Awaiting Hard Filters** instead.
-- **Score** sits above your Profile name. It runs the keep model configured in your
-  Install on Modal, then rebuilds the lists. If a run stops, earlier scores stay and
-  remaining Postings wait for the next press. Refresh sits below Employers.
-- The location choice above a list narrows the visible Postings and counts. Open
-  a state or country to choose its cities, or choose the whole state or country.
-  Boston spellings share one city choice. Campus names and job-posting labels use
-  their city; joined place lists split into their cities. Remote spellings share
-  one Remote choice. Several locations, No location and Other places have their
-  own choices. A Posting with several listed places appears in each one. This
-  doesn't change the Profile or rerun Hard Filters. The picker and the location
-  Hard Filter use the same offline GeoNames place lookup
-  ([attribution](docs/geonames-attribution.md)). It recognises US-prefixed cities,
-  counties, foreign remote sites and campus labels. A remote site tied to a state
-  counts only in that state; only a physical local site can vouch for an unreadable
-  site from the same employer.
-- The last-checked line below Employers shows when Discover last checked your boards,
-  including checks run from the command line. It says **Not checked yet** until
-  a board check has been recorded.
-- Postings for the same requisition at several sites fold into one row. Open it to
-  see its sites; each site's Posting is still kept in history. Workable rows with
-  the same shortcode merge their locations into one Posting during Discover.
-- **For you** holds keep probabilities of 0.5 or above. **Explore** holds probabilities
-  from 0.1 to below 0.5. Both lists show the highest keep probability first. **Excluded** holds Hard Filter kills and probabilities
-  below 0.1. A passing Posting below 0.1 reads **Hidden: low keep score**, with
-  its percentage, not as excluded by a rule. You can still **Save** or **Dismiss**
-  it, or press **s** or **x**. Saving moves it to **Saved**; dismissing moves it to
-  **Dismissed**. Hard Filter kills offer neither action, and hidden Postings do
-  not offer Apply. **Applications**, **Saved** and **Dismissed** hold what you've
-  acted on.
-- At a month change, the latest score from the same model stays in the lists,
-  marked **Last month's score**, until the current score arrives. A model change
-  does not carry the previous model's scores. The daily run scores newest Postings
-  first in bounded batches, taking only what fits the daily and monthly limits.
-- Switching Postings fades and raises the new page. The description opens with
-  eight faded lines. **Read More** shows the rest; **Read Less** folds it back.
-- A Posting's margin is one ledger. It starts with **Meets N of M** and a tally
-  of the requirements Venator can check against your résumé. Press a requirement
-  line to open the description at that line. **Open Listing** goes to the
-  employer's page when Venator can't prepare an application. **Save** and **Dismiss** record your
-  choice, and **Restore** undoes it. **Apply** drafts the documents and opens the
-  filled form. You check it and submit yourself. **I Applied** records an
-  Application if you submitted it and confirmation was not detected.
-- Imported contacts appear in the Posting margin with their title, conversation
-  angle and contact link. **Reached out** records a date; press it again to undo.
-  Outreach never moves a Posting between lists or changes keep/skip labels. The
-  contacts stay in your Install; see [the import command](docs/RUNNING.md#contacts).
-- **Profile** has an answer library for employer questions. Save answers for one
-  employer or all employers, and add your own statements for essay questions.
-  Answers you type in a trusted Greenhouse, Ashby or Workday form are kept
-  automatically for that employer. You can undo a newly kept answer or edit it in
-  Profile. Authorization, sponsorship, EEO, consent, verification codes, signatures,
-  passwords and file fields are not auto-kept. Reserved questions remain for you
-  to answer on the form; Venator never guesses.
-
-The installed Mac app can run Discover, Hard Filters, a capped batch of Score,
-rechecks, View, pre-drafting and a notification once a day. Pre-drafting prepares
-up to ten newest eligible **For you** Postings by default without opening a browser
-or recording an Application. You can change the limit or turn it off in Profile.
-Apply reuses a draft only while its Posting and Profile inputs are still current.
-The daily run uses a cross-process lock and daily and monthly Score limits. See [ops/README.md](ops/README.md).
-
-## Try it with the example Profile
-
-`profiles/example/` is a fictional Profile for trying things out. Don't apply with its
-résumé. This runs the pipeline in a throwaway Install:
-
-```bash
-export VENATOR_HOME="$(mktemp -d)"  # keep this shell open for all the commands
-export VENATOR_PROFILE=example      # the dashboard uses it too
+uv sync --frozen
+(cd ui && pnpm install --frozen-lockfile)
+mkdir -p build
+export VENATOR_HOME="$(mktemp -d "$PWD/build/example-install.XXXXXX")"
+export VENATOR_PROFILE=example
 uv run python -m venator.discover.run --profile example
-uv run python -m venator.match.run --profile example --as-of "$(date +%F)"
+uv run python -m venator.match.run --profile example
 uv run python -m venator.view.build --profile example --as-of "$(date +%F)"
-pnpm --dir ui dev
+(cd ui && pnpm dev)
 ```
 
-The example watches three public boards, so it needs internet access, and results
-change over time. If a board fails, you'll see the failure. Venator doesn't swap in
-demo data. `VENATOR_HOME` moves all stores and the view. It doesn't change which
-Profile runs. Once the view exists, the dashboard shows it instead of the sample
-data.
+Open `http://localhost:5173`. Keep the same shell and environment for all commands.
+This uses three public boards and needs internet access. Failed sources are
+reported, not replaced with sample jobs. No assistant account or model is needed.
+Passing postings wait in **Awaiting Score** because no keep model is configured.
+The Install and build output above are ignored by Git. Delete that example Install
+when finished. Do not use its résumé to apply.
 
-## Writing a Profile by hand
+For an offline UI preview, omit the three Python pipeline commands and run the
+same development server with a fresh example Install. `pnpm dev` permits clearly
+labelled sample data only when no real view exists. The packaged app does not.
 
-A Profile is three YAML files: `targeting.yaml`, `constraints.yaml` and
-`resume.yaml`. Copy `profiles/example/` to `$VENATOR_HOME/profiles/<name>/` (or to
-`profiles/<name>/` in a checkout you won't publish). Replace every fictional fact,
-board, search term and constraint. Delete `scaffold: true`, set the name, and run each
-stage with `--profile <name>`. The name is a name, never a path.
+### Set up a real search
 
-Each board needs its token under `sources.boards` and the employer's name under
-`sources.names`. To stop fetching an employer and exclude its stored Postings, add
-its display name (or board token) to `filters.employer.exclude` in `targeting.yaml`.
-To keep sites in selected US states, add `location` to `filters.enabled` in
-`targeting.yaml` and set:
+Start a fresh Install outside the checkout. Remove the example environment
+variables before setup, or set `VENATOR_HOME` to a private folder outside Git.
+The default locations are:
 
-```yaml
-filters:
-  location:
-    regions: [CA]
-```
+- macOS: `~/Library/Application Support/Venator`
+- Linux: `$XDG_DATA_HOME/venator` or `~/.local/share/venator`
+- Windows: `%APPDATA%\Venator`
 
-Choose any non-empty list of distinct two-letter US state codes, or `DC`.
-`[MA, RI, NH, CT, VT, ME]` selects New England; `[CA]` selects California.
-A Posting with a selected-state site or US-wide remote site passes. A remote
-site tied to a state counts only in that state, not everywhere. Only a physical
-local site can vouch for an unreadable site from the same employer. An explicit
-non-US source country, including Workday's requisition country or Ashby's postal
-country, puts that site outside even if the employer has local sites. A foreign
-primary site doesn't erase an explicitly US secondary site in a selected state:
-that Posting still passes. A Posting is excluded when its sites clearly fall
-outside the selected states. Country codes in the place lookup no longer collide
-with state codes: Canada is not California. This Hard Filter is separate from the
-location choice above a dashboard list.
+The dashboard can connect a Claude Code or Codex CLI assistant, read a résumé,
+let you confirm facts and add employers. These steps can be skipped.
+**Profile** edits the saved facts, target jobs, filters, employers and settings.
+Refresh fetches and filters without inference. Score needs private model settings.
 
-`education_fit` treats “<2 years experience” as a ceiling, not a two-year
-minimum. Required advanced degrees count only when the wording clearly asks for
-a degree; “Rockville, MD” and “DO NOT” do not. A co-op page offering several
-degree tracks passes when one track is within reach.
+For a hand-written Profile, copy `profiles/example/` into
+`<Install>/profiles/<name>/`. Replace every fictional value, remove `scaffold: true`
+and run stages with `--profile <name>`. Keep real Profiles, contacts, labels,
+résumés and application documents out of this repository.
+See [docs/RUNNING.md](docs/RUNNING.md) for all commands.
 
-The answer library starts empty. Add only what's true. The example
-files explain the Profile fields in comments, and [docs/RUNNING.md](docs/RUNNING.md) covers
-registering boards.
+### Browser and desktop tools
 
-## From the terminal
-
-Every button has a command behind it, and the example above shows the pipeline ones.
-Discover and the Hard Filters append to history; View rebuilds a disposable SQLite
-file. None of them scores. [docs/RUNNING.md](docs/RUNNING.md) covers Score,
-applications, tracking, stores and the loop.
-
-## Score
-
-Your Install's private `keep-model.json` names its Modal profile, app and volume,
-base and adapter paths, adapter hash and fixed binary question. The repository has
-none of these values. Score builds compact inputs from Posting text and confirmed
-Profile facts, with identity stripped. Only anonymous row IDs, compact inputs and
-configured model metadata go to Modal. The Posting join stays local.
-
-`uv run python -m venator.score.run --profile NAME --estimate` runs a bounded CPU
-preflight. `--execute` checks the estimate against the $0.50 cap and scores missing
-or stale passes. Scores append under `data/keep-scores`. Score does not train or
-download weights.
-
-To retrain your own keep model, supply your private label CSV (`posting key` and
-`decision` columns, with `keep` or `skip` values). A preview names what would
-leave your machine and gives counts, byte sizes and a hash of the payload:
-anonymous training labels, Posting excerpts and confirmed résumé facts. Posting keys, contact details, reasons and holdout labels stay local.
-Nothing uploads until you approve the exact preview hash. The newest labels form
-a holdout; compare the old and candidate models there, then pick **old** or **new**.
-Only picking new changes the active adapter. No label CSV or model is shipped in
-this repository.
+Browser handoff and browser tests need Chromium:
 
 ```bash
-uv run python -m venator.score.train --profile NAME --labels /path/to/labels.csv
-uv run python -m venator.score.train --profile NAME --labels /path/to/labels.csv --approve-sha256 HASH
-uv run python -m venator.score.train --profile NAME --comparison /path/to/keep-training-comparison.json --pick new
+uv run playwright install chromium
 ```
 
-## Environment variables
+Desktop development and packaging also need Rust and the platform's Tauri build
+prerequisites. `(cd ui && pnpm desktop)` starts development;
+`(cd ui && pnpm desktop:build)` builds packages under
+`ui/src-tauri/target/release/bundle/`. Packaging was not checked in this publication
+pass. Do not treat a passing web build as an installer verification.
 
-| Variable | What it does |
+## Privacy and external processing
+
+Persistent Profiles, postings, decisions, answers, contacts, browser sessions and
+prepared documents live in the private Install. The default pipeline does not commit.
+The CLI retains an explicit `--only commit` stage for stores inside a Git worktree.
+Do not use that stage for personal stores or public exports.
+Local storage does not mean all processing stays local:
+
+- Discovery contacts the configured employer boards and search services.
+- Assistant résumé reading and drafting send selected résumé facts, posting text
+  and drafting inputs through the chosen runtime. Claude Code and Codex run as
+  local CLIs but contact their providers. Requests may use a paid plan.
+- Score sends compact inputs and model metadata to Modal. The compact builder
+  removes identity fields, but job text and confirmed résumé facts still leave
+  the machine. Redaction is not a guarantee of anonymity.
+- Training previews payload counts and a hash. Only approval of that exact hash
+  permits uploading selected labels, posting excerpts and confirmed facts.
+  No training dataset or private model configuration belongs in Git.
+- Browser handoff visits employer forms and can fill confirmed answers and upload
+  reviewed PDFs. Review every field. Submission remains manual.
+
+Credentials are supplied by CLI sign-in or environment variables, never source
+files. To use a key endpoint, explicitly select `VENATOR_LLM_RUNTIME=api` and set
+`VENATOR_LLM_API_URL`, `VENATOR_LLM_API_MODEL` and `VENATOR_LLM_API_KEY_VAR`.
+The last variable names the environment variable containing the key, not the key
+itself. Do not publish endpoints with embedded credentials. No example needs a key.
+`ui/.env.desktop` contains only a public loopback URL used by the desktop build.
+
+## Project layout
+
+| Path | Purpose |
 |---|---|
-| `VENATOR_HOME` | use a different Install folder for Profiles, stores and the view |
-| `VENATOR_PROFILE` | the Profile to use when none is named |
-| `VENATOR_VIEW_DB` | open this view database in the dashboard |
-| `VENATOR_SAMPLE_DATA` | allow the sample data when there's no view (`pnpm dev` sets it) |
-| `VENATOR_PYTHON` | the Python the dashboard runs the pipeline with |
-| `VENATOR_LLM_RUNTIME` | which completion runtime to use (`claude` by default) |
-| `VENATOR_LLM_API_URL`, `VENATOR_LLM_API_MODEL`, `VENATOR_LLM_API_KEY_VAR` | settings for your own key endpoint |
-| `VENATOR_HANDOFF_HEADLESS` | keep browser tests from opening a window |
+| `src/venator/` | Python discovery, filtering, scoring, documents, browser tools and stores |
+| `ui/src/` | React dashboard |
+| `ui/server/` | Loopback API and pipeline adapters |
+| `ui/src-tauri/` | Desktop shell and packaging |
+| `ui/fixtures/` | Fictional, generated development data |
+| `profiles/example/` | Fictional Profile template |
+| `tests/`, `ui/tests/` | Existing Python and UI tests |
+| `coordination/CONTRACTS.md` | Shared record and API contracts |
+| `docs/`, `ops/` | Terminal guide, data design and macOS scheduling |
 
-The example only needs `VENATOR_HOME` and `VENATOR_PROFILE`.
+`<Install>/data/` is append-only runtime history.
+`<Install>/build/venator.db` is disposable and rebuilt from that history.
+Job data is fetched by Discover, not bundled. The offline place lookup
+`src/venator/place_names.json` is runtime data, retained with
+[GeoNames attribution](docs/geonames-attribution.md).
 
-## Tests
+## Limits and known gaps
+
+- This is a single-person local app, not an authenticated hosted service.
+- ATS layouts and public board availability change. Review source failures,
+  uncertain assessments and form fields yourself.
+- The compact qualification policy has a closed life-sciences vocabulary.
+  General engineering searches can need manual review.
+- No keep model is shipped. Ranking, paid assistant calls, Modal execution,
+  model downloads and desktop packaging were not exercised in this cleanup.
+- There is no accuracy benchmark, application-success study or included paper.
+- Scheduling belongs to the installed macOS app. Development does not install a
+  timer. See [ops/README.md](ops/README.md).
+- Historical scoring decisions and earlier pipeline-authored submit records still
+  load. New scoring uses keep probabilities. New submissions remain manual.
+
+## How this was built
+
+AI coding agents did much of the implementation under Rolf's direction.
+Rolf set the project scope and the requirement for human review before publication.
+The code implements local persistent storage, recorded decisions and manual
+submission. Agents checked the subset of commands and existing suites recorded in
+[docs/VALIDATION.md](docs/VALIDATION.md). That is not evidence that Rolf personally
+verified every adapter, model or installer. Rolf's final privacy and code review
+is still required.
+
+## Existing checks
 
 ```bash
 VENATOR_HANDOFF_HEADLESS=1 uv run pytest -q
-pnpm --dir ui lint
-pnpm --dir ui typecheck
-pnpm --dir ui test
-pnpm --dir ui build
-pnpm --dir ui smoke
+(cd ui && pnpm lint)
+(cd ui && pnpm typecheck)
+(cd ui && pnpm test)
+(cd ui && pnpm build)
+(cd ui && pnpm smoke)
 ```
 
-The browser tests need Chromium (`uv run playwright install chromium`). None of the
-tests makes a paid model request or submits an application.
+Install Chromium first. These checks do not make paid model requests or submit
+applications. No new tests or CI checks were added for publication. Some existing tests create
+Git repositories or `.git` markers. Those tests were skipped during this scope
+review. See the exact exclusions in [docs/VALIDATION.md](docs/VALIDATION.md).
 
-## More docs
+## License
 
-- [CONTEXT.md](CONTEXT.md): the words the code and the app use.
-- [docs/RUNNING.md](docs/RUNNING.md): the full terminal guide.
-- [ops/README.md](ops/README.md): running the pipeline on a timer on a Mac.
-- [ui/README.md](ui/README.md): how the dashboard and the desktop app are built.
-- [ui/ONBOARDING-API.md](ui/ONBOARDING-API.md) and [ui/RUN-API.md](ui/RUN-API.md):
-  the dashboard's HTTP routes.
-- [coordination/CONTRACTS.md](coordination/CONTRACTS.md): formats shared between
-  Python and the dashboard.
-- [docs/adr/](docs/adr/): why the data lives where it does.
+Venator is under [MIT](LICENSE). The GeoNames lookup is under CC BY 4.0, with
+[attribution and data notes](docs/geonames-attribution.md).
+The vendored anti-slop lint rules retain their own [MIT notice](ui/tools/oxlint/anti-slop/LICENSE)
+and [source notes](ui/tools/oxlint/anti-slop/UPSTREAM.md).
+
+## More documentation
+
+- [CONTEXT.md](CONTEXT.md): terminology.
+- [docs/RUNNING.md](docs/RUNNING.md): terminal commands and optional runtimes.
+- [ui/README.md](ui/README.md): dashboard and desktop implementation.
+- [ui/ONBOARDING-API.md](ui/ONBOARDING-API.md) and [ui/RUN-API.md](ui/RUN-API.md): HTTP routes.
+- [docs/PUBLICATION.md](docs/PUBLICATION.md): changes required in the private export process.

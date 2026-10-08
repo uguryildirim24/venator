@@ -4,7 +4,7 @@
  *   tokens      — the vocabulary. Nothing below may invent a value.
  *   base        — element defaults, the window sheet, and the one focus treatment.
  *   window      — the window: sidebar, toolbar, list, the Posting page and its margin,
- *                 tables and sheets (ui/DESIGN.md).
+ *                 tables and sheets (ui/README.md, "Screens").
  *   onboarding  — setting up Venator: the setup window, its column, groups and footer.
  */
 

@@ -1,6 +1,6 @@
 /*
- * Setting up Venator (ui/DESIGN.md, "Setup and first run"): the v6 boards. A window of its
- * own with a title and no sidebar, one 560-wide column, the step's heading, its groups, and a
+ * Setting up Venator (ui/README.md, "Screens"): a window with a title and no
+ * sidebar, one 560-wide column, the step's heading, its groups, and a
  * footer that always holds Skip for Now on the left and the step's primary on the right.
  * Every value is a token from tokens.css.
  */

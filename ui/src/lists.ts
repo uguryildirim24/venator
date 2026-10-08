@@ -1,6 +1,7 @@
 /**
- * What each list asks the API for. Every list is ordered the one way the queue is: most
- * recently verified first (ui/DESIGN.md, "List"). No score orders anything.
+ * What each list asks the API for. For you and Explore sort by keep probability,
+ * highest first, then verification recency. Other lists use verification recency.
+ * See ui/README.md, "Screens". The API applies probability ordering to scored lists.
  */
 
 import type { PostingEntry } from "../shared/contracts.ts";

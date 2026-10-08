@@ -1,10 +1,8 @@
 /*
  * The venator token layer. Every colour, measurement, radius and type step the dashboard
- * draws with is named here, and nothing outside this file may invent one (ui/DESIGN.md,
- * "Still true").
+ * draws with is named here. See ui/README.md, "Rules for changes", for theme behavior.
  *
- * The values are measured from Apple's macOS 27 UI Kit, as ui/DESIGN.md records them. Two
- * bands:
+ * Tokens are grouped into two bands:
  *   1. Scale     — spacing, measures, radii, type, motion. Scheme-independent.
  *   2. Colour    — the kit's grounds and labels, ember, and green. Declared for light on
  *                  :root and swapped wholesale for dark, in all three scheme blocks.
@@ -55,7 +53,7 @@
 
 	/* The window, measured at the 1440×900 reference. */
 	--sidebar-width: 224px;
-	/* The sidebar slot: Medium rows inset 14 from each edge (ui/DESIGN.md, "Sidebar"). */
+	/* The sidebar slot: Medium rows inset 14 from each edge. */
 	--sidebar-inset: 14px;
 	/* The kit's Medium section header. */
 	--sidebar-heading-height: 39px;
@@ -166,7 +164,7 @@
 	--weight-bold: 700;
 
 	/*
-	 * Motion (ui/DESIGN.md, "Motion"). Selection, hover and pressed states change instantly.
+	 * Motion (ui/README.md, "Screens"). Selection, hover and pressed states change instantly.
 	 * What moves — a sheet arriving, the sidebar folding away, a setup step turning, a view
 	 * taking the screen — moves once, on transform and opacity only, and then rests. `--ease`
 	 * is the kit's deceleration; `--ease-spring` is a spring sampled into a curve (damping

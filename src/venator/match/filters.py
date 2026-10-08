@@ -63,8 +63,8 @@ class Reading(NamedTuple):
     labels are its wording for the same reading and are one lookup away, and the
     location string and title the reading came from are already on the Posting.
     Recording the reading rather than the text it read is what keeps this cheap
-    enough to append to every pass in an append-only store that ships in the
-    repository (docs/adr/0001-git-as-transport.md).
+    enough to append to every pass in the private Install's append-only store
+    (docs/adr/0001-git-as-transport.md).
 
     The one exception is ``role_target``, whose token on a placed title *is* the
     rung's name, because the rung is the fact. ``unplaced`` and ``unconfigured``

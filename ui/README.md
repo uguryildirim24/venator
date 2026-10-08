@@ -16,8 +16,11 @@ Python process and reads its output.
 
 ## Commands
 
-```
-pnpm install        # once
+Run these commands from `ui/`, with Node.js 24 or newer and Corepack (or pnpm
+11.22.0). Corepack reads the `packageManager` pin here, not at the repository root.
+
+```bash
+pnpm install --frozen-lockfile  # once
 pnpm dev            # browser: API on :5170, app on :5173, one Ctrl-C stops both
 pnpm desktop        # the same app in a native window (tauri dev)
 pnpm desktop:build  # package it into src-tauri/target/release/bundle:
@@ -37,7 +40,7 @@ pnpm lint           # oxlint with the anti-slop plugin
 pnpm typecheck      # tsc --noEmit
 ```
 
-Day to day, run `pnpm dev` and open <http://127.0.0.1:5173>.
+Day to day, run `pnpm dev` and open <http://localhost:5173>.
 
 ## The API
 
@@ -69,7 +72,7 @@ allowlist refuse a page from some other site.
 |---|---|
 | `/api/summary` | list counts, source health, and which database is open |
 | `/api/postings?q=&status=&application=&rule=&sort=&limit=&offset=` | Postings with their latest decision per stage, and whether each is new since the last check |
-| `/api/postings/:key` | one Posting: the reading page (sanitised text), the employer HTML for the sandboxed frame, the full decision history including replays, and its TrackEvents |
+| `/api/postings/:key` | one Posting: the reading page (sanitised text), normalized description HTML in the API response, the full decision history including replays, and its TrackEvents |
 | `/api/onboarding/state` | whether this Install has a Profile yet, and which one is in use |
 
 `GET /api/locations` returns available location choices and the saved selection.
@@ -127,7 +130,9 @@ underneath. New data shows up without a restart. When it opens the file it check
 columns it needs (`server/db.ts`). If they don't match, it answers `503` and names the
 problem instead of showing something wrong.
 
-`ui/fixtures/venator.fixture.db` is sample data. It is served only when
+`ui/fixtures/venator.fixture.db` is generated fictional data. Its postings,
+assessments, probabilities and actions are not model results or Rolf's job search.
+Application links point to example.com. It is served only when
 `VENATOR_SAMPLE_DATA` is set to something non-blank and there is no real view to
 open. `pnpm dev`, `pnpm smoke` and `pnpm snapshot` set it. Nothing a real Install
 runs does. A fixture named in `$VENATOR_VIEW_DB` without that variable is treated as
@@ -245,8 +250,8 @@ Employer links open in your real browser, never inside the app window
 because Tauri downloads the NSIS tools itself, so the first Windows build needs
 network access but no WiX install.
 
-CI runs on Windows only for the desktop app. `windows — tauri host compiles` builds
-and tests the Rust host. `windows — the installer a person installs` runs the real
+Desktop CI runs on Windows. One job builds and tests the Rust host.
+The installer job runs the real
 bundler, checks that the interpreter, wheels, pipeline and sidecar are inside the
 installer (`.github/scripts/verify_desktop_installer.ps1`), runs the staged
 interpreter (`.github/scripts/run_staged_interpreter.ps1`), and uploads the
@@ -377,8 +382,9 @@ tools/      dev, smoke, snapshot, and the sidecar and Python staging scripts
 - **Hash routing, no cookies, no origin assumptions.** The same bundle runs from
   Vite, from the Hono server and from a webview loading `dist/` off disk
   (`base: "./"`).
-- **Employer HTML is untrusted.** It renders inside a `sandbox=""` iframe. Keep it
-  that way.
+- **Employer HTML is untrusted.** The Posting page renders extracted text through
+  `PageBlocks` and `PageBlockText`, not employer markup. Its iframes display only
+  prepared résumé and letter PDFs.
 - **The person submits.** Fill never presses Submit. A disabled button stays visibly
   disabled, with the reason written beside it.
 - **Light and dark** follow `prefers-color-scheme`. `data-theme="light"` or `"dark"`

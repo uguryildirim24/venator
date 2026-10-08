@@ -16,7 +16,7 @@
 #     '(a+)+$' backtracks catastrophically and hangs the Hard Filter pass on
 #     the first Posting that trips it. `venator.match.run` gives each Posting a
 #     wall-clock budget and names this file when it expires, but the budget is
-#     a backstop — keep patterns simple and anchored, and use `terms` whenever
+#     a backstop. Keep patterns simple and anchored, and use `terms` whenever
 #     the wording is literal.
 
 profile:
@@ -29,7 +29,7 @@ profile:
   #
   # Deliberately absent here rather than filled in: a scaffold ships to
   # everyone, and an identifier every copy shared would identify nothing.
-  # Leaving it out is also safe — a Profile without one identifies as its
+  # Leaving it out is also safe. A Profile without one identifies as its
   # `name`, which is what the decisions store already records.
   #
   # It is opaque rather than a name for a reason. The directory name is a
@@ -37,8 +37,8 @@ profile:
   # writes into can be copied, synced and restored well away from any checkout
   # (docs/adr/0002), so a stamp that only means something next to a directory
   # listing stops meaning anything once the two are apart. Keep it
-  # non-personal — not your name, not your email: `data/` gets committed here
-  # and backed up in a shipped Install.
+  # non-personal, not your name or email. Stores stay private in the Install,
+  # outside Git. Keep any backups private too.
   #
   # id: 6f1c9d2b4a8e47f0b3c5d7e9a1b2c3d4
   #
@@ -69,18 +69,18 @@ search:
 # merging a suggestion into this list is your call, never automatic.
 sources:
   # board token -> employer display name. **Keep this in sync with the
-  # board lists below** — the two are edited together, never one without the
+  # board lists below**. The two are edited together, never one without the
   # other. Every board registered below needs an entry here, and not only for
   # the dashboard: Dedup resolves an ATS Posting's employer through this map,
   # so a board with no entry has no employer and its Postings join no
   # duplicate group at all. That is not the harmless direction. Because a
   # Posting joins a group only by agreeing with every member already in it,
-  # one falling out changes which of the *rest* merge — so an unnamed board
+  # one falling out changes which of the *rest* merge. An unnamed board
   # can leave a real Posting killed as a duplicate in place of the one that
   # really was one, in a queue that is still the right length.
   #
-  # Leaving this empty while `boards:` fills up is a legitimate state — absent
-  # means "not configured" — but the loader prints a warning saying how many
+  # Leaving this empty while `boards:` fills up is allowed. Absence means
+  # "not configured", but the loader prints a warning saying how many
   # boards went unnamed, because it is a state you land in by accident.
   # Naming *some* boards and not others is refused outright.
   #
@@ -101,7 +101,7 @@ sources:
     ashby:
       - linear
     # Workday needs two identifiers, so a workday board token joins them with
-    # `~`: `<tenant>.wd<N>~<site>` — the myworkdayjobs host prefix, then the
+    # `~`: `<tenant>.wd<N>~<site>`, the myworkdayjobs host prefix, then the
     # site string. Not a colon (a Posting key is `source:board:external_id`)
     # and not a slash (the key is a path parameter in the dashboard's API).
     # https://amgen.wd1.myworkdayjobs.com/en-US/Careers -> amgen.wd1~Careers
@@ -139,7 +139,7 @@ filters:
   #   exclude: ["CVS Health"]  # display name in sources.names, or a board token
   # This operational Hard Filter does not change the compact policy.
 
-  # Which Hard Filters run, in order. Remove one and it stops running — it
+  # Which Hard Filters run, in order. Remove one and it stops running. It
   # does not silently pass; it is simply not part of the policy.
   enabled:
     - education_fit
@@ -148,7 +148,7 @@ filters:
 
   # Posting wording that makes you ineligible outright. Regular expressions,
   # because the wording varies far more than the meaning. Left empty (as here)
-  # this filter passes everything — which is right for anyone with unrestricted
+  # this filter passes everything. This fits anyone with unrestricted
   # authorization, and it is not in `enabled` above either.
   work_authorization:
     pass_reason: no explicit work-authorization restriction
@@ -158,12 +158,12 @@ filters:
   # field at any level. This is a preference on a scale, not a test for one kind
   # of person: write your own rungs, lowest first, and name the ones you accept.
   # This Profile is a mid-level backend engineer, so the band sits in the middle
-  # of the ladder and *both* edges cut — an internship is as wrong for them as a
-  # VP role. The Owner Profile next door accepts the bottom of the same ladder.
+  # of the ladder and *both* edges cut. An internship is as wrong for them as a
+  # VP role. A different Profile can accept a different band.
   #
   # Only the title is read, because an aggregator truncates the description and
   # the title is the field that survives. A title naming no rung is left
-  # unplaced and passes rather than being guessed at — and so is a
+  # unplaced and passes rather than being guessed at. So does a
   # title that *offers* a rung this list cannot read, because a gap in the words
   # below has to resolve to "not sure", never to "no".
   #
@@ -221,8 +221,8 @@ filters:
   education_fit:
     # The highest qualification you hold: high_school, associate, bachelor,
     # master or doctorate. A Posting requiring that or less is met and passes; one
-    # requiring more is killed; one whose level the Posting never states — "a
-    # degree in a related field" — resolves to "not sure" and passes,
+    # requiring more is killed. An unspecified level ("a degree in a related
+    # field") resolves to "not sure" and passes,
     # and so does a requirement at a qualification you have in progress. A
     # requirement open at more than one rung is read at its easiest.
     #

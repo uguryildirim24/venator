@@ -1,14 +1,14 @@
 /**
  * The reader page: an employer's description, reduced to headings, paragraphs and list items.
  *
- * This is the sanitiser `ui/DESIGN.md` asks for. It never builds a DOM and never returns
- * markup: it walks the tags only to learn where one block ends and the next begins, keeps the
+ * See ui/README.md, "Read-only routes". This sanitiser never builds a DOM or returns
+ * markup. It walks the tags only to learn where one block ends and the next begins, keeps the
  * text between them, and throws the tags away. Script, style and every other element whose
  * content is not prose are dropped with their content. What leaves here is plain text, and the
  * app renders it as React text, so no employer markup, style or script can reach the page.
  *
- * The original HTML is untouched and stays behind Read Full Description, in the sandboxed
- * frame, for anything this reading loses.
+ * The API also returns normalized description HTML. The Posting page renders only these
+ * text blocks through PageBlocks and PageBlockText, not the employer markup.
  */
 
 import type { ReaderBlock } from "../shared/contracts.ts";

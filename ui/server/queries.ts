@@ -316,8 +316,8 @@ function escapeText(value: string): string {
 
 /**
  * The view stores descriptions however the board delivered them: Greenhouse rows arrive
- * entity-escaped (sometimes twice), Adzuna rows are plain text. The dashboard's sandbox
- * frame expects HTML, so both shapes are normalised here — escaped markup is decoded until
+ * entity-escaped (sometimes twice), Adzuna rows are plain text. The reader extraction
+ * expects HTML, so both shapes are normalised here. Escaped markup is decoded until
  * real tags appear, and plain text becomes paragraphs.
  */
 export function normalizeDescription(raw: string | null): string {

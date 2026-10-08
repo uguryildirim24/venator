@@ -51,11 +51,9 @@ export const VIEW_DATABASE_ENVIRONMENT = "VENATOR_VIEW_DB";
 /**
  * Asks for the sample view when this Install has no view of its own.
  *
- * The fixture holds nineteen Postings from real employers, and nothing about them is the
- * Owner's. So it is served on request and never by default: a developer with no pipeline
- * database wants the dashboard populated, and somebody who has just installed the app must
- * not be handed a stranger's job search however clearly it is badged. `pnpm dev`, `pnpm
- * smoke` and `pnpm snapshot` set this; nothing a shipped Install runs does.
+ * The fixture holds fictional Postings, assessments and actions. It is served only on
+ * request, never as an installed app's initial search. `pnpm dev`, `pnpm smoke` and
+ * `pnpm snapshot` set this; nothing a shipped Install runs does.
  *
  * Any non-blank value means yes. There is no vocabulary of truthy words to get wrong, and a
  * variable somebody set to `0` meaning "off" is a person who has said the word `VENATOR_
@@ -269,16 +267,11 @@ export function pythonInterpreter(context: LocationContext = systemContext()): s
  * `-m` also puts this directory at the front of the child's `sys.path`, which is how
  * `ui/tests/runtime.test.ts` stages a stand-in package at all.
  *
- * The reason someone would want to neutralise it is real, and is fixed one layer down
- * instead. A coding agent started with no working directory of its own inherits its parent's,
- * so `claude` spawned from a run started here used to wake up in the checkout and read the
- * checkout's own `CLAUDE.md` into the prompt ahead of its own — measured at 9,896
- * extra input tokens per chunk, on the Owner's subscription, from a file that changes on most
- * commits and does not exist on an Install with no clone. `venator.llm.runtime.run_process`
- * now starts every runtime in a fresh empty directory it makes and removes for that one call,
- * so what this function returns no longer reaches the model. Fixing it there rather than here
- * is what makes it true of a run started from a terminal as well as one started from a button,
- * and of a lane added later that nobody remembered to think about.
+ * A coding agent started with no working directory of its own inherits its parent's,
+ * so an agent spawned here could read checkout-local instructions ahead of its prompt.
+ * `venator.llm.runtime.run_process` starts every runtime in a fresh empty directory it
+ * makes and removes for that call, so this working directory no longer reaches the model.
+ * Fixing it there makes it true of terminal runs, dashboard runs and later lanes alike.
  */
 export function pipelineWorkingDirectory(context: LocationContext = systemContext()): string {
 	const checkout = context.checkoutRoot;

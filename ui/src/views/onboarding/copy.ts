@@ -1,9 +1,9 @@
 /**
  * Every sentence the setup flow and the three first-run states say, in one place.
  *
- * The words are the Figma v6 boards' (ui/DESIGN.md, "Setup and first run"), so a copy change
- * is made here and on the board together. Identifiers still become English only in
- * `src/labels.ts`; nothing here names a runtime state, a board or a rule.
+ * Keep setup copy here. The flow is described in ui/README.md, "Screens".
+ * Identifiers still become English only in `src/labels.ts`; nothing here names
+ * a runtime state, a board or a rule.
  */
 
 export const SETUP_WINDOW_TITLE = "Set Up Venator";

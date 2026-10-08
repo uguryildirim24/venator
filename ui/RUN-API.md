@@ -187,13 +187,13 @@ The loop prints three kinds of line and flushes each one:
 ```
 <stage>: starting            stdout
 <stage>: ok                  stdout
-<stage>: ERROR — <message>   stderr
 ```
 
-This format is part of the contract (see CONTRACTS.md). Lines the reader doesn't
-recognise change nothing, and a stage the plan didn't include is ignored. The exit
-status and the heartbeats are what count. `<stage>: ERROR writing heartbeat — …` is a
-different event and is not read as a stage failure.
+Failures print an ERROR line to stderr with the stage name and message.
+The parser in `server/runs/progress.ts` defines the exact format.
+Lines the reader does not recognise change nothing. A stage outside the plan is
+ignored. Exit status and heartbeats are authoritative. A heartbeat-write error
+is a separate event, not a stage failure.
 
 The screen shows each stage as waiting, running or done, and elapsed time within a
 stage. No percentages and no time estimates, because there's nothing true to base
@@ -255,6 +255,8 @@ Every error has the same body. `run` is filled in only for `run_in_progress`:
 
 ## Not built
 
-- Scheduling from the dashboard: no timer, no run on launch. See `ops/`.
+- Scheduling is configured in Profile for the installed macOS app. Development
+  runs do not install a timer. See `ops/`.
 - A separate run history. `data/runs.jsonl` and the `runs` table are the record.
-- A lock file, streaming progress, and picking a Profile in the run controls.
+- Streaming progress and picking a Profile in the run controls. Runs use the
+  shared Install lock to coordinate writers.

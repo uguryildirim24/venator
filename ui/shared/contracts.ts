@@ -124,7 +124,7 @@ export type PostingEntry = {
  * One block of a Posting's reader page: a heading, a paragraph or a list item, as plain text.
  *
  * The page is a reader extraction of the employer's HTML, not the HTML. No markup, style or
- * script survives it; the original stays behind Read Full Description in a sandboxed frame.
+ * script survives it. The Posting page renders these blocks as React text.
  */
 export type ReaderBlock = {
 	readonly kind: "heading" | "paragraph" | "item";

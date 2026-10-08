@@ -9,16 +9,22 @@ Install, for testing or development.
 
 ## Setup
 
+Use Python 3.13 or newer, uv, Node.js 24 or newer, and Corepack (or pnpm
+11.22.0). Run pnpm inside `ui/` so Corepack sees its `packageManager` pin.
+A root-level `pnpm --dir ui` does not select the pinned version reliably.
+
 ```bash
-uv sync
+uv sync --frozen
 uv run playwright install chromium   # only for the browser tools
-pnpm --dir ui install --frozen-lockfile
+(cd ui && pnpm install --frozen-lockfile)
 ```
 
-Two things are optional:
+Optional features need separate setup:
 
 - **Document preparation.** Sign in to the `claude` CLI, or pick the `codex` or
   `api` runtime on purpose (see Completion runtimes below).
+- **Scoring and training.** Supply private model settings and a Modal account.
+  Neither is needed for discovery, filtering or the offline dashboard preview.
 
 A Profile is three YAML files in `<Install>/profiles/<name>/`, or in `profiles/<name>/`
 in the checkout. `--profile` takes a name, never a path. A name is looked up in the
@@ -32,7 +38,7 @@ Use the same date for every stage that takes `--as-of`:
 
 ```bash
 uv run python -m venator.discover.run --profile NAME
-uv run python -m venator.match.run --profile NAME --as-of YYYY-MM-DD
+uv run python -m venator.match.run --profile NAME
 uv run python -m venator.view.build --profile NAME --as-of YYYY-MM-DD
 ```
 
@@ -120,7 +126,11 @@ co-op page with several degree tracks passes when one track is within reach.
 
 When filter code or the Profile's decision inputs change, `filters_version` changes
 and the next run appends a replay. Old rows stay as they are. The effective decision
-is the latest row per `(posting_key, stage)`.
+is the latest row per `(posting_key, stage)`. CI requires version movement for
+rule changes. If only plumbing changes and the version does not move, its existing
+guard tries to compare corpus verdicts. The public tree has no private corpus, so
+that comparison cannot run here. Review `FILTERS_REVISION` against the base branch.
+The guard was not run during this review because it creates Git worktrees.
 
 The Hard Filter and dashboard location picker share the offline GeoNames place lookup
 ([attribution](geonames-attribution.md)). It reads US-prefixed cities, counties,
@@ -183,8 +193,8 @@ and run heartbeats. Building it makes no network request and never calls a model
 ### 5. Open the dashboard
 
 ```bash
-pnpm --dir ui dev       # in a browser, at http://127.0.0.1:5173
-pnpm --dir ui desktop   # the same app in a Tauri window
+(cd ui && pnpm dev)       # in a browser, at http://localhost:5173
+(cd ui && pnpm desktop)   # the same app in a Tauri window
 ```
 
 The API listens only on `127.0.0.1`. **For you** holds keep probabilities at
@@ -194,7 +204,8 @@ Passes without a current or carried same-model score sit in **Awaiting Score**. 
 Posting below 0.1 is labelled **Hidden: low keep score**, with its percentage.
 You can **Save** it with **s** or **Dismiss** it with **x**, moving it to **Saved**
 or **Dismissed**. Hard Filter kills stay closed to those actions. Hidden Postings
-do not offer Apply. Employer HTML is shown in a sandboxed iframe.
+do not offer Apply. The Posting page renders sanitised text extracted from employer
+HTML. Its iframes display prepared résumé and letter PDFs, not employer markup.
 
 ## Applying
 
@@ -372,8 +383,10 @@ All of these paths are inside the Install directory, even when you run commands 
 a checkout.
 
 The decisions store and the Track store each belong to one Profile, enforced by a
-`.profile` stamp in the directory. A `profile_id` on a row is only evidence. Old
-`llm_score` rows still load, but nothing writes new ones.
+`.profile` stamp in the directory. A `profile_id` on a row is only evidence.
+Track state comes from events or historical queued `llm_score` decisions.
+Old scoring rows still load, but nothing writes new ones. Keep probabilities
+are separate from Hard Filter decisions.
 
 To merge another Install's history into this one, stop both writers and run
 `uv run python -m venator.import_stores --from ROOT`, where `ROOT` holds a `data/`
@@ -394,19 +407,20 @@ is ten attempts, including failed attempts; a drafting failure pauses the stage.
 Set `predraft.enabled: false` or change `predraft.limit` in `targeting.yaml`, or use
 the Profile form. Drafting uses your chosen assistant and its plan.
 `--only` picks a subset in that order; Refresh runs only Discover, Hard Filters and
-View. `commit` runs only when named and `data/` is inside a Git work tree. The loop
-never pushes. A cross-process lock keeps two runs from writing together. On a Mac,
+View. `commit` runs only when explicitly named and `data/` is inside a Git
+worktree. It never pushes. Do not name it for personal stores or public exports.
+A cross-process lock keeps two runs from writing together. On a Mac,
 the installed app owns a daily launchd agent; see [ops/README.md](../ops/README.md).
 
 ## Checks
 
 ```bash
 VENATOR_HANDOFF_HEADLESS=1 uv run pytest -q
-pnpm --dir ui lint
-pnpm --dir ui typecheck
-pnpm --dir ui test
-pnpm --dir ui build
-pnpm --dir ui smoke
+(cd ui && pnpm lint)
+(cd ui && pnpm typecheck)
+(cd ui && pnpm test)
+(cd ui && pnpm build)
+(cd ui && pnpm smoke)
 ```
 
 There's no Python linter or type checker. The UI uses strict TypeScript and the

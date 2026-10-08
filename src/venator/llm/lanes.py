@@ -141,10 +141,10 @@ CODEX_SIGN_IN_REMEDY = (
 # the reason they are not optional.
 #
 # Codex is not a completion endpoint. It is an agent with a workspace and
-# file-writing tools, and the directory it would be pointed at is this one —
-# which holds `data/`, an append-only store that is also the transport for the
-# whole corpus (docs/adr/0001-git-as-transport.md). A lane that can edit a day
-# file is a lane that can rewrite history nobody can get back. So:
+# file-writing tools, and the directory it would be pointed at is this one,
+# which can hold private append-only stores (docs/adr/0001-git-as-transport.md).
+# A lane that can edit a day file is a lane that can rewrite history nobody can
+# get back. So:
 #
 #   -s read-only   the sandbox may read the checkout and may not write to it
 #   -a never       and it may not stop to ask a human for permission to try,
@@ -154,7 +154,7 @@ CODEX_SIGN_IN_REMEDY = (
 # configurable and neither has a debugging escape hatch. This is the
 # same posture as the never-submit invariant: enforced in code, covered by a
 # test (tests/llm/test_lanes.py), not left to whoever refactors next. Changing
-# it is the owner's decision, not a default anyone should be able to drift.
+# it is Rolf's decision, not a default anyone should be able to drift.
 CODEX_SAFETY_FLAGS: tuple[str, ...] = ("-s", "read-only", "-a", "never")
 
 # Hygiene, verified against codex-cli 0.149.1 and 0.151.0 rather than assumed:

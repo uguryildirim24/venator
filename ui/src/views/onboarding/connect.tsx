@@ -15,7 +15,7 @@ import { readyLane } from "./runtime-selection.ts";
  * signs nobody in: `src/venator/llm/` starts a program that is already on this Mac and reads
  * what it says back. **Neither carries a vendor logo** — no permission to use either mark has
  * been given — so each names its assistant in plain text on the vendor's own colour, and those
- * colours stop at the edge of the button (ui/DESIGN.md, "Still true").
+ * colours stop at the edge of the button. See ui/README.md, "Screens", for setup.
  */
 type Vendor = {
 	readonly lane: "claude" | "codex";

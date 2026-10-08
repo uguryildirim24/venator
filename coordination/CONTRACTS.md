@@ -13,7 +13,7 @@ users. A Profile is a directory with `targeting.yaml`, `constraints.yaml` and
 
 Each decisions store and each Track store belongs to one Profile. The `.profile`
 stamp in the directory is the lock. A `profile_id` on a row is evidence only; if it
-is missing, the owner of that row is unknown. See ADR-0002.
+is missing, that row's Profile is unknown. See ADR-0002.
 
 ## Append-only records
 
@@ -21,8 +21,8 @@ is missing, the owner of that row is unknown. See ADR-0002.
 
 A Filter Decision has `stage=hard_filter` and `verdict=pass|kill`. New Hard Filter
 rows have no `score`. Old `stage=llm_score` rows with `verdict=queue|kill` and a score
-still load, which is why the view keeps a nullable `score` column. Nothing writes a
-new scoring row.
+still load, so the view keeps a nullable `score` column. Nothing writes a new
+scoring row. Current keep probabilities live in `keep_scores`.
 
 The effective decision is the latest row per `(posting_key, stage)`, by timestamp and
 then append order. Every Posting that reaches the Hard Filters gets a Filter Decision.
@@ -38,12 +38,14 @@ Track events are `approve`, `reject`, `prepare`, `fill`, `submit`, `restore`,
 `outcome`, `withdraw`, `outreach` and `outreach_undo`. Outreach events do not fold
 into Application state and never supply keep/skip labels. The other events fold into the states `approved`, `rejected`,
 `prepared`, `filled`, `submitted`, `queued`, `concluded` and `withdrawn`. `prepare`
-and `fill` are written by the pipeline. `submit` is the Owner's own report that they
-applied. Older `submit` rows written by the pipeline still load. Any valid event may
-follow any state, because people also apply outside Venator.
+and `fill` are written by the pipeline. New `submit` events record manual applications.
+Older pipeline-authored `submit` rows still load. Any valid event may follow any
+state, because people also apply outside Venator. A restore event returns a Posting
+to `queued`.
 
-If a Posting has no Track event and its latest old `llm_score` row says `queue`, it
-shows as `queued`. Old scores never decide the order of a list.
+Without Track events, a historical `llm_score` verdict of `queue` can create a
+queued state unless a later Hard Filter excludes it. Historical scores do not
+order lists.
 
 ## Runtime probe
 
@@ -223,7 +225,7 @@ signals the whole child process tree.
 
 `venator.applications apply` checks the exact Posting again, reruns Hard Filters,
 reads Greenhouse questions and writes a versioned résumé and, when requested, letter.
-Owner edits make new versions. Every opened or downloaded file is checked against its
+Edits make new versions. Every opened or downloaded file is checked against its
 hash and the Posting and Profile inputs. Answers and statements pinned to a bundle
 must still be current before Fill. The library lives under `data/answers/`.
 The dashboard sequences Apply then Fill from one press. `predraft` prepares the
@@ -253,8 +255,8 @@ Visible Fill is separate from the Dry Run. It fills confirmed Greenhouse fields 
 uploads only hash-verified, reviewed documents. The person presses Submit. Greenhouse
 confirmation detection can then record an applied Application.
 
-The answer library holds the Owner's per-employer or shared answers and statements.
-Reserved form questions remain for the Owner; essays cite their statements. The
+The answer library holds confirmed per-employer or shared answers and statements.
+Reserved form questions stay manual. Essays cite confirmed statements. The
 Dry Run planner only answers sponsorship when `work_authorization.requires_sponsorship:
 true`, never "No". EEO answers are never made up.
 
@@ -266,7 +268,7 @@ and flushes each one:
 
 - `<stage>: starting` on stdout
 - `<stage>: ok` on stdout
-- `<stage>: ERROR — <message>` on stderr
+- an ERROR line on stderr with the stage name and message, parsed by `ui/server/runs/progress.ts`
 
 Readers ignore lines they don't recognise. The exit status and `data/runs.jsonl` are
 what count. A heartbeat row has `at`, `status`, `stage` and an optional `error`, and

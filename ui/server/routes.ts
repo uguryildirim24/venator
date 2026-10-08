@@ -1,7 +1,4 @@
-/**
- * The read-only HTTP surface. Nothing here writes: the dashboard observes the pipeline,
- * and approve/reject stays disabled until a submission pipeline exists.
- */
+/** Read-only Posting queries. Separate application routes handle Save and Dismiss. */
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -38,7 +35,7 @@ const MAX_LIMIT = 1000;
 
 /**
  * The API binds to loopback, but a browser page from anywhere could still reach it, so the
- * origins that may read the owner's Posting data are named explicitly. The tauri entries
+ * origins that may read private Posting data are named explicitly. The tauri entries
  * are what a packaged desktop build will present once the dashboard is wrapped.
  */
 const ALLOWED_ORIGINS: readonly string[] = [

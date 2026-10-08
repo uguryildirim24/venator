@@ -99,7 +99,7 @@ function isSampleView(path: string): boolean {
  * The view to open, or null when this Install has none yet.
  *
  * `locations.ts` owns the order — an explicit `$VENATOR_VIEW_DB` first, then the
- * application data directory, then a checkout. An explicit path is honoured whether or not
+ * application data directory. An explicit path is honoured whether or not
  * it exists, because a caller that named one wants the error rather than a substitute.
  */
 function namedOrFoundView(context: LocationContext): string | null {
@@ -111,12 +111,9 @@ function namedOrFoundView(context: LocationContext): string | null {
 /**
  * What this Install is entitled to read, and the one place that is decided.
  *
- * The fixture is nineteen Postings from real employers and none of them is the Owner's. It
- * used to be the automatic fallback for any Install with no view of its own, which meant the
- * first thing somebody saw after installing the app was a full review queue of a stranger's
- * job search, with one badge in the header to say so. A badge is not containment: the
- * Postings were on screen, in the lists, in Focus, and on the wire to anything that could
- * reach the loopback API.
+ * The fixture contains fictional Postings, assessments and application actions.
+ * An installed app with no real view must not present them as discovered jobs.
+ * A badge alone is insufficient: the API must enforce the sample-data boundary.
  *
  * So sample data is served **only when this run asked for it** (`$VENATOR_SAMPLE_DATA`), and
  * asking is a thing only the developer tools do. The check is on the data rather than on the

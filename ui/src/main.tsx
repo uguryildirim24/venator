@@ -9,7 +9,7 @@ if (container === null) {
 	throw new Error("index.html is missing its #root element.");
 }
 
-// Light and dark follow the system, in a browser and on the desktop alike (ui/DESIGN.md).
+// Light and dark follow the system (ui/README.md, "Rules for changes").
 createRoot(container).render(
 	<StrictMode>
 		<App />

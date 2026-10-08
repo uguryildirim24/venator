@@ -62,13 +62,8 @@ process.stdout.write(
 );
 
 /*
- * The dev loop asks for the sample Postings, and that is the whole of what changed here.
- *
- * The server used to fall back to the fixture for anybody with no `build/venator.db`, which
- * meant a person who had just installed the app opened it onto nineteen Postings from a
- * stranger's job search. It now serves an empty view unless the run asks (`server/db.ts`), so
- * the ask moved to the one place where a populated dashboard is the point. A real view still
- * wins: this decides what happens when there is none, and nothing else.
+ * Development explicitly requests the fictional fixture when no real view exists.
+ * Installed apps instead open an empty view. A real pipeline view always wins.
  */
 start("api", process.execPath, ["server/main.ts"], { [SAMPLE_DATA_ENVIRONMENT]: "1" });
 start("app", "pnpm", ["exec", "vite"]);
