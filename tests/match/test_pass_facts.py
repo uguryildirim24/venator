@@ -1,25 +1,8 @@
-"""What the store now records about a Posting that *passed*.
+"""Pass facts distinguish cleared, unread and unconfigured Hard Filter readings.
 
-A Filter Decision has always explained a kill and never a pass. The kill names
-the wording it fired on; the pass named the rules it survived and stopped there.
-So the corpus could answer "why was this Posting rejected" and could not answer
-"why did this one get through", and every audit under ``docs/research/`` has had
-to reconstruct the second answer by reading ``venator.match.filters``.
-
-That asymmetry is backwards. A wrong pass costs one more Posting to review. A wrong *rule*
-— one that places no title it reads, one that waives every restriction it finds
-— passes everything, costs the whole queue, and shows up nowhere, because the
-only trace it leaves is the pass it wrote no reason for.
-
-So each rule now derives a short token on a pass and the row carries them.
-Three properties make that safe to add to an append-only store that ships in the
-repository (docs/adr/0001-git-as-transport.md), and all three are pinned here:
-
-* it changes no verdict, rule or kill reason — ``test_filters_golden`` replays
-  all fixture Postings against a fixture that needed no regeneration;
-* it is outside ``filters_version``, so it replays nothing; and
-* it is tokens, not prose, so it can be counted, and it costs 123 bytes on a
-  pass row and nothing at all on a kill.
+They are compact tokens in the private append-only decisions store. Recording
+facts does not alter verdicts, kill reasons or ``filters_version``. These tests
+use the fictional example Profile and constructed Postings, not a private corpus.
 """
 
 from __future__ import annotations
@@ -34,12 +17,11 @@ from venator.match.filters import (
     role_target_reading,
     work_authorization_reading,
 )
-from venator.match.run import decide, run
+from venator.match.run import run
 from venator.profile import load_profile
 from venator.profile.schema import EducationFitPolicy, FilterPolicy, Matcher, RoleTargetPolicy
 
 REPOSITORY = Path(__file__).parents[2]
-CORPUS = REPOSITORY / "data" / "postings" / "2026-08-18.jsonl"
 
 ROLE_TARGETING = """\
 profile:
@@ -89,17 +71,6 @@ def role_profile(directory: Path):
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "targeting.yaml").write_text(ROLE_TARGETING, encoding="utf-8")
     return load_profile(directory)
-
-
-def corpus_facts() -> dict[str, dict[str, int]]:
-    """Every pass fact the Owner's Profile derives over the committed corpus."""
-    counts: dict[str, dict[str, int]] = {}
-    for _, verdict, _, _, facts in decide(read_jsonl(CORPUS), owner_profile()):
-        if verdict != "pass" or facts is None:
-            continue
-        for rule, fact in facts.items():
-            counts.setdefault(rule, {})[fact] = counts.setdefault(rule, {}).get(fact, 0) + 1
-    return counts
 
 
 def test_a_kill_carries_no_facts_because_the_rules_after_it_never_ran() -> None:
@@ -171,12 +142,7 @@ def test_the_widened_model_tells_a_cleared_degree_apart_from_one_it_could_not_pl
 
 
 def test_a_truncated_posting_is_recorded_as_unread_rather_than_as_cleared() -> None:
-    """39.3 % of this corpus is a 500-character aggregator snippet.
-
-    Silence from a filter that could not reach the requirements section is
-    ignorance, not a finding — the distinction the reason strings already draw,
-    now drawn in a field that can be counted.
-    """
+    """A snippet may omit requirements. Missing wording is not a cleared check."""
     policy = owner_profile().filters
     snippet = {"snippet": True, "description_html": "<p>A growing team…</p>"}
 
@@ -264,10 +230,8 @@ def test_a_standing_pass_row_without_facts_is_never_replayed_to_acquire_them(tmp
     therefore unmoved, and the standing-decision comparison in
     ``_decision_still_stands`` deliberately ignores the facts, so a Posting whose
     row predates the field says exactly what the pipeline says today and is left
-    alone. Both halves are needed: a moved version would restale every
-    ``llm_score`` row and spend the Owner's subscription, and a facts-aware
-    comparison would append 120 rows over this corpus to restate 120 verdicts
-    that never moved.
+    alone. A moved version or facts-aware comparison would append unchanged
+    verdicts without adding decision evidence.
     """
     postings_dir = tmp_path / "postings"
     decisions_dir = tmp_path / "decisions"
