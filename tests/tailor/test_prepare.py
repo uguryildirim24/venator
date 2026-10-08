@@ -35,7 +35,7 @@ def profile() -> Profile:
                     "id": "education:example-university",
                     "org": "Example University",
                     "location": "Example City, MA",
-                    "date": "May 2027 (Expected)",
+                    "date": "June 2028 (Expected)",
                     "degree": "Bachelor of Science in Biochemistry",
                 }
             ],

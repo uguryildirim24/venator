@@ -39,7 +39,7 @@ const PARSED: ParsedResumeResponse = {
 			email: "alex.rivera@example.com",
 			linkedin: "www.linkedin.com/in/alexqrivera",
 		},
-		education: [{ org: "Northeastern University", degree: "Bachelor of Science", date: "May 2027" }],
+		education: [{ org: "Northeastern University", degree: "Bachelor of Science", date: "June 2028" }],
 		technical_proficiencies: [{ label: "Laboratory", items: "HPLC, liquid handling" }],
 		experience: [{ org: "Some Employer", role: "Laboratory Assistant", bullets: ["Ran 40 assays a week"] }],
 	},
@@ -101,7 +101,7 @@ test("a section nobody confirmed is not written into the Profile", () => {
 test("a section the Owner confirmed is written, as they left it", () => {
 	const proposal = profileProposal(drafted(confirmAll(withParsedResume(EMPTY_DRAFT.resume, PARSED))), false);
 	assert.equal(proposal.resume?.education?.[0]?.org, "Northeastern University");
-	assert.equal(proposal.resume?.education?.[0]?.date, "May 2027");
+	assert.equal(proposal.resume?.education?.[0]?.date, "June 2028");
 	assert.equal(proposal.resume?.technical_proficiencies?.[0]?.items, "HPLC, liquid handling");
 	assert.deepEqual([...(proposal.resume?.experience?.[0]?.bullets ?? [])], ["Ran 40 assays a week"]);
 });

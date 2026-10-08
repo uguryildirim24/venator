@@ -108,7 +108,7 @@ def test_summer_only_profile_rejects_spring_coop_but_accepts_summer_internship()
 
 def test_confirmed_graduation_must_be_before_a_degree_by_start_requirement() -> None:
     policy = TimingPolicy(
-        expected_graduation=date(2027, 5, 20),
+        expected_graduation=date(2028, 6, 20),
         expected_graduation_confirmed=True,
         reference_date=date(2026, 9, 4),
     )
@@ -181,7 +181,7 @@ def test_unknown_dates_do_not_waive_explicit_enrollment_conflict(degree_requirem
         TimingPolicy(
             allowed_seasons=("summer",),
             enrollment="future",
-            expected_graduation=date(2027, 5, 1),
+            expected_graduation=date(2028, 6, 1),
             expected_graduation_confirmed=True,
         ),
     )
@@ -240,6 +240,6 @@ def test_current_student_as_alternative_to_recent_graduate_is_not_mandatory_enro
 
 
 def test_expected_graduation_alone_does_not_invent_current_enrollment(tmp_path: Path) -> None:
-    (tmp_path / "resume.yaml").write_text("education:\n  - degree: Bachelor of Science\n    date: May 2027 (Expected)\n")
+    (tmp_path / "resume.yaml").write_text("education:\n  - degree: Bachelor of Science\n    date: June 2028 (Expected)\n")
     profile = load_profile(tmp_path)
     assert profile.filters.education_fit.current_student_level is None

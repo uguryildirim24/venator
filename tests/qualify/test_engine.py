@@ -290,15 +290,15 @@ def test_ten_e7_clauses(base: CompiledProfile, clause: str, recency: bool, gpa: 
     ('Must start in 2026-10', 'start', 'compatible'),
     ('Must start in 2027-01', 'start', 'incompatible'),
     ('Must start on 2026-09-14', 'start', 'unknown'),
-    ('Must graduate by 2027-04', 'graduation', 'incompatible'),
-    ('Must graduate by 2027-05', 'graduation', 'compatible'),
-    ('Must graduate by 2027-06', 'graduation', 'compatible'),
-    ('Must graduate by May 2027', 'graduation', 'compatible'),
-    ('Must graduate by 2027-05-14', 'graduation', 'unknown'),
+    ('Must graduate by 2028-05', 'graduation', 'incompatible'),
+    ('Must graduate by 2028-06', 'graduation', 'compatible'),
+    ('Must graduate by 2028-07', 'graduation', 'compatible'),
+    ('Must graduate by June 2028', 'graduation', 'compatible'),
+    ('Must graduate by 2028-06-14', 'graduation', 'unknown'),
 ])
 def test_ten_e8_comparisons(base: CompiledProfile, clause: str, kind: str, expected: str) -> None:
     compiled = replace(base, availability=replace(base.availability, fact_status='confirmed',
-        available_from='2026-09', available_until='2026-12', expected_graduation='2027-05',
+        available_from='2026-09', available_until='2026-12', expected_graduation='2028-06',
         expected_graduation_confirmed=True))
     ev = evidence(compiled, posting(clause), '2026-09')
     values = ev.start_date_clauses if kind == 'start' else ev.graduation_clauses

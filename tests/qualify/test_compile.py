@@ -44,7 +44,7 @@ def test_compiled_golden_and_hash(name: str) -> None:
 def test_two_degrees_timing_is_per_entry_and_policy_consistent() -> None:
     compiled = compile_profile(loaded("two-degrees"), as_of_month=MONTH)
     assert [(row.status, row.expected_completion, row.awarded_on) for row in compiled.education] == [
-        ("awarded", None, "2022-06"), ("in_progress", "2027-05", None),
+        ("awarded", None, "2022-06"), ("in_progress", "2028-06", None),
     ]
     assert [row.institution_placeholder for row in compiled.education] == ["Institution A", "Institution B"]
     assert compiled.experience[0].organization_placeholder == "Organisation A"
@@ -57,11 +57,11 @@ def test_multiple_progressing_degrees_do_not_receive_global_timing() -> None:
     profile = loaded("two-degrees")
     resume = dict(profile.resume)
     resume["education"] = [*resume["education"], {
-        "org": "South University", "degree": "PhD in Chemistry", "date": "June 2028 (Expected)",
+        "org": "South University", "degree": "PhD in Chemistry", "date": "June 2029 (Expected)",
     }]
     with pytest.warns(UserWarning, match="exactly one"):
         compiled = compile_profile(replace(profile, resume=resume), as_of_month=MONTH)
-    assert [row.expected_completion for row in compiled.education] == [None, "2027-05", "2028-06"]
+    assert [row.expected_completion for row in compiled.education] == [None, "2028-06", "2029-06"]
 
 
 def test_withheld_parent_overrides_confirmed_children() -> None:

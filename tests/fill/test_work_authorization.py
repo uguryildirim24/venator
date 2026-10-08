@@ -38,7 +38,7 @@ RESUME = {
 
 
 def constraints(**work_authorization: object) -> dict:
-    return {"work_authorization": {"status": "international student", **work_authorization}}
+    return {"work_authorization": {"status": "Fictional status requiring sponsorship", **work_authorization}}
 
 
 def field(label: str, kind: str, options: list[str] | None = None) -> dict:

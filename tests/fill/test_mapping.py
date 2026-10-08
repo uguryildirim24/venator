@@ -15,20 +15,20 @@ RESUME = {
     "education": [
         {
             "org": "Example University",
-            "date": "May 2027 (Expected)",
-            "degree": "Bachelor of Science in Biochemistry",
+            "date": "June 2028 (Expected)",
+            "degree": "Bachelor of Science in Computer Science",
             "gpa": "3.50/4.00",
         }
     ],
 }
 CONSTRAINTS = {
     "work_authorization": {
-        "status": "international student",
+        "status": "Fictional status requiring sponsorship",
         "requires_sponsorship": True,
     },
     "option_aliases": {
         "school": {"Example University": ["Example College"]},
-        "degree": {"Bachelor of Science in Biochemistry": ["Bachelor's Degree"]},
+        "degree": {"Bachelor of Science in Computer Science": ["Bachelor's Degree"]},
         "sponsorship": {"Yes": ["Yes, but not until the future"]},
     },
 }
@@ -66,7 +66,7 @@ def test_form_fields_exercise_every_kind_truthfully(tmp_path: Path) -> None:
 
     assert [mapping.value for mapping in mappings] == [
         "Alex",
-        "international student",
+        "Fictional status requiring sponsorship",
         "Example University",
         "Yes",
         True,
@@ -113,10 +113,10 @@ def test_choice_resolution_normalizes_options_but_rejects_semantic_near_misses()
     assert school.value == "example university"
 
 
-def test_binary_work_authorization_is_not_invented_from_f1_status() -> None:
+def test_binary_work_authorization_is_not_invented_from_status() -> None:
     """A status describes; it does not attest.
 
-    The Owner can now state the answer outright
+    Rolf can state the answer outright
     (``work_authorization.authorized_to_work``) and this Profile has not, so the
     question stays theirs to answer — the reason names the field to set, and
     says in as many words that silence is not a "No".

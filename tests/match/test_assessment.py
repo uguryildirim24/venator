@@ -417,8 +417,8 @@ def test_explicitly_withheld_facts_never_establish_relevance(tmp_path: Path) -> 
     "High school diploma or GED required.", "High school diploma or equivalent required.",
 ])
 @pytest.mark.parametrize("degree,date", [
-    ("Associate of Science", "May 2027 (Expected)"),
-    ("Bachelor of Science", "May 2027 (Expected)"),
+    ("Associate of Science", "June 2028 (Expected)"),
+    ("Bachelor of Science", "June 2028 (Expected)"),
     ("Bachelor of Science", "May 2024"),
 ])
 def test_post_secondary_education_meets_secondary_requirement(
@@ -438,7 +438,7 @@ def test_post_secondary_education_meets_secondary_requirement(
     (Path(__file__).parent / "fixtures" / "secondary_view_clauses.txt").read_text(encoding="utf-8").splitlines()
     if line and not line.startswith("#")])
 def test_every_standalone_secondary_clause_from_view(tmp_path: Path, requirement: str) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
     assert any(row["requirement"] == requirement.strip().rstrip(".").rstrip() and
                row["source"] == "profile.resume.education[0].degree" for row in result["evidence"])
@@ -492,7 +492,7 @@ def test_every_standalone_secondary_clause_from_view(tmp_path: Path, requirement
     "Education Required: High school diploma/equivalent is strongly preferred",
 ])
 def test_view_secondary_phrasings_met_by_confirmed_college_enrolment(tmp_path: Path, requirement: str) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
     assert any(row["source"] == "profile.resume.education[0].degree" and
                row["requirement"] == requirement.rstrip(".").rstrip() for row in result["evidence"])
@@ -524,7 +524,7 @@ def test_no_confirmed_education_does_not_meet_secondary_requirement(
 
 
 def test_secondary_rule_does_not_cover_college_degree_or_other_requirements(tmp_path: Path) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     college = assess_posting(posting(description_html="<h2>Requirements</h2><p>Completed bachelor's degree required.</p>"),
                              candidate, passing_decision())
     assert not any("bachelor" in row["requirement"].casefold() for row in college["evidence"])
@@ -547,7 +547,7 @@ def test_secondary_rule_does_not_cover_college_degree_or_other_requirements(tmp_
     "High School Diploma or equivalent in chemistry required.",
 ])
 def test_secondary_clause_with_extra_bar_stays_unresolved(tmp_path: Path, requirement: str) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
     assert not any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
     assert any("Qualification not established" in text or "Credential or eligibility" in text
@@ -561,7 +561,7 @@ def test_secondary_clause_with_extra_bar_stays_unresolved(tmp_path: Path, requir
     "High school diploma or GED with four years of related experience.",
 ])
 def test_secondary_branch_of_or_meets_bar(tmp_path: Path, requirement: str) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
     assert any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
     assert not any("Qualification not established" in item for item in result["unknowns"])
@@ -573,7 +573,7 @@ def test_secondary_branch_of_or_meets_bar(tmp_path: Path, requirement: str) -> N
       if line and not line.startswith("#")),
 ])
 def test_preferred_addon_remains_optional_gap(tmp_path: Path, requirement: str) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
     assert any(row["source"] == "profile.resume.education[0].degree" and
                ("high school" in row["requirement"].casefold() or "ged" in row["requirement"].casefold())
@@ -587,12 +587,12 @@ def test_preferred_addon_remains_optional_gap(tmp_path: Path, requirement: str) 
     "GED is a software label in this prose.",
 ])
 def test_incidental_acronyms_are_not_secondary_bars(tmp_path: Path, requirement: str) -> None:
-    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "May 2027 (Expected)"}]})
+    candidate = profile(tmp_path, {"education": [{"degree": "Bachelor of Science", "date": "June 2028 (Expected)"}]})
     result = assess_posting(posting(requirements=[requirement]), candidate, passing_decision())
     assert not any(row["requirement"] == requirement.rstrip(".") for row in result["evidence"])
 
 
 def test_in_progress_degree_evidence_keeps_the_expected_date(tmp_path: Path) -> None:
     result = assess_posting(posting(description_html="<h2>Requirements</h2><p>Biochemistry coursework.</p>"),
-                           profile(tmp_path, {"education": [{"degree": "Bachelor of Science in Biochemistry", "date": "May 2027 (Expected)"}]}), passing_decision())
+                           profile(tmp_path, {"education": [{"degree": "Bachelor of Science in Biochemistry", "date": "June 2028 (Expected)"}]}), passing_decision())
     assert any("Expected" in row["candidate_evidence"] for row in result["evidence"])

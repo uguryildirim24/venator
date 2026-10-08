@@ -53,24 +53,24 @@ def test_tracking_parameters_are_removed_but_meaningful_query_data_remains() -> 
 
 def test_aggregator_and_employer_records_with_same_destination_collapse() -> None:
     employer = posting(
-        "ashby:benchling:df9f0b19",
+        "ashby:benchling:sample-employer",
         source="ashby",
         board="benchling",
         title="Solutions Delivery Manager",
         location="Boston, MA",
         description_html="<p>The whole description.</p>",
-        external_id="df9f0b19",
-        url="https://jobs.example.com/jobs/0001?utm_source=employer",
+        external_id="sample-employer",
+        url="https://jobs.example.com/jobs/sample-employer?utm_source=employer",
     )
     aggregated = posting(
-        "adzuna:us:5847155128",
+        "adzuna:us:sample-duplicate",
         source="adzuna",
         company="Benchling",
         title="Solutions Delivery Manager - Boston",
         location="Boston, Suffolk County",
         snippet=True,
-        external_id="5847155128",
-        url="https://jobs.example.com/jobs/0001?gclid=tracking",
+        external_id="sample-duplicate",
+        url="https://jobs.example.com/jobs/sample-employer?gclid=tracking",
         discovered_at="2026-08-18T20:39:16+00:00",
     )
 

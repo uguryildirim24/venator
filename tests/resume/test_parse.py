@@ -82,8 +82,8 @@ RESUME_LINES = [
     "(617) 555-0142  dana@okafor.dev",
     "www.linkedin.com/in/danaokafor",
     "EDUCATION",
-    "Example University - Example City, MA   May 2027 (Expected)",
-    "Bachelor of Science in Biochemistry",
+    "Example University - Example City, MA   June 2028 (Expected)",
+    "Bachelor of Science in Computer Science",
     "Cumulative GPA: 3.50/4.00",
     "TECHNICAL PROFICIENCIES",
     "Laboratory Tools: NMR, GC-MS, gel electrophoresis, spectrophotometry",
@@ -221,8 +221,8 @@ def test_an_invented_name_is_not_grounded() -> None:
 
 def test_prose_must_occur_contiguously_and_a_paraphrase_does_not() -> None:
     """The tier that matters most: a degree the Fill stage maps into a real form."""
-    assert ground("Bachelor of Science in Biochemistry", DOCUMENT, prose=True) is True
-    assert ground("BS in Biochemistry", DOCUMENT, prose=True) is False
+    assert ground("Bachelor of Science in Computer Science", DOCUMENT, prose=True) is True
+    assert ground("BS in Computer Science", DOCUMENT, prose=True) is False
 
 
 def test_prose_reassembled_from_words_that_are_each_on_the_page_is_refused() -> None:
@@ -305,8 +305,8 @@ def reply_for(**overrides: object) -> dict[str, object]:
             {
                 "org": "Example University",
                 "location": "Example City, MA",
-                "date": "May 2027 (Expected)",
-                "degree": "Bachelor of Science in Biochemistry",
+                "date": "June 2028 (Expected)",
+                "degree": "Bachelor of Science in Computer Science",
                 "gpa": "3.50/4.00",
                 "coursework": None,
             }
@@ -349,7 +349,7 @@ def test_a_faithful_reading_survives_whole(resume_document: ExtractedDocument) -
     }
     education = parsed.resume["education"]
     assert isinstance(education, list)
-    assert education[0]["degree"] == "Bachelor of Science in Biochemistry"
+    assert education[0]["degree"] == "Bachelor of Science in Computer Science"
     assert education[0]["gpa"] == "3.50/4.00"
     assert "coursework" not in education[0]
     experience = parsed.resume["experience"]
@@ -438,7 +438,7 @@ def test_an_invented_name_is_dropped_and_counted(
 def test_a_paraphrased_degree_is_dropped(resume_document: ExtractedDocument) -> None:
     """`CLAUDE.md`: a degree has to survive verbatim for the Fill mapping to work."""
     education = [dict(reply_for()["education"][0])]
-    education[0]["degree"] = "BS in Biochemistry"
+    education[0]["degree"] = "BS in Computer Science"
     parsed = ask(resume_document, reply_for(education=education))
 
     assert "degree" not in parsed.resume["education"][0]

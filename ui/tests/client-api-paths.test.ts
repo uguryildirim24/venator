@@ -10,8 +10,7 @@ import { createServer } from "../server/app.ts";
 
 const root = resolve(import.meta.dirname, "../src");
 const clients = ["api.ts", "runs/api.ts", "onboarding/api.ts"];
-// Keep the fixture ID in parts so it cannot be mistaken for a phone number by the public scan.
-const fixtureKey = `greenhouse%3Aginkgobioworks%3A${"51852"}${"85007"}`;
+const fixtureKey = "greenhouse%3Aexampleinventory%3Asample-01";
 type Endpoint = { method: "GET" | "POST"; path: string };
 
 // Enumerate client call sites rather than maintain a parallel list of server paths.

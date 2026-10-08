@@ -69,7 +69,7 @@ def field(kind: str, options: list[str] | None) -> dict:
 
 
 def constraints(**work_authorization: object) -> dict:
-    return {"work_authorization": {"status": "international student", **work_authorization}}
+    return {"work_authorization": {"status": "Fictional status requiring sponsorship", **work_authorization}}
 
 
 @pytest.mark.parametrize("kind, options", KINDS)

@@ -27,20 +27,20 @@ RESUME = {
     "education": [
         {
             "org": "Example University",
-            "date": "May 2027 (Expected)",
-            "degree": "Bachelor of Science in Biochemistry",
+            "date": "June 2028 (Expected)",
+            "degree": "Bachelor of Science in Computer Science",
             "gpa": "3.50/4.00",
         }
     ],
 }
 CONSTRAINTS = {
     "work_authorization": {
-        "status": "international student",
+        "status": "Fictional status requiring sponsorship",
         "requires_sponsorship": True,
     },
     "option_aliases": {
         "school": {"Example University": ["Example College"]},
-        "degree": {"Bachelor of Science in Biochemistry": ["Bachelor's Degree"]},
+        "degree": {"Bachelor of Science in Computer Science": ["Bachelor's Degree"]},
         "sponsorship": {"Yes": ["Yes, but not until the future"]},
     },
 }

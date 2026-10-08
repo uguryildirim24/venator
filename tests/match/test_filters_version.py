@@ -16,7 +16,7 @@ from venator.match import store
 from venator.match.store import filters_version
 
 TARGETING = """\
-# The Owner's search.
+# Fictional search.
 sources:
   names:
     benchling: Benchling
@@ -36,7 +36,7 @@ filters:
 def profile_files(tmp_path: Path) -> tuple[Path, Path]:
     constraints = tmp_path / "constraints.yaml"
     targeting = tmp_path / "targeting.yaml"
-    constraints.write_text("work_authorization:\n  status: example\n", encoding="utf-8")
+    constraints.write_text("work_authorization:\n  status: Fictional status\n", encoding="utf-8")
     targeting.write_text(TARGETING, encoding="utf-8")
     return constraints, targeting
 
@@ -123,7 +123,7 @@ def test_constraints_are_still_hashed_as_their_bytes(profile_files: tuple[Path, 
     constraints, targeting = profile_files
     before = filters_version(constraints, targeting)
     constraints.write_text(
-        "# a note\nwork_authorization:\n  status: example\n", encoding="utf-8"
+        "# a note\nwork_authorization:\n  status: Fictional status\n", encoding="utf-8"
     )
 
     assert filters_version(constraints, targeting) != before
@@ -152,7 +152,7 @@ def test_yaml_that_cannot_be_read_falls_back_to_its_raw_bytes(tmp_path: Path) ->
     the conservative direction: every edit replays.
     """
     constraints = tmp_path / "constraints.yaml"
-    constraints.write_text("work_authorization:\n  status: example\n", encoding="utf-8")
+    constraints.write_text("work_authorization:\n  status: Fictional status\n", encoding="utf-8")
     broken = tmp_path / "targeting.yaml"
 
     broken.write_text("filters: [unclosed\n", encoding="utf-8")
@@ -186,7 +186,7 @@ def test_a_named_but_absent_file_hashes_as_empty_and_adding_it_replays(
 
     targeting.write_text(TARGETING, encoding="utf-8")
     with_targeting = filters_version(constraints, targeting)
-    constraints.write_text("work_authorization:\n  status: example\n", encoding="utf-8")
+    constraints.write_text("work_authorization:\n  status: Fictional status\n", encoding="utf-8")
 
     assert with_targeting != empty
     assert filters_version(constraints, targeting) not in {empty, with_targeting}
@@ -197,12 +197,8 @@ def test_minting_a_profile_identifier_does_not_replay_the_corpus(
 ) -> None:
     """``profile.id`` is provenance, not a verdict, so stamping one is free.
 
-    A Profile that has gone without an identifier gets one the day its Owner
-    mints it. Every verdict it produces afterwards is byte-identical to the one
-    before — the identifier says who decided, never what was decided — so
-    hashing it would send all stored Hard Filter Decisions back through a replay
-    and restale every ``llm_score`` row to reproduce exactly what was already
-    there, on the Owner's own subscription.
+    Minting an identifier does not change any verdict. Hashing provenance
+    would replay unchanged Hard Filter Decisions without adding evidence.
     """
     constraints, targeting = profile_files
     before = filters_version(constraints, targeting)

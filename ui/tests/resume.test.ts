@@ -18,7 +18,7 @@ const RESUME = [
 	"",
 	"EDUCATION",
 	"Northeastern University - Boston, MA",
-	"Bachelor of Science in Chemical Engineering, May 2027",
+	"Bachelor of Science in Chemical Engineering, June 2028",
 	"",
 	"RELEVANT EXPERIENCE",
 	"Some Employer - Cambridge, MA",

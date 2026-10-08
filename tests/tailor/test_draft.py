@@ -21,7 +21,7 @@ def candidate(tmp_path):
     return Profile(name="fixture", directory=tmp_path / "profile", resume={
         "name": "Ari Chen", "contact": {"email": "ari@example.test"},
         "education": [{"id": "school", "org": "Example University",
-                       "degree": "Bachelor of Science (in progress)", "date": "May 2027"}],
+                       "degree": "Bachelor of Science (in progress)", "date": "June 2028"}],
         "experience": [{"id": "lab", "org": "University Laboratory", "role": "Student Assistant",
                         "dates": "2026", "bullets": [{"id": "observed", "text": ORIGINAL}]}],
     })
@@ -122,7 +122,7 @@ def test_real_rewrite_and_personalized_letter_preserve_originals_with_provenance
     assert REWRITTEN in result["resumeText"]
     assert ORIGINAL not in result["resumeText"]
     assert "Bachelor of Science (in progress)" in result["resumeText"]
-    assert "May 2027" in result["resumeText"]
+    assert "June 2028" in result["resumeText"]
     assert "University Laboratory\nStudent Assistant\n2026" in result["resumeText"]
     assert "Example Labs" in result["letterText"] and "observing GC-MS" in result["letterText"]
     assert dict(candidate.resume) == originals

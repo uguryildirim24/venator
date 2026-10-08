@@ -41,5 +41,5 @@ def test_profile_resume_change_invalidates_existing_eligibility(tmp_path):
     targeting.write_text("{}\n", encoding="utf-8")
     resume.write_text("education: []\n", encoding="utf-8")
     before = filters_version(constraints, targeting)
-    resume.write_text("education:\n  - degree: Bachelor of Science\n    date: May 2027\n", encoding="utf-8")
+    resume.write_text("education:\n  - degree: Bachelor of Science\n    date: June 2028\n", encoding="utf-8")
     assert filters_version(constraints, targeting) != before

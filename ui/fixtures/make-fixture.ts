@@ -1,4 +1,6 @@
 /**
+ * Fictional data for Avery Example, not Rolf's job search or a model evaluation.
+ * Jobs, assessments, probabilities and actions are invented. Links use example.com.
  * Builds a small venator.db that matches coordination/CONTRACTS.md exactly, so the
  * dashboard is reviewable before the match engine writes a real view.
  *
@@ -130,14 +132,14 @@ GROUP BY posting_key;
 UPDATE application_states
 SET state = 'approved', detail = 'Approved for submission; cover letter drafted.',
     since = '2026-08-18T09:12:00+00:00'
-WHERE posting_key = 'greenhouse:generatebiomedicines:4728990';
+WHERE posting_key = 'greenhouse:exampleplatform:sample-14';
 INSERT INTO runs (at, status, stage) VALUES
   ('2026-08-17T19:20:00+00:00', 'ok', 'discover'),
   ('2026-08-18T08:47:00+00:00', 'ok', 'view');
 `;
 
 
-/** The filters_version before the summer-housing clause was added to the Profile's constraints.yaml. */
+/** Fictional filter versions before and after a sample rule change. */
 const PREVIOUS_FILTERS = "a3f1c0d92b47";
 const CURRENT_FILTERS = "7c2e5b8146fa";
 
@@ -151,255 +153,210 @@ function description(intro: string, bullets: readonly string[], closing: string)
 
 const POSTINGS: readonly FixturePosting[] = [
 	{
-		key: "greenhouse:ginkgobioworks:5185285007",
+		key: "greenhouse:exampleinventory:sample-01",
 		source: "greenhouse",
-		board: "ginkgobioworks",
-		company: "Ginkgo Bioworks",
-		title: "Summer 2027 Intern, Automation & Lab Informatics",
-		location: "Boston, MA",
-		url: "https://boards.greenhouse.io/ginkgobioworks/jobs/5185285007",
+		board: "exampleinventory",
+		company: "Example Inventory",
+		title: "Backend Engineer, Inventory Services",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-11",
 		discoveredAt: "2026-08-14T13:02:11+00:00",
 		descriptionHtml: description(
-			"Ginkgo's Foundry runs thousands of strain builds a week. Our summer interns sit with the automation team and make that data legible.",
-			[
-				"Write Python glue between liquid handlers and our internal LIMS",
-				"Build dashboards that surface failed runs to the bench scientists who own them",
-				"Pair with software engineers on data-pipeline reliability work",
-			],
-			"Open to undergraduates returning to a degree program in Fall 2027. Housing stipend available for interns relocating to Boston.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:ginkgobioworks:5185301442",
+		key: "greenhouse:exampleinventory:sample-02",
 		source: "greenhouse",
-		board: "ginkgobioworks",
-		company: "Ginkgo Bioworks",
-		title: "Senior Staff Scientist, Strain Engineering",
-		location: "Boston, MA",
-		url: "https://boards.greenhouse.io/ginkgobioworks/jobs/5185301442",
+		board: "exampleinventory",
+		company: "Example Inventory",
+		title: "Principal Research Scientist",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-09",
 		discoveredAt: "2026-08-14T13:02:14+00:00",
 		descriptionHtml: description(
-			"We are hiring a senior scientist to lead strain engineering campaigns end to end.",
-			[
-				"Design and execute multi-round metabolic engineering campaigns",
-				"Mentor a team of four associate scientists",
-				"Own program-level technical decisions with commercial partners",
-			],
-			"PhD in a relevant discipline plus 8+ years of industry experience required.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:generatebiomedicines:4728845",
+		key: "greenhouse:exampleplatform:sample-03",
 		source: "greenhouse",
-		board: "generatebiomedicines",
-		company: "Generate Biomedicines",
-		title: "Co-op, Protein Data Pipelines (Summer 2027)",
-		location: "Somerville, MA",
-		url: "https://boards.greenhouse.io/generatebiomedicines/jobs/4728845",
+		board: "exampleplatform",
+		company: "Example Platform",
+		title: "Platform Engineer, Data Validation",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-12",
 		discoveredAt: "2026-08-15T09:41:03+00:00",
 		descriptionHtml: description(
-			"Generate:Biomedicines turns generative models into real therapeutics. This co-op supports the data platform behind our protein programs.",
-			[
-				"Maintain ingestion pipelines for assay and structure data",
-				"Add validation checks that catch bad plate metadata before modeling",
-				"Document dataset lineage for the research teams",
-			],
-			"Six-month co-op, on-site in Somerville. Undergraduates in a science or engineering program encouraged to apply.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:tesseratherapeutics:4901233",
+		key: "greenhouse:examplereporting:sample-04",
 		source: "greenhouse",
-		board: "tesseratherapeutics",
-		company: "Tessera Therapeutics",
-		title: "Intern, Gene Writing Analytics",
-		location: "Somerville, MA",
-		url: "https://boards.greenhouse.io/tesseratherapeutics/jobs/4901233",
+		board: "examplereporting",
+		company: "Example Reporting",
+		title: "Data Engineer, Reporting",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-08",
 		discoveredAt: "2026-08-15T09:41:07+00:00",
 		descriptionHtml: description(
-			"Tessera's Gene Writing platform generates deep sequencing data faster than we can read it. Help us close that gap.",
-			[
-				"Summarize NGS run outputs into review-ready tables",
-				"Automate QC reporting currently done by hand in Excel",
-				"Work alongside the molecular biology team on assay readouts",
-			],
-			"Summer 2027, on-site in Somerville. Rising juniors and seniors welcome.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:dynotherapeutics:4455102",
+		key: "greenhouse:examplemodels:sample-05",
 		source: "greenhouse",
-		board: "dynotherapeutics",
-		company: "Dyno Therapeutics",
-		title: "Machine Learning Intern, AAV Capsid Design",
-		location: "Chicago, MA",
-		url: "https://boards.greenhouse.io/dynotherapeutics/jobs/4455102",
+		board: "examplemodels",
+		company: "Example Models",
+		title: "Machine Learning Engineer",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-05",
 		discoveredAt: "2026-08-15T09:41:12+00:00",
 		descriptionHtml: description(
-			"Dyno applies deep learning to AAV capsid design. This internship sits inside the ML research group.",
-			[
-				"Train and evaluate sequence models on capsid fitness data",
-				"Reproduce results from recent protein-design literature",
-				"Present findings at the weekly research review",
-			],
-			"Strong preference for PhD students; MS candidates with published deep-learning work considered.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:recursionpharmaceuticals:6612884",
+		key: "greenhouse:examplewarehouse:sample-06",
 		source: "greenhouse",
-		board: "recursionpharmaceuticals",
-		company: "Recursion",
-		title: "Summer Intern, Lab Automation",
+		board: "examplewarehouse",
+		company: "Example Warehouse",
+		title: "Lab Automation Engineer",
 		location: "Salt Lake City, UT",
-		url: "https://boards.greenhouse.io/recursionpharmaceuticals/jobs/6612884",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-10",
 		discoveredAt: "2026-08-16T07:15:44+00:00",
 		descriptionHtml: description(
-			"Recursion runs one of the largest automated cell-biology labs in the world, in Salt Lake City.",
-			[
-				"Support scheduling software for our automated imaging fleet",
-				"Track and triage instrument errors across shifts",
-				"Improve run-metadata capture at the bench",
-			],
-			"On-site in Salt Lake City for the full 12 weeks. Interns arrange their own housing.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:recursionpharmaceuticals:6612991",
+		key: "greenhouse:examplewarehouse:sample-07",
 		source: "greenhouse",
-		board: "recursionpharmaceuticals",
-		company: "Recursion",
-		title: "Data Engineering Intern (Remote, US)",
+		board: "examplewarehouse",
+		company: "Example Warehouse",
+		title: "Data Engineer (Remote, US)",
 		location: "Remote (US)",
-		url: "https://boards.greenhouse.io/recursionpharmaceuticals/jobs/6612991",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-13",
 		discoveredAt: "2026-08-16T07:15:49+00:00",
 		descriptionHtml: description(
-			"A fully remote internship on the data platform team supporting Recursion's phenomics datasets.",
-			[
-				"Build ETL steps that land experiment metadata in our warehouse",
-				"Write tests for pipeline transformations",
-				"Improve internal documentation for dataset consumers",
-			],
-			"Remote anywhere in the US. Open to undergraduates; no prior industry experience required.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "ashby:benchling:9f2c41a8",
+		key: "ashby:exampleworkflows:sample-08",
 		source: "ashby",
-		board: "benchling",
-		company: "Benchling",
-		title: "Software Engineering Intern, Lab Informatics",
+		board: "exampleworkflows",
+		company: "Example Workflows",
+		title: "Software Engineer, Workflows",
 		location: "San Francisco, CA",
-		url: "https://jobs.ashbyhq.com/benchling/9f2c41a8",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-07",
 		discoveredAt: "2026-08-16T07:16:02+00:00",
 		descriptionHtml: description(
-			"Benchling builds the R&D cloud for life sciences. Interns ship to production alongside a mentor.",
-			[
-				"Implement features in our notebook and registry products",
-				"Write and review TypeScript and Python",
-				"Participate in on-call shadowing",
-			],
-			"This role is on-site in San Francisco five days a week. Relocation is not provided.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "ashby:benchling:1a77b0e3",
+		key: "ashby:exampleworkflows:sample-09",
 		source: "ashby",
-		board: "benchling",
-		company: "Benchling",
-		title: "Solutions Intern, Scientific Data (Remote US)",
+		board: "exampleworkflows",
+		company: "Example Workflows",
+		title: "Solutions Engineer, Data (Remote US)",
 		location: "Remote (US)",
-		url: "https://jobs.ashbyhq.com/benchling/1a77b0e3",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-14",
 		discoveredAt: "2026-08-17T11:22:31+00:00",
 		descriptionHtml: description(
-			"Work with Benchling's field team to model customer lab workflows in our platform.",
-			[
-				"Configure schemas and workflows for scientific customers",
-				"Translate bench protocols into structured data models",
-				"Shadow customer calls and write up findings",
-			],
-			"Remote within the US. Comfortable with spreadsheets, basic scripting, and talking to scientists.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "adzuna:us:5847155128",
+		key: "adzuna:us:sample-10",
 		source: "adzuna",
 		board: "us",
-		company: "Benchling",
-		title: "Solutions Intern, Scientific Data (Remote US)",
-		location: "Boston, Suffolk County",
-		url: "https://www.adzuna.com/land/ad/5847155128",
+		company: "Example Workflows",
+		title: "Solutions Engineer, Data (Remote US)",
+		location: "Chicago, Cook County",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-14",
 		discoveredAt: "2026-08-17T20:39:16+00:00",
 		descriptionHtml: description(
-			"Work with Benchling's field team to model customer lab workflows in our platform.",
-			["Configure schemas and workflows for scientific customers"],
-			"Remote within the US.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "ashby:asimov:55b1d902",
+		key: "ashby:examplecircuits:sample-11",
 		source: "ashby",
-		board: "asimov",
-		company: "Asimov",
-		title: "Research Intern, Synthetic Biology",
-		location: "Boston, MA",
-		url: "https://jobs.ashbyhq.com/asimov/55b1d902",
+		board: "examplecircuits",
+		company: "Example Circuits",
+		title: "Research Software Engineer",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-15",
 		discoveredAt: "2026-08-17T11:22:36+00:00",
 		descriptionHtml: description(
-			"Asimov designs genetic circuits for mammalian cell engineering. Our interns run real experiments.",
-			[
-				"Execute transfection and flow cytometry experiments",
-				"Analyze circuit performance data in Python",
-				"Keep protocol records in the electronic notebook",
-			],
-			"On-site in Boston. Coursework in biochemistry or molecular biology expected.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:ginkgobioworks:5185277781",
+		key: "greenhouse:exampleinventory:sample-12",
 		source: "greenhouse",
-		board: "ginkgobioworks",
-		company: "Ginkgo Bioworks",
-		title: "Government Programs Analyst, Biosecurity",
-		location: "Boston, MA",
-		url: "https://boards.greenhouse.io/ginkgobioworks/jobs/5185277781",
+		board: "exampleinventory",
+		company: "Example Inventory",
+		title: "Certification Programs Analyst",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-04",
 		discoveredAt: "2026-08-14T13:02:19+00:00",
 		descriptionHtml: description(
-			"Support Concentric's biosecurity programs with federal and state partners.",
-			[
-				"Prepare briefing materials for government stakeholders",
-				"Coordinate reporting across public health programs",
-				"Track deliverables against contract milestones",
-			],
-			"Must be a US citizen and able to obtain and maintain a security clearance.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:tesseratherapeutics:4901880",
+		key: "greenhouse:examplereporting:sample-13",
 		source: "greenhouse",
-		board: "tesseratherapeutics",
-		company: "Tessera Therapeutics",
-		title: "Manufacturing Associate II, Drug Substance",
-		location: "Somerville, MA",
-		url: "https://boards.greenhouse.io/tesseratherapeutics/jobs/4901880",
+		board: "examplereporting",
+		company: "Example Reporting",
+		title: "Manufacturing Technician",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-06",
 		discoveredAt: "2026-08-15T09:41:19+00:00",
 		descriptionHtml:
-			// Render-safety canary: a Posting is employer-authored HTML, so the detail view
-			// renders it inside a sandboxed frame. If that sandbox ever regressed, this line
-			// would rewrite the document title instead of staying inert text.
+			// Render-safety canary: the reader extracts text and the detail view renders it
+			// as React text. Employer scripts and event handlers must not run.
 			`<p>Operate upstream and downstream unit operations in a GMP suite.</p>` +
 			`<script>document.title = "sandbox escaped";</script>` +
 			`<img src="x" onerror="document.title='sandbox escaped'">` +
@@ -408,128 +365,108 @@ const POSTINGS: readonly FixturePosting[] = [
 			`<p>Full-time permanent role. Associate degree plus 2 years GMP manufacturing experience required.</p>`,
 	},
 	{
-		key: "greenhouse:generatebiomedicines:4728990",
+		key: "greenhouse:exampleplatform:sample-14",
 		source: "greenhouse",
-		board: "generatebiomedicines",
-		company: "Generate Biomedicines",
-		title: "Undergraduate Summer Research Program 2027 (Housing Provided)",
+		board: "exampleplatform",
+		company: "Example Platform",
+		title: "Data Platform Engineer",
 		location: "San Diego, CA",
-		url: "https://boards.greenhouse.io/generatebiomedicines/jobs/4728990",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-12",
 		discoveredAt: "2026-08-15T09:41:24+00:00",
 		descriptionHtml: description(
-			"A ten-week residential research program for undergraduates at our San Diego site.",
-			[
-				"Own a scoped research question with a staff scientist mentor",
-				"Learn protein expression and characterization workflows",
-				"Present results at the closing symposium",
-			],
-			"<strong>Program housing is provided</strong> for all participants, plus a travel stipend. Open to rising juniors and seniors.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "ashby:asimov:77c2ef15",
+		key: "ashby:examplecircuits:sample-15",
 		source: "ashby",
-		board: "asimov",
-		company: "Asimov",
-		title: "Bioinformatics Intern",
-		location: "Boston, MA",
-		url: "https://jobs.ashbyhq.com/asimov/77c2ef15",
+		board: "examplecircuits",
+		company: "Example Circuits",
+		title: "Bioinformatics Engineer",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-17",
 		discoveredAt: "2026-08-18T06:04:52+00:00",
 		descriptionHtml: description(
-			"Join the computational team supporting Asimov's mammalian cell engineering platform.",
-			[
-				"Process sequencing data from genetic circuit experiments",
-				"Maintain analysis notebooks used by the wet lab",
-				"Help benchmark new alignment tooling",
-			],
-			"Summer 2027 in Boston. Python coursework expected; bioinformatics experience is a plus, not a requirement.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "greenhouse:dynotherapeutics:4455999",
+		key: "greenhouse:examplemodels:sample-16",
 		source: "greenhouse",
-		board: "dynotherapeutics",
-		company: "Dyno Therapeutics",
-		title: "Lab Operations Coordinator (Contract)",
-		location: "Chicago, MA",
-		url: "https://boards.greenhouse.io/dynotherapeutics/jobs/4455999",
+		board: "examplemodels",
+		company: "Example Models",
+		title: "Operations Coordinator (Contract)",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-03",
 		discoveredAt: "2026-08-16T07:15:58+00:00",
 		descriptionHtml: description(
-			"Keep the Chicago lab stocked, scheduled, and audit-ready.",
-			[
-				"Manage consumable inventory and vendor orders",
-				"Coordinate instrument service visits",
-				"Maintain safety documentation",
-			],
-			"Twelve-month contract through a staffing partner. On-site five days a week.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 
 	// The last three exist for the board guard below. Greenhouse and Ashby tokens are single
 	// lowercase words that read almost like a name, so a fixture made only of those cannot
 	// show what a raw board token on screen looks like. Workday's is `<tenant>.wd<N>~<site>`
-	// and Lever's is whatever the employer typed, which is where the damage was: the queue
-	// rendered `Amgen.wd1~Careers` and `LyciaTherapeutics` at an Owner for as long as the
-	// board-token fallback existed, through a green build every time.
+	// and Lever's is whatever the employer typed, which is where the damage was: the fixture
+	// includes mixed-case and compound routing tokens to exercise board-label rendering.
 	{
-		key: "workday:amgen.wd1~Careers:R-98765",
+		key: "workday:exampleprocess.wd1~Careers:sample-17",
 		source: "workday",
-		board: "amgen.wd1~Careers",
-		company: "Amgen",
-		title: "Process Development Intern, Drug Substance Technologies",
-		location: "Cambridge, MA",
-		url: "https://amgen.wd1.myworkdayjobs.com/en-US/Careers/job/R-98765",
+		board: "exampleprocess.wd1~Careers",
+		company: "Example Process",
+		title: "Software Engineer, Process Data",
+		location: "Chicago, IL",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-12",
 		discoveredAt: "2026-08-18T09:41:07+00:00",
 		descriptionHtml: description(
-			"Amgen's Cambridge process development group runs the assays that decide whether a molecule scales.",
-			[
-				"Run bench-scale purification experiments alongside a staff scientist",
-				"Write Python to reduce chromatography data into the group's reporting templates",
-				"Present a summer project to the process development team",
-			],
-			"Twelve-week summer 2027 internship. Open to undergraduates returning to a degree program in the fall.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
-		key: "lever:LyciaTherapeutics:6b4d21fe",
+		key: "lever:ExampleProteins:sample-18",
 		source: "lever",
-		board: "LyciaTherapeutics",
-		company: "Lycia Therapeutics",
-		title: "Research Associate I, Protein Sciences",
+		board: "ExampleProteins",
+		company: "Example Proteins",
+		title: "Research Associate, Protein Data",
 		location: "South San Francisco, CA",
-		url: "https://jobs.lever.co/LyciaTherapeutics/6b4d21fe",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-10",
 		discoveredAt: "2026-08-18T09:41:12+00:00",
 		descriptionHtml: description(
-			"Lycia's protein sciences team supports the lysosomal targeting chimera platform end to end.",
-			[
-				"Express and purify recombinant proteins for the discovery groups",
-				"Keep binding-assay records current in the electronic notebook",
-			],
-			"On-site in South San Francisco five days a week.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 	{
 		// company NULL: a board polled with no `sources.names` entry, or a view built without a
 		// resolvable Profile. The UI has no name to show and must say so — "via Workday" — not
 		// dress the routing token up as one.
-		key: "workday:roche.wd3~ROG-A2O-GENE:202608-114",
+		key: "workday:examplebiology.wd3~ExampleSite:sample-19",
 		source: "workday",
-		board: "roche.wd3~ROG-A2O-GENE",
+		board: "examplebiology.wd3~ExampleSite",
 		company: null,
-		title: "Summer Intern, Computational Biology",
+		title: "Computational Biology Engineer",
 		location: "Basel, Switzerland",
-		url: "https://roche.wd3.myworkdayjobs.com/en-US/ROG-A2O-GENE/job/202608-114",
+		url: "https://example.com/jobs/sample",
 		postedAt: "2026-08-06",
 		discoveredAt: "2026-08-18T09:41:19+00:00",
 		descriptionHtml: description(
-			"Join a computational biology group working on target discovery in Basel.",
-			["Analyse single-cell datasets under the supervision of a senior scientist"],
-			"On-site in Basel. Relocation is not supported for interns.",
+			"Fictional listing for dashboard development. Not a live vacancy.",
+			["Build Python data services", "Maintain SQL reporting"],
+			"Sample software and reporting role.",
 		),
 	},
 ];
@@ -553,165 +490,165 @@ function assessmentFor(posting: FixturePosting): FixtureAssessment {
 		assessedAsOf: null,
 	};
 	switch (posting.key) {
-		case "greenhouse:ginkgobioworks:5185285007":
+		case "greenhouse:exampleinventory:sample-01":
 			return {
 				...base,
 				status: "suitable",
-				summary: "Python and lab automation requirements have direct Profile evidence; the Boston internship is open.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [
-					evidence("Python glue and data pipelines", "Python and pipeline work are listed in Profile experience.", "Profile experience"),
-					evidence("Undergraduate internship", "Education lists an undergraduate program continuing through 2027.", "Profile education"),
+					evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience"),
+					evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience"),
 				],
 			};
-		case "greenhouse:ginkgobioworks:5185301442":
+		case "greenhouse:exampleinventory:sample-02":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The listing requires a PhD and 8+ years of industry experience.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["Required PhD and 8+ years of industry experience are not met."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "greenhouse:generatebiomedicines:4728845":
+		case "greenhouse:exampleplatform:sample-03":
 			return {
 				...base,
 				status: "needs_review",
-				summary: "Pipeline and validation work overlap with the Profile; the six-month co-op timing needs confirmation.",
-				evidence: [evidence("Data ingestion and validation", "Pipeline and validation work are listed in Profile experience.", "Profile experience")],
-				unknowns: ["Course load compatibility with a six-month co-op is unknown."],
+				summary: "Fictional assessment for Avery Example, not a model result.",
+				evidence: [evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience")],
+				unknowns: ["Experience is unknown in this fictional scenario."],
 			};
-		case "greenhouse:tesseratherapeutics:4901233":
+		case "greenhouse:examplereporting:sample-04":
 			return {
 				...base,
 				status: "suitable",
-				summary: "Python and reporting work overlap with the QC automation requirements at this open Somerville internship.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [
-					evidence("QC reporting in Excel", "Spreadsheet reporting is listed in Profile skills and projects.", "Profile skills"),
-					evidence("Summer undergraduate internship", "Profile education is an undergraduate program.", "Profile education"),
+					evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience"),
+					evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience"),
 				],
 			};
-		case "greenhouse:dynotherapeutics:4455102":
+		case "greenhouse:examplemodels:sample-05":
 			return {
 				...base,
 				status: "needs_review",
-				summary: "The role names sequence-model training; the Profile shows adjacent automation work but no direct model-training evidence.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				unknowns: ["Published deep-learning or protein-design experience is not established in the Profile."],
+				unknowns: ["Experience is unknown in this fictional scenario."],
 			};
-		case "greenhouse:recursionpharmaceuticals:6612884":
+		case "greenhouse:examplewarehouse:sample-06":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The open listing is on-site in Salt Lake City and provides no housing signal.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["Location and housing requirements conflict with the Profile's Boston or remote constraints."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "greenhouse:recursionpharmaceuticals:6612991":
+		case "greenhouse:examplewarehouse:sample-07":
 			return {
 				...base,
 				status: "suitable",
-				summary: "Remote ETL and pipeline testing requirements have direct Profile evidence.",
-				evidence: [evidence("ETL and testing", "ETL pipeline and test work are listed in Profile experience.", "Profile experience")],
+				summary: "Fictional assessment for Avery Example, not a model result.",
+				evidence: [evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience")],
 			};
-		case "ashby:benchling:9f2c41a8":
+		case "ashby:exampleworkflows:sample-08":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The open role requires on-site work in San Francisco without relocation support.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["The work location conflicts with the Profile's Boston or remote constraints."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "ashby:benchling:1a77b0e3":
+		case "ashby:exampleworkflows:sample-09":
 			return {
 				...base,
 				status: "suitable",
-				summary: "Remote scientific-data workflow work matches the Profile's data and scripting experience.",
-				evidence: [evidence("Scientific data workflows", "Data modeling and scripting projects are listed in Profile experience.", "Profile projects")],
+				summary: "Fictional assessment for Avery Example, not a model result.",
+				evidence: [evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience")],
 			};
-		case "adzuna:us:5847155128":
+		case "adzuna:us:sample-10":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "This aggregator record duplicates the Benchling listing already found on the employer board.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["Duplicate of the canonical employer listing."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "ashby:asimov:55b1d902":
+		case "ashby:examplecircuits:sample-11":
 			return {
 				...base,
 				status: "unassessed",
-				summary: "No assessment has been recorded for this listing yet.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
 				lastVerifiedAt: null,
 			};
-		case "greenhouse:ginkgobioworks:5185277781":
+		case "greenhouse:exampleinventory:sample-12":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The listing requires US citizenship and a security clearance.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["Work-authorization requirements conflict with the Profile."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "greenhouse:tesseratherapeutics:4901880":
+		case "greenhouse:examplereporting:sample-13":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The permanent manufacturing role requires an associate degree and two years of GMP experience.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["Required manufacturing experience is not established in the Profile."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "greenhouse:generatebiomedicines:4728990":
+		case "greenhouse:exampleplatform:sample-14":
 			return {
 				...base,
 				status: "needs_review",
-				summary: "The mentored research program has housing support; protein-workflow experience needs a closer review.",
-				evidence: [evidence("Undergraduate research program", "The Profile records an undergraduate science education.", "Profile education")],
-				unknowns: ["Direct protein-expression experience is not established in the Profile."],
+				summary: "Fictional assessment for Avery Example, not a model result.",
+				evidence: [evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience")],
+				unknowns: ["Experience is unknown in this fictional scenario."],
 				opportunityType: "program",
 			};
-		case "ashby:asimov:77c2ef15":
+		case "ashby:examplecircuits:sample-15":
 			return {
 				...base,
 				status: "suitable",
-				summary: "Sequencing-data and Python coursework requirements overlap with Profile evidence.",
-				evidence: [evidence("Sequencing data and Python", "Python coursework and data-analysis projects are listed in the Profile.", "Profile coursework and projects")],
+				summary: "Fictional assessment for Avery Example, not a model result.",
+				evidence: [evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience")],
 			};
-		case "greenhouse:dynotherapeutics:4455999":
+		case "greenhouse:examplemodels:sample-16":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The contract role centers on inventory coordination and a twelve-month commitment.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["The commitment and role scope conflict with the Profile's internship target."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "workday:amgen.wd1~Careers:R-98765":
+		case "workday:exampleprocess.wd1~Careers:sample-17":
 			return {
 				...base,
 				status: "suitable",
-				summary: "Python reporting and a Cambridge summer internship match explicit Profile evidence.",
-				evidence: [evidence("Python reporting", "Python data reduction is listed in Profile experience.", "Profile experience")],
+				summary: "Fictional assessment for Avery Example, not a model result.",
+				evidence: [evidence("Python data services", "Avery's fictional inventory-service project uses Python and SQL.", "Sample Profile experience")],
 			};
-		case "lever:LyciaTherapeutics:6b4d21fe":
+		case "lever:ExampleProteins:sample-18":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The open role is on-site in South San Francisco five days a week.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["The work location conflicts with the Profile's Boston or remote constraints."],
+				conflicts: ["Fictional sample requirements are not met."],
 			};
-		case "workday:roche.wd3~ROG-A2O-GENE:202608-114":
+		case "workday:examplebiology.wd3~ExampleSite:sample-19":
 			return {
 				...base,
 				status: "not_suitable",
-				summary: "The listing is closed and relocation is not supported for interns.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
-				conflicts: ["The employer listing is closed."],
+				conflicts: ["Fictional sample requirements are not met."],
 				listingStatus: "closed",
 			};
 		default:
 			return {
 				...base,
 				status: "unassessed",
-				summary: "No assessment has been recorded for this listing yet.",
+				summary: "Fictional assessment for Avery Example, not a model result.",
 				evidence: [],
 				lastVerifiedAt: null,
 			};
@@ -740,10 +677,10 @@ function fixtureCoverage(
 
 const SOURCE_HEALTH: readonly FixtureSourceHealth[] = [
 	{ key: "adzuna:us", status: "failed", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: "2026-09-03T12:00:00+00:00", count: 0, message: "Aggregator unavailable; existing records were retained.", coverage: fixtureCoverage("adzuna:us", "failed") },
-	{ key: "ashby:benchling", status: "partial", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 2, message: "One listing detail needs review.", coverage: fixtureCoverage("ashby:benchling", "partial") },
-	{ key: "ashby:asimov", status: "ok", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 2, message: null, coverage: fixtureCoverage("ashby:asimov", "ok") },
-	{ key: "greenhouse:ginkgobioworks", status: "ok", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 3, message: null, coverage: fixtureCoverage("greenhouse:ginkgobioworks", "ok") },
-	{ key: "workday:amgen.wd1~Careers", status: "ok", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 1, message: null, coverage: fixtureCoverage("workday:amgen.wd1~Careers", "ok") },
+	{ key: "ashby:exampleworkflows", status: "partial", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 2, message: "One listing detail needs review.", coverage: fixtureCoverage("ashby:exampleworkflows", "partial") },
+	{ key: "ashby:examplecircuits", status: "ok", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 2, message: null, coverage: fixtureCoverage("ashby:examplecircuits", "ok") },
+	{ key: "greenhouse:exampleinventory", status: "ok", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 3, message: null, coverage: fixtureCoverage("greenhouse:exampleinventory", "ok") },
+	{ key: "workday:exampleprocess.wd1~Careers", status: "ok", lastAttemptAt: FIXTURE_VERIFIED_AT, lastSuccessAt: FIXTURE_VERIFIED_AT, count: 1, message: null, coverage: fixtureCoverage("workday:exampleprocess.wd1~Careers", "ok") },
 ];
 
 const DECISIONS: readonly FixtureDecision[] = [
@@ -755,75 +692,75 @@ const DECISIONS: readonly FixtureDecision[] = [
 		// The reason below is hand-authored to match what the pipeline writes.
 		// `dedup.duplicate_reason` in src/venator/match/dedup.py is the source of
 		// truth for that wording; if it changes, change this string with it.
-		postingKey: "adzuna:us:5847155128",
+		postingKey: "adzuna:us:sample-10",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "duplicate",
 		score: null,
 		reason:
-			"the same role as 'Solutions Intern, Scientific Data (Remote US)' at Benchling, already discovered from Ashby",
+			"the same role as 'Solutions Engineer, Data (Remote US)' at Example Workflows, already discovered from Ashby",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:03+00:00",
 	},
 	{
-		postingKey: "greenhouse:ginkgobioworks:5185285007",
+		postingKey: "greenhouse:exampleinventory:sample-01",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Boston MA, commutable from Chicago; internship for summer 2027; no degree floor stated",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:04+00:00",
 	},
 	{
-		postingKey: "greenhouse:ginkgobioworks:5185285007",
+		postingKey: "greenhouse:exampleinventory:sample-01",
 		stage: "llm_score",
 		verdict: "queue",
 		rule: null,
 		score: 88,
 		reason:
-			"Lab informatics plus automation is the exact AI-adjacent target; Python and dashboard work maps to the profile's data-pipeline experience, and it is a commutable Boston site",
+			"Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:14:22+00:00",
 	},
 	{
-		postingKey: "greenhouse:ginkgobioworks:5185301442",
+		postingKey: "greenhouse:exampleinventory:sample-02",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "education_fit",
 		score: null,
-		reason: "requires a completed PhD and 8+ years of industry experience; profile is a BS expected May 2027",
+		reason: "Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:05+00:00",
 	},
 	{
-		postingKey: "greenhouse:generatebiomedicines:4728845",
+		postingKey: "greenhouse:exampleplatform:sample-03",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Somerville MA, commutable; co-op open to undergraduates",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:06+00:00",
 	},
 	{
-		postingKey: "greenhouse:generatebiomedicines:4728845",
+		postingKey: "greenhouse:exampleplatform:sample-03",
 		stage: "llm_score",
 		verdict: "queue",
 		rule: null,
 		score: 84,
 		reason:
-			"Data pipeline and validation work against assay data lines up with the profile's automation experience; six-month co-op timing needs a check against the spring 2027 course load",
+			"Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:14:31+00:00",
 	},
 	{
-		postingKey: "greenhouse:tesseratherapeutics:4901233",
+		postingKey: "greenhouse:examplereporting:sample-04",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Somerville MA, commutable; summer 2027 internship open to rising juniors and seniors",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:08+00:00",
 	},
@@ -831,170 +768,170 @@ const DECISIONS: readonly FixtureDecision[] = [
 		// A historical Match Score recorded under the previous filters_version, with the
 		// hard_filter decision above already replayed at the current one. It decodes and orders
 		// nothing.
-		postingKey: "greenhouse:tesseratherapeutics:4901233",
+		postingKey: "greenhouse:examplereporting:sample-04",
 		stage: "llm_score",
 		verdict: "queue",
 		rule: null,
 		score: 79,
 		reason:
-			"NGS QC automation is a real match for the profile's Python and Excel reporting work; the biochemistry coursework covers the assay context, though no prior NGS experience is listed",
+			"Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: PREVIOUS_FILTERS,
 		decidedAt: "2026-08-17T19:14:39+00:00",
 	},
 	{
-		postingKey: "greenhouse:dynotherapeutics:4455102",
+		postingKey: "greenhouse:examplemodels:sample-05",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Chicago MA, commutable; PhD preference is stated as a preference, not a requirement",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:10+00:00",
 	},
 	{
-		postingKey: "greenhouse:dynotherapeutics:4455102",
+		postingKey: "greenhouse:examplemodels:sample-05",
 		stage: "llm_score",
 		verdict: "kill",
 		rule: null,
 		score: 58,
 		reason:
-			"Research group expects published deep-learning work and literature reproduction; the profile's ML exposure is agentic tooling rather than model training, so this reads as a stretch that would displace better-fitting applications",
+			"Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:14:47+00:00",
 	},
 	{
-		postingKey: "greenhouse:recursionpharmaceuticals:6612884",
+		postingKey: "greenhouse:examplewarehouse:sample-06",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "location",
 		score: null,
 		reason:
-			"on-site in Salt Lake City UT and the posting states interns arrange their own housing; outside Boston-metro with no housing signal",
+			"Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:12+00:00",
 	},
 	{
-		postingKey: "greenhouse:recursionpharmaceuticals:6612991",
+		postingKey: "greenhouse:examplewarehouse:sample-07",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "remote within the US; no degree floor or citizenship requirement stated",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:13+00:00",
 	},
 	{
-		postingKey: "greenhouse:recursionpharmaceuticals:6612991",
+		postingKey: "greenhouse:examplewarehouse:sample-07",
 		stage: "llm_score",
 		verdict: "queue",
 		rule: null,
 		score: 81,
 		reason:
-			"Remote ETL internship with no experience floor; pipeline and testing work matches the profile, and remote removes the housing question entirely",
+			"Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:14:55+00:00",
 	},
 	{
-		postingKey: "ashby:benchling:9f2c41a8",
+		postingKey: "ashby:exampleworkflows:sample-08",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "location",
 		score: null,
-		reason: "on-site five days a week in San Francisco CA with no relocation; not Boston-metro or remote",
+		reason: "Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:15+00:00",
 	},
 	{
-		postingKey: "ashby:benchling:1a77b0e3",
+		postingKey: "ashby:exampleworkflows:sample-09",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "remote within the US; undergraduate-friendly scope",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-18T06:30:02+00:00",
 	},
 	{
-		postingKey: "ashby:asimov:55b1d902",
+		postingKey: "ashby:examplecircuits:sample-11",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Boston MA, commutable; biochemistry coursework is the stated expectation",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-18T06:30:04+00:00",
 	},
 	{
-		postingKey: "greenhouse:ginkgobioworks:5185277781",
+		postingKey: "greenhouse:exampleinventory:sample-12",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "work_authorization",
 		score: null,
-		reason: "requires US citizenship and an obtainable security clearance; profile is an international student",
+		reason: "Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:17+00:00",
 	},
 	{
-		postingKey: "greenhouse:tesseratherapeutics:4901880",
+		postingKey: "greenhouse:examplereporting:sample-13",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "education_fit",
 		score: null,
 		reason:
-			"requires an associate degree plus 2 years of GMP manufacturing experience; profile is a BS expected May 2027 with no industry manufacturing history",
+			"Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:18+00:00",
 	},
 	{
-		postingKey: "greenhouse:generatebiomedicines:4728990",
+		postingKey: "greenhouse:exampleplatform:sample-14",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "location",
 		score: null,
-		reason: "on-site in San Diego CA; outside Boston-metro and not remote",
+		reason: "Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: PREVIOUS_FILTERS,
 		decidedAt: "2026-08-16T18:12:40+00:00",
 	},
 	{
-		postingKey: "greenhouse:generatebiomedicines:4728990",
+		postingKey: "greenhouse:exampleplatform:sample-14",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
 		reason:
-			"replayed under the summer-2027 housing clause: San Diego is out of metro, but the program provides housing and a travel stipend, so the location rule no longer fires",
+			"Fictional replay allowed remote sites.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:20+00:00",
 	},
 	{
-		postingKey: "greenhouse:generatebiomedicines:4728990",
+		postingKey: "greenhouse:exampleplatform:sample-14",
 		stage: "llm_score",
 		verdict: "queue",
 		rule: null,
 		score: 76,
 		reason:
-			"Residential undergraduate research program with housing provided; protein characterization is adjacent to the biochemistry coursework, and the mentored research framing fits a rising senior",
+			"Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:15:09+00:00",
 	},
 	{
-		postingKey: "greenhouse:dynotherapeutics:4455999",
+		postingKey: "greenhouse:examplemodels:sample-16",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Chicago MA, commutable; no degree floor stated",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:00:22+00:00",
 	},
 	{
-		postingKey: "greenhouse:dynotherapeutics:4455999",
+		postingKey: "greenhouse:examplemodels:sample-16",
 		stage: "llm_score",
 		verdict: "kill",
 		rule: null,
 		score: 42,
 		reason:
-			"Contract lab-operations coordination through a staffing partner: on-site inventory and scheduling work with no research or data component, and a twelve-month commitment that collides with the spring semester",
+			"Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-17T19:15:17+00:00",
 	},
@@ -1002,43 +939,43 @@ const DECISIONS: readonly FixtureDecision[] = [
 	// The Workday and Lever Postings: one through to the Review Queue, two killed, so a board
 	// token has a route to reach the queue, the inspector and Focus if the UI ever prints one.
 	{
-		postingKey: "workday:amgen.wd1~Careers:R-98765",
+		postingKey: "workday:exampleprocess.wd1~Careers:sample-17",
 		stage: "hard_filter",
 		verdict: "pass",
 		rule: null,
 		score: null,
-		reason: "Cambridge MA, commutable from Chicago; summer 2027 internship open to undergraduates",
+		reason: "Fictional decision for Avery Example: sample requirements reviewed.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-18T09:42:01+00:00",
 	},
 	{
-		postingKey: "workday:amgen.wd1~Careers:R-98765",
+		postingKey: "workday:exampleprocess.wd1~Careers:sample-17",
 		stage: "llm_score",
 		verdict: "queue",
 		rule: null,
 		score: 83,
 		reason:
-			"Bench purification work with a Python reporting component; the data-reduction half maps onto the profile's automation experience and the site is commutable, though the wet-lab half is a step outside it",
+			"Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-18T09:48:30+00:00",
 	},
 	{
-		postingKey: "lever:LyciaTherapeutics:6b4d21fe",
+		postingKey: "lever:ExampleProteins:sample-18",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "location",
 		score: null,
-		reason: "on-site five days a week in South San Francisco CA; not Boston-metro or remote",
+		reason: "Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-18T09:42:04+00:00",
 	},
 	{
-		postingKey: "workday:roche.wd3~ROG-A2O-GENE:202608-114",
+		postingKey: "workday:examplebiology.wd3~ExampleSite:sample-19",
 		stage: "hard_filter",
 		verdict: "kill",
 		rule: "location",
 		score: null,
-		reason: "on-site in Basel with no relocation support for interns; not Boston-metro or remote",
+		reason: "Fictional decision for Avery Example: excluded by a sample rule.",
 		filtersVersion: CURRENT_FILTERS,
 		decidedAt: "2026-08-18T09:42:07+00:00",
 	},
@@ -1117,9 +1054,9 @@ function writeView(path: string, decisions: readonly FixtureDecision[]): void {
 		// Synthetic scores for the sample View; no private model outputs live here.
 		database.exec(`INSERT INTO keep_scores (posting_key, input_hash, model_id, probability)
 			SELECT d.posting_key, 'fixture-input', 'fixture-model',
-				CASE WHEN d.posting_key = 'greenhouse:ginkgobioworks:5185285007' THEN 0.8
-				WHEN d.posting_key = 'greenhouse:recursionpharmaceuticals:6612991' THEN 0.2
-				WHEN d.posting_key = 'greenhouse:generatebiomedicines:4728845' THEN 0.001 END
+				CASE WHEN d.posting_key = 'greenhouse:exampleinventory:sample-01' THEN 0.8
+				WHEN d.posting_key = 'greenhouse:examplewarehouse:sample-07' THEN 0.2
+				WHEN d.posting_key = 'greenhouse:exampleplatform:sample-03' THEN 0.001 END
 			FROM hard_filter_latest hl
 			JOIN decisions d ON d.id = hl.decision_id AND d.verdict = 'pass'`);
 

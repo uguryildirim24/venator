@@ -11,15 +11,15 @@ import type { DatabaseSync } from "node:sqlite";
 import { emptyViewDatabase } from "../fixtures/make-fixture.ts";
 import { readPostingDetail, readPostingEntries } from "../server/queries.ts";
 
-const SCORED = "greenhouse:ginkgobioworks:5022683007";
-const UNSCORED = "greenhouse:ginkgobioworks:5022683008";
+const SCORED = "greenhouse:acme:sample-scored";
+const UNSCORED = "greenhouse:acme:sample-unscored";
 
 function viewWithOneScoredPosting(): DatabaseSync {
 	const database = emptyViewDatabase();
 	const posting = database.prepare(
 		`INSERT INTO postings (key, source, board, company, title, location, url, posted_at,
 		   discovered_at, description_html)
-		 VALUES (?, 'greenhouse', 'ginkgobioworks', 'Ginkgo Bioworks', ?, 'Boston, MA',
+		 VALUES (?, 'greenhouse', 'acme', 'Acme', ?, 'Boston, MA',
 		   'https://example.invalid/posting', NULL, ?, '')`,
 	);
 	// The scored Posting is the older one, so a board that ordered by score would put it first.

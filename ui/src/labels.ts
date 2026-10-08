@@ -221,21 +221,14 @@ export function applicationStateLabel(state: ApplicationStateName): string {
 }
 
 /**
- * What the header's stamp says when the dashboard is reading the sample database instead of
- * the Owner's own view.
- *
- * "Fixture" is the file's name in the repository and testing jargon besides — it is not in
- * CONTEXT.md's vocabulary and nobody says it out loud. The sample database holds Postings
- * that look entirely real, employers and all, so the badge has to do more than mark the data
- * as different: someone who has never seen the pipeline run must read it and understand that
- * these Postings are not the results of their own search.
+ * Explicit provenance when development requested the fictional sample database.
  */
-export const SAMPLE_DATA_STAMP = "Sample Postings — not yours";
+export const SAMPLE_DATA_STAMP = "Fictional sample Postings";
 
-/** The same fact at length, for the stamp's tooltip. */
+/** The sample includes invented probabilities, not evaluated model predictions. */
 export const SAMPLE_DATA_DETAIL =
-	"Sample Postings that ship with the app, shown because the dashboard found no view database " +
-	"built from your own search.";
+	"Fictional jobs, assessments, probabilities and actions for development. " +
+	"Not live vacancies or model results. Do not use this data to apply.";
 
 /**
  * A runtime's name, as someone would say it.

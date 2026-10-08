@@ -3,7 +3,7 @@ profile:
   synthetic: true
 search:
   timing:
-    expected_graduation: "2027-05"
+    expected_graduation: "2028-06"
     expected_graduation_confirmed: true
     enrollment: current
 filters:

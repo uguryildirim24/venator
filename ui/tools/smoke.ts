@@ -110,11 +110,8 @@ type RouteCheck = {
  * can legitimately appear, and the rendered label is capital-D "Duplicate" anyway. Banning
  * it would fail the build on the very copy it is supposed to protect.
  *
- * Board tokens used to be listed here too, five of them, hand-picked from the fixture. That
- * is the shape of check that let the bug live: it could only see the boards someone had
- * already thought of, so when the Profile grew to thirty-five boards across Workday and
- * Lever, `Amgen.wd1~Careers` went on screen and this list had nothing to say about it. They
- * are now derived instead — see `leakedBoardTokens`.
+ * Board tokens are derived from the fictional fixture rather than hand-picked.
+ * See `leakedBoardTokens` for the comparison with employer display names.
  *
  * **One deliberate exemption, and it is the only one.** A run that did not succeed can show
  * the tail of what the pipeline printed (`src/runs/status.tsx`), folded away and captioned as
@@ -159,20 +156,18 @@ const FORBIDDEN_ON_SCREEN: readonly string[] = [
  *   substring of ordinary prose, so its presence is not evidence of anything. Nothing
  *   captions an aggregator's board with it either — `employerLabel` returns the employer the
  *   view carries or null.
- * - A token that case-folds to exactly the employer's own name — board `asimov`, employer
- *   "Asimov" — is indistinguishable from the correct caption once folded, so it cannot be
+ * - A token that case-folds to exactly the employer's own name, such as board `acme` and
+ *   employer "Acme", is indistinguishable from the correct caption once folded, so it cannot be
  *   evidence either way. The tokens that matter are precisely the ones that are not names:
- *   `ginkgobioworks`, `LyciaTherapeutics`, `amgen.wd1~Careers`.
+ *   `exampleinventory`, `ExampleProteins`, `exampleprocess.wd1~Careers`.
  *
  * Both sides are compared through `folded`, because a token does not reach the screen
- * verbatim — the fallback that caused this ran it through `sentenceCase`, which capitalises
- * the first letter and turns `-` and `_` into spaces. A literal scan for
- * `roche.wd3~ROG-A2O-GENE` sails straight past the `Roche.wd3~ROG A2O GENE` actually
- * rendered, which is how a guard comes to pass while looking directly at the bug.
+ * verbatim. Display formatting can capitalise the first letter or turn `-` and `_`
+ * into spaces, so a literal scan alone does not cover those spellings.
  *
  * Folding costs one more class of token: a board whose dashes are its word breaks, like
  * `sequel-med-tech` for "Sequel Med Tech", folds onto its own employer name and is skipped by
- * the same rule that skips `asimov`. It is the same trade and it is the honest one — after
+ * the same rule that skips `acme`. It is the same trade and it is the honest one — after
  * folding there is nothing left to tell the leak from the correct caption.
  */
 function folded(value: string): string {
@@ -257,9 +252,9 @@ function visibleText(markup: string): string {
 	return markup.replaceAll(/<iframe[\s\S]*?<\/iframe>/gu, " ").replaceAll(/<[^>]*>/gu, " ");
 }
 
-const DETAIL_KEY = encodeURIComponent("greenhouse:generatebiomedicines:4728990");
-const TESSERA_KEY = encodeURIComponent("greenhouse:tesseratherapeutics:4901233");
-const WORKDAY_KEY = encodeURIComponent("workday:amgen.wd1~Careers:R-98765");
+const DETAIL_KEY = encodeURIComponent("greenhouse:exampleplatform:sample-14");
+const TESSERA_KEY = encodeURIComponent("greenhouse:examplereporting:sample-04");
+const WORKDAY_KEY = encodeURIComponent("workday:exampleprocess.wd1~Careers:sample-17");
 
 /** Markup escapes these three in text, so an expected title has to be written the same way. */
 function asMarkup(text: string): string {
@@ -289,7 +284,7 @@ const CHECKS: readonly RouteCheck[] = [
 			"1 Posting",
 			'role="listbox"',
 			'aria-selected="true"',
-			"Summer 2027 Intern, Automation &amp; Lab Informatics",
+			"Backend Engineer, Inventory Services",
 			// The page, and Venator's notes in the margin beside it.
 			"Verified open",
 			">Apply<",
@@ -302,14 +297,14 @@ const CHECKS: readonly RouteCheck[] = [
 		hash: "#/queue?page=1",
 		label: "For you: a page past the end says so rather than repeating the first",
 		expected: ["No Postings on this page", "Go back a page to see it."],
-		absent: ["Process Development Intern, Drug Substance Technologies"],
+		absent: ["Software Engineer, Process Data"],
 	},
 	{
 		hash: "#/queue?list=needs-review",
 		label: "Explore: Postings whose evidence needs a look, with the reason in the margin",
 		expected: [
 			"1 Posting",
-			"Data Engineering Intern (Remote, US)",
+			"Data Engineer (Remote, US)",
 		],
 	},
 	{
@@ -322,7 +317,7 @@ const CHECKS: readonly RouteCheck[] = [
 		label: "Saved: the saved Posting, with résumé evidence and confirmed evidence in the margin",
 		expected: [
 			"1 Posting",
-			"Undergraduate Summer Research Program 2027 (Housing Provided)",
+			"Data Platform Engineer",
 			"On your résumé",
 		],
 	},
@@ -342,9 +337,9 @@ const CHECKS: readonly RouteCheck[] = [
 			"Education fit",
 			"Work authorization",
 			"Excluded by a Hard Filter",
-			"On-site in Basel with no relocation support for interns",
+			"Fictional decision for Avery Example",
 			"Everything this rule excluded",
-			"The employer listing is closed.",
+			"Fictional sample requirements are not met.",
 		],
 		absent: [">Apply<", ">Fill<"],
 	},
@@ -369,25 +364,25 @@ const CHECKS: readonly RouteCheck[] = [
 		label: "Filter inspector: everything the education-fit rule excluded, with its reasons",
 		expected: [
 			'aria-label="Stop filtering by Education fit"',
-			"Senior Staff Scientist, Strain Engineering",
-			"requires a completed PhD and 8+ years of industry experience",
-			"Manufacturing Associate II, Drug Substance",
+			"Principal Research Scientist",
+			"Fictional decision for Avery Example",
+			"Manufacturing Technician",
 		],
-		absent: ["Intern, Gene Writing Analytics"],
+		absent: ["Data Engineer, Reporting"],
 	},
 	{
 		hash: "#/inspector?status=hard-killed&rule=duplicate",
 		label: "Filter inspector: the duplicate rule, naming the survivor in English",
 		expected: [
 			'aria-label="Stop filtering by Duplicate"',
-			"the same role as 'Solutions Intern, Scientific Data (Remote US)' at Benchling",
+			"the same role as 'Solutions Engineer, Data (Remote US)' at Example Workflows",
 			"already discovered from Ashby",
 		],
 	},
 	{
 		hash: "#/employers",
 		label: "Employers: source health in words, with the last success as a relative time",
-		expected: ["5 boards, 3 healthy", "Ginkgo Bioworks", "Greenhouse", "Healthy", "Failed", "The last check failed; Postings already found are kept"],
+		expected: ["5 boards, 3 healthy", "Example Inventory", "Greenhouse", "Healthy", "Failed", "The last check failed; Postings already found are kept"],
 	},
 	{
 		hash: `#/postings/${DETAIL_KEY}`,
@@ -400,18 +395,18 @@ const CHECKS: readonly RouteCheck[] = [
 		hash: `#/postings/${DETAIL_KEY}`,
 		label: "Posting: What changed keeps every Filter Decision, replays included",
 		press: "What changed 3 decisions",
-		expected: ["Hard Filters: excluded", "Superseded by a later decision", "Hard Filters: passed", "Replayed under the summer-2027 housing clause"],
+		expected: ["Hard Filters: excluded", "Superseded by a later decision", "Hard Filters: passed", "Fictional replay allowed remote sites."],
 	},
 	{
 		hash: `#/postings/${TESSERA_KEY}`,
 		label: "Posting: résumé evidence and a review, with no score",
-		expected: ["Intern, Gene Writing Analytics", "On your résumé", "QC reporting in Excel"],
+		expected: ["Data Engineer, Reporting", "On your résumé", "Python data services"],
 		absent: ["An estimate, not a verdict"],
 	},
 	{
 		hash: `#/postings/${WORKDAY_KEY}`,
 		label: "Posting: a Workday Posting, captioned by employer and not by board token",
-		expected: ["Process Development Intern, Drug Substance Technologies", ">Amgen"],
+		expected: ["Software Engineer, Process Data", ">Example Process"],
 	},
 	{
 		hash: "#/profile",
@@ -587,7 +582,7 @@ const SHIPPED_CHECKS: readonly RouteCheck[] = [
 		expected: ["This Posting could not be read"],
 		absent: [...FIXTURE_ON_SCREEN_TEXT, SAMPLE_DATA_STAMP],
 		// The app quotes the key it was asked to open, and that key is in the URL above.
-		echoed: ["generatebiomedicines"],
+		echoed: ["exampleplatform"],
 	},
 ];
 

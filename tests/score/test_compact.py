@@ -15,7 +15,7 @@ def test_compact_input_contract() -> None:
     builder = CompactStateBuilder(profile, as_of_month='2026-09')
     posting = json.loads((FIXTURE / 'posting.json').read_text())
     state = builder.build(posting)
-    assert input_hash(state) == 'cde76fc9e40aee896eb3668de345182575c27930f6c299817f07ebb30329a73a'
+    assert input_hash(state) == 'e9f3c683a93ad51193ef62b620c92155b059b36b8ea0260794f1cd609a06a7ef'
     assert list(state) == ['title', 'employer', 'requirements_and_qualifications', 'confirmed_profile']
     for identity in builder.identity:
         assert identity.casefold() not in serialize(state).decode().casefold()

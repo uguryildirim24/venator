@@ -356,7 +356,7 @@ def test_search_eligibility_schema_loads_and_auto_enables_the_rule(tmp_path: Pat
             "    period: year\n"
             "  timing:\n"
             "    allowed_seasons: [summer]\n"
-            "    expected_graduation: 2027-05-20\n"
+            "    expected_graduation: 2028-06-20\n"
             "    expected_graduation_confirmed: true\n"
             "    enrollment: current\n"
             "    reference_date: 2026-09-04\n"
@@ -369,7 +369,7 @@ def test_search_eligibility_schema_loads_and_auto_enables_the_rule(tmp_path: Pat
     assert profile.search.salary_currency == "USD"
     assert profile.search.salary_period == "year"
     assert profile.search.timing.allowed_seasons == ("summer",)
-    assert profile.search.timing.expected_graduation == date(2027, 5, 20)
+    assert profile.search.timing.expected_graduation == date(2028, 6, 20)
     assert profile.search.timing.expected_graduation_precision == "day"
     assert profile.filters.enabled == ("eligibility",)
     assert profile.filters.search == profile.search
@@ -381,14 +381,14 @@ def test_graduation_month_keeps_month_precision(tmp_path: Path) -> None:
         targeting=(
             "search:\n"
             "  timing:\n"
-            "    expected_graduation: '2027-05'\n"
+            "    expected_graduation: '2028-06'\n"
             "    expected_graduation_confirmed: true\n"
         ),
     )
 
     timing = load_profile(directory).search.timing
 
-    assert timing.expected_graduation == date(2027, 5, 1)
+    assert timing.expected_graduation == date(2028, 6, 1)
     assert timing.expected_graduation_precision == "month"
 
 

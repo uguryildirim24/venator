@@ -41,7 +41,7 @@ def source(tmp_path):
     c.setLineWidth(0.75)
     c.line(34, 716, 578, 716)
     text("Example University", 34, 92, "bold")
-    text("May 2027", 515, 92)
+    text("June 2028", 515, 92)
     text("Science degree", 34, 103.4)
     text("EXPERIENCE", 34, 122, "bold", 11)
     c.line(34, 666, 578, 666)
@@ -66,7 +66,7 @@ def resume():
         "education": [
             {
                 "org": "Example University",
-                "date": "May 2027",
+                "date": "June 2028",
                 "degree": "Science degree",
             }
         ],
@@ -329,7 +329,7 @@ def test_education_location_must_not_overlap_date(source, resume, tmp_path):
 
     directory = tmp_path / "reference"
     capture_reference(source, directory, font_directory=FONT_DIR)
-    # Fit within the page, but collide with the right-aligned May 2027 date.
+    # Fit within the page, but collide with the right-aligned June 2028 date.
     resume["education"][0]["location"] = "Boston metropolitan region " * 3
     with pytest.raises(ReferenceOverflowError, match="date"):
         preflight_reference(resume, directory)
